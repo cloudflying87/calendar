@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Calendar {{ calendar.year }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h2>⚠️ Delete Calendar {{ calendar.year }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-danger">
+                <strong>Warning!</strong> This action cannot be undone.
+            </div>
+
+            <p>You are about to permanently delete the calendar for <strong>{{ calendar.year }}</strong> and all associated data:</p>
+
+            <ul>
+                <li><strong>{{ calendar.events.count }}</strong> calendar events and their images</li>
+                <li><strong>{{ calendar.generated_pdfs.count }}</strong> generated PDF files</li>
+                {% if calendar.header %}
+                <li>Header document: {{ calendar.header.document.name }}</li>
+                {% endif %}
+                {% if calendar.holidays.exists %}
+                <li><strong>{{ calendar.holidays.count }}</strong> holiday configurations</li>
+                {% endif %}
+            </ul>
+
+            <p>All files will be permanently removed from the server.</p>
+
+            <div class="mt-4">
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        🗑️ Yes, Delete Calendar {{ calendar.year }}
+                    </button>
+                </form>
+
+                <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn-secondary ml-3">
+                    ↩️ Cancel
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

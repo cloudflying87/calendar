@@ -1,0 +1,66 @@
+# Cloudflare Tunnel Configuration Template
+# Replace placeholders with your actual values
+
+tunnel: your-tunnel-id-here
+credentials-file: /etc/cloudflared/your-tunnel-id-here.json
+
+# Ingress rules - traffic routing
+ingress:
+  # Main application
+  - hostname: calendar.flyhomemnlab.com
+    service: http://nginx:80
+    originRequest:
+      httpHostHeader: calendar.flyhomemnlab.com
+      noTLSVerify: true  # Since nginx handles SSL termination
+      connectTimeout: 30s
+      tlsTimeout: 10s
+      keepAliveTimeout: 90s
+      keepAliveConnections: 10
+
+  # API subdomain (optional)
+  - hostname: api.calendar.flyhomemnlab.com
+    service: http://nginx:80
+    originRequest:
+      httpHostHeader: api.calendar.flyhomemnlab.com
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  # Admin subdomain (optional)
+  - hostname: admin.calendar.flyhomemnlab.com
+    service: http://nginx:80
+    originRequest:
+      httpHostHeader: admin.calendar.flyhomemnlab.com
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  # WWW redirect
+  - hostname: www.calendar.flyhomemnlab.com
+    service: http://nginx:80
+    originRequest:
+      httpHostHeader: www.calendar.flyhomemnlab.com
+      noTLSVerify: true
+
+  # Catch-all rule (must be last)
+  - service: http_status:404
+
+# Tunnel-level configuration
+warp-routing:
+  enabled: false
+
+# Metrics and management
+metrics: 127.0.0.1:3333
+
+# Logging
+loglevel: info
+
+# Connection settings
+protocol: http2
+retries: 3
+grace-period: 30s
+
+# Edge locations (optional - let Cloudflare choose automatically)
+# region: us
+
+# No-op service for unused hostnames
+# Useful for blocking unwanted traffic
+#no-autoupdate: true

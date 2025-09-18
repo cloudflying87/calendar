@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Holidays - Calendar {{ calendar.year }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Manage Holidays for {{ calendar.year }}</h1>
+    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+</div>
+
+<div class="holiday-instructions">
+    <div class="instruction-card">
+        <h3 class="instruction-card__title">Holiday Management</h3>
+        <div class="instruction-card__content">
+            <p>Select which holidays you want to include in your {{ calendar.year }} calendar. Holidays will be automatically placed on the correct dates:</p>
+            <ul style="margin: 1rem 0; padding-left: 1.5rem;">
+                <li><strong>New Year's Day:</strong> January 1st</li>
+                <li><strong>Easter:</strong> Calculated based on lunar calendar</li>
+                <li><strong>Mother's Day:</strong> Second Sunday in May</li>
+                <li><strong>Father's Day:</strong> Third Sunday in June</li>
+                <li><strong>Memorial Day:</strong> Last Monday in May</li>
+                <li><strong>Independence Day:</strong> July 4th</li>
+                <li><strong>Labor Day:</strong> First Monday in September</li>
+                <li><strong>Thanksgiving:</strong> Fourth Thursday in November</li>
+                <li><strong>Christmas:</strong> December 25th</li>
+            </ul>
+            <p><strong>Note:</strong> You can optionally upload images for each holiday. If no image is provided, the holiday will appear as text only.</p>
+        </div>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" enctype="multipart/form-data" class="form holiday-form">
+        {% csrf_token %}
+
+        <div class="holiday-grid">
+            <!-- New Year's Day -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_new_years }}
+                        <label for="{{ form.include_new_years.id_for_label }}" class="holiday-label">New Year's Day</label>
+                    </div>
+                    <div class="holiday-date">January 1, {{ calendar.year }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-new_years" style="display: none;">
+                    <label for="{{ form.image_new_years.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_new_years }}
+                    <div class="form-help">Upload an image for New Year's Day (optional)</div>
+                </div>
+            </div>
+
+            <!-- Easter -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_easter }}
+                        <label for="{{ form.include_easter.id_for_label }}" class="holiday-label">Easter</label>
+                    </div>
+                    <div class="holiday-date">{{ holiday_dates.easter }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-easter" style="display: none;">
+                    <label for="{{ form.image_easter.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_easter }}
+                    <div class="form-help">Upload an image for Easter (optional)</div>
+                </div>
+            </div>
+
+            <!-- Mother's Day -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_mothers_day }}
+                        <label for="{{ form.include_mothers_day.id_for_label }}" class="holiday-label">Mother's Day</label>
+                    </div>
+                    <div class="holiday-date">{{ holiday_dates.mothers_day }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-mothers_day" style="display: none;">
+                    <label for="{{ form.image_mothers_day.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_mothers_day }}
+                    <div class="form-help">Upload an image for Mother's Day (optional)</div>
+                </div>
+            </div>
+
+            <!-- Father's Day -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_fathers_day }}
+                        <label for="{{ form.include_fathers_day.id_for_label }}" class="holiday-label">Father's Day</label>
+                    </div>
+                    <div class="holiday-date">{{ holiday_dates.fathers_day }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-fathers_day" style="display: none;">
+                    <label for="{{ form.image_fathers_day.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_fathers_day }}
+                    <div class="form-help">Upload an image for Father's Day (optional)</div>
+                </div>
+            </div>
+
+            <!-- Memorial Day -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_memorial_day }}
+                        <label for="{{ form.include_memorial_day.id_for_label }}" class="holiday-label">Memorial Day</label>
+                    </div>
+                    <div class="holiday-date">{{ holiday_dates.memorial_day }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-memorial_day" style="display: none;">
+                    <label for="{{ form.image_memorial_day.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_memorial_day }}
+                    <div class="form-help">Upload an image for Memorial Day (optional)</div>
+                </div>
+            </div>
+
+            <!-- Independence Day -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_independence_day }}
+                        <label for="{{ form.include_independence_day.id_for_label }}" class="holiday-label">Independence Day</label>
+                    </div>
+                    <div class="holiday-date">July 4, {{ calendar.year }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-independence_day" style="display: none;">
+                    <label for="{{ form.image_independence_day.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_independence_day }}
+                    <div class="form-help">Upload an image for Independence Day (optional)</div>
+                </div>
+            </div>
+
+            <!-- Labor Day -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_labor_day }}
+                        <label for="{{ form.include_labor_day.id_for_label }}" class="holiday-label">Labor Day</label>
+                    </div>
+                    <div class="holiday-date">{{ holiday_dates.labor_day }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-labor_day" style="display: none;">
+                    <label for="{{ form.image_labor_day.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_labor_day }}
+                    <div class="form-help">Upload an image for Labor Day (optional)</div>
+                </div>
+            </div>
+
+            <!-- Thanksgiving -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_thanksgiving }}
+                        <label for="{{ form.include_thanksgiving.id_for_label }}" class="holiday-label">Thanksgiving</label>
+                    </div>
+                    <div class="holiday-date">{{ holiday_dates.thanksgiving }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-thanksgiving" style="display: none;">
+                    <label for="{{ form.image_thanksgiving.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_thanksgiving }}
+                    <div class="form-help">Upload an image for Thanksgiving (optional)</div>
+                </div>
+            </div>
+
+            <!-- Christmas -->
+            <div class="holiday-item">
+                <div class="holiday-item__header">
+                    <div class="holiday-checkbox">
+                        {{ form.include_christmas }}
+                        <label for="{{ form.include_christmas.id_for_label }}" class="holiday-label">Christmas</label>
+                    </div>
+                    <div class="holiday-date">December 25, {{ calendar.year }}</div>
+                </div>
+                <div class="holiday-item__image" id="image-section-christmas" style="display: none;">
+                    <label for="{{ form.image_christmas.id_for_label }}" class="form-label">Optional Image</label>
+                    {{ form.image_christmas }}
+                    <div class="form-help">Upload an image for Christmas (optional)</div>
+                </div>
+            </div>
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}
+                    <div class="form-error">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Save Holiday Selections</button>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.holiday-form {
+    max-width: none;
+}
+
+.holiday-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+    .holiday-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1200px) {
+    .holiday-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.holiday-item {
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    transition: border-color var(--transition-fast);
+}
+
+.holiday-item.selected {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.holiday-item__header {
+    margin-bottom: 1rem;
+}
+
+.holiday-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.holiday-checkbox input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.holiday-label {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: 1.125rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.holiday-date {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.holiday-item__image {
+    border-top: 1px solid var(--color-border);
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.holiday-item__image .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.holiday-item__image input[type="file"] {
+    margin-bottom: 0.5rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Holiday dates for {{ calendar.year }}
+    const holidayDates = {
+        'new_years': 'January 1, {{ calendar.year }}',
+        'independence_day': 'July 4, {{ calendar.year }}',
+        'christmas': 'December 25, {{ calendar.year }}',
+        // These would need to be calculated server-side for accuracy
+        'easter': 'Easter {{ calendar.year }}',
+        'mothers_day': 'Second Sunday in May {{ calendar.year }}',
+        'fathers_day': 'Third Sunday in June {{ calendar.year }}',
+        'memorial_day': 'Last Monday in May {{ calendar.year }}',
+        'labor_day': 'First Monday in September {{ calendar.year }}',
+        'thanksgiving': 'Fourth Thursday in November {{ calendar.year }}'
+    };
+
+    // Set holiday dates
+    Object.keys(holidayDates).forEach(function(holiday) {
+        const dateElement = document.getElementById('date-' + holiday);
+        if (dateElement) {
+            dateElement.textContent = holidayDates[holiday];
+        }
+    });
+
+    // Handle checkbox changes
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
+        const holidayCode = checkbox.name.replace('include_', '');
+        const imageSection = document.getElementById('image-section-' + holidayCode);
+        const holidayItem = checkbox.closest('.holiday-item');
+
+        // Initial state
+        if (checkbox.checked) {
+            if (imageSection) imageSection.style.display = 'block';
+            if (holidayItem) holidayItem.classList.add('selected');
+        }
+
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (imageSection) imageSection.style.display = 'block';
+                if (holidayItem) holidayItem.classList.add('selected');
+            } else {
+                if (imageSection) imageSection.style.display = 'none';
+                if (holidayItem) holidayItem.classList.remove('selected');
+                // Clear the file input if unchecked
+                const fileInput = imageSection ? imageSection.querySelector('input[type="file"]') : null;
+                if (fileInput) fileInput.value = '';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

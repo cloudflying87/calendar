@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload & Edit Photo - Calendar {{ calendar.year }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✏️ Upload & Edit Photo</h1>
+    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+</div>
+
+<div class="upload-instructions">
+    <div class="instruction-card">
+        <h3 class="instruction-card__title">Photo Editor Workflow</h3>
+        <div class="instruction-card__content">
+            <p>Upload any photo and we'll help you:</p>
+            <ol style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                <li><strong>Crop</strong> your photo to the perfect size</li>
+                <li><strong>Choose</strong> the date (month and day)</li>
+                <li><strong>Name</strong> your event</li>
+                <li><strong>Save</strong> to your calendar</li>
+            </ol>
+            <p style="margin-top: 1rem; color: var(--color-text-secondary);">
+                💡 <em>No specific filename format required - name your file anything!</em>
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" enctype="multipart/form-data" class="form" id="photo-editor-form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="photo" class="form-label">Select Photo</label>
+            <input type="file"
+                   name="photo"
+                   id="photo"
+                   accept="image/*"
+                   required
+                   class="form-control">
+            <div class="form-help">Any image format (JPG, PNG, GIF) up to 10MB</div>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label for="month" class="form-label">Month</label>
+                <select name="month" id="month" class="form-select" required>
+                    <option value="">Select month...</option>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="day" class="form-label">Day</label>
+                <select name="day" id="day" class="form-select" required>
+                    <option value="">Select day...</option>
+                    {% for d in "x"|rjust:31 %}
+                        <option value="{{ forloop.counter }}">{{ forloop.counter }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="event_name" class="form-label">Event Name</label>
+            <input type="text"
+                   name="event_name"
+                   id="event_name"
+                   class="form-control"
+                   placeholder="e.g., Birthday Party, Anniversary, Vacation"
+                   required>
+            <div class="form-help">This will be displayed on your calendar</div>
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}
+                    <div class="form-error">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                Continue to Photo Editor →
+            </button>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="info-section" style="margin-top: 2rem;">
+    <h3>Why Use the Photo Editor?</h3>
+    <ul>
+        <li>🎯 <strong>Perfect Cropping:</strong> Get the exact portion of your photo that looks best</li>
+        <li>📐 <strong>Optimal Sizing:</strong> Automatically sized to 320×200 pixels for crisp calendar display</li>
+        <li>📅 <strong>Flexible Dating:</strong> Place any photo on any date without renaming files</li>
+        <li>✨ <strong>Live Preview:</strong> See exactly how your photo will look in the calendar</li>
+    </ul>
+</div>
+
+<style>
+.form-row {
+    margin-bottom: 1rem;
+}
+
+.info-section {
+    background: var(--color-bg-secondary);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+}
+
+.info-section h3 {
+    margin-bottom: 1rem;
+    color: var(--color-text-primary);
+}
+
+.info-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.info-section li {
+    padding: 0.5rem 0;
+    color: var(--color-text-secondary);
+}
+</style>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const monthSelect = document.getElementById('month');
+    const daySelect = document.getElementById('day');
+    const fileInput = document.getElementById('photo');
+
+    // Update days based on selected month
+    monthSelect.addEventListener('change', function() {
+        const month = parseInt(this.value);
+        const year = {{ calendar.year }};
+
+        if (month) {
+            // Calculate days in month
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            // Update day options
+            daySelect.innerHTML = '<option value="">Select day...</option>';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                daySelect.appendChild(option);
+            }
+        }
+    });
+
+    // Show file name when selected
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            console.log('Selected file:', file.name);
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

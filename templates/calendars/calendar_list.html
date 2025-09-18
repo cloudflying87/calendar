@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Calendars - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Your Calendars</h1>
+    <a href="{% url 'calendars:calendar_create' %}" class="btn btn--primary">Create New Calendar</a>
+</div>
+
+{% if calendars %}
+    <div class="calendar-grid">
+        {% for calendar in calendars %}
+            <div class="calendar-card">
+                <div class="calendar-card__header">
+                    <h2 class="calendar-card__title">{{ calendar.year }}</h2>
+                    <div class="calendar-card__meta">
+                        <span class="meta-item">{{ calendar.events.count }} events</span>
+                        <span class="meta-item">
+                            {% if calendar.header %}
+                                <span class="status status--success">Has Header</span>
+                            {% else %}
+                                <span class="status status--warning">No Header</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="calendar-card__content">
+                    <p class="calendar-card__description">
+                        Created {{ calendar.created_at|date:"M j, Y" }}
+                    </p>
+                </div>
+
+                <div class="calendar-card__actions">
+                    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">View</a>
+                    <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--secondary">Upload Images</a>
+                    <a href="{% url 'calendars:delete_calendar' year=calendar.year %}" class="btn btn--danger">🗑️ Delete</a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+        <div class="pagination">
+            <span class="pagination__info">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+
+            <div class="pagination__links">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1" class="pagination__link">&laquo; First</a>
+                    <a href="?page={{ page_obj.previous_page_number }}" class="pagination__link">Previous</a>
+                {% endif %}
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="pagination__link">Next</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}" class="pagination__link">Last &raquo;</a>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state__icon">📅</div>
+        <h2 class="empty-state__title">No calendars yet</h2>
+        <p class="empty-state__description">
+            Create your first calendar to get started with organizing your events and photos.
+        </p>
+        <a href="{% url 'calendars:calendar_create' %}" class="btn btn--primary">Create Your First Calendar</a>
+    </div>
+{% endif %}
+{% endblock %}

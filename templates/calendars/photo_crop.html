@@ -1,0 +1,371 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crop Photo - Calendar {{ calendar.year }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cropper.min.css' %}">
+<style>
+.crop-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.crop-stage {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.crop-preview {
+    background: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.cropper-container {
+    max-width: 100%;
+    max-height: 400px;
+    margin: 1rem 0;
+}
+
+.crop-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+.preview-section h4 {
+    margin-bottom: 1rem;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.calendar-preview {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    background: white;
+    text-align: center;
+}
+
+.calendar-cell {
+    width: 120px;
+    height: 80px;
+    border: 1px solid #dee2e6;
+    margin: 0 auto;
+    position: relative;
+    background: white;
+    border-radius: 4px;
+}
+
+.calendar-day {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: #495057;
+}
+
+.calendar-image {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 100px;
+    max-height: 40px;
+    object-fit: cover;
+    border-radius: 2px;
+}
+
+.calendar-event-name {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    font-style: italic;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+}
+
+.crop-preview-canvas {
+    border: 2px solid var(--color-primary);
+    border-radius: 8px;
+    max-width: 100%;
+    height: auto;
+}
+
+.dimensions-info {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 1rem;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .preview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .crop-controls {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Crop Photo for {{ event_date }}</h1>
+    <div class="page-meta">
+        <span class="meta-item">📅 {{ event_date }}</span>
+        <span class="meta-item">🎉 {{ event_name }}</span>
+    </div>
+    <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--outline">← Back to Upload</a>
+</div>
+
+<div class="crop-container">
+    <div class="crop-stage">
+        <h3>Step 1: Adjust Crop Area</h3>
+        <p>Your date and event name are set! Now drag the corners to select the area you want to include in your calendar. The crop area will automatically maintain the correct 1.6:1 aspect ratio for optimal calendar display.</p>
+
+        <div class="cropper-container">
+            <img id="crop-image" src="{{ temp_image_url }}" alt="Photo to crop" style="max-width: 100%;">
+        </div>
+
+        <div class="crop-controls">
+            <button type="button" id="zoom-in" class="btn btn--outline btn--small">🔍+ Zoom In</button>
+            <button type="button" id="zoom-out" class="btn btn--outline btn--small">🔍- Zoom Out</button>
+            <button type="button" id="reset-crop" class="btn btn--outline btn--small">↻ Reset</button>
+            <button type="button" id="auto-crop" class="btn btn--outline btn--small">✨ Auto Crop</button>
+        </div>
+    </div>
+
+    <div class="crop-preview">
+        <h3>Step 2: Preview</h3>
+        <p>See how your photo will look in the calendar and as a standalone image.</p>
+
+        <div class="preview-grid">
+            <div class="preview-section">
+                <h4>Calendar Preview</h4>
+                <div class="calendar-preview">
+                    <div class="calendar-cell">
+                        <div class="calendar-day">{{ day }}</div>
+                        <canvas id="preview-canvas-small" class="calendar-image" width="80" height="50"></canvas>
+                        <div class="calendar-event-name">{{ event_name }}</div>
+                    </div>
+                </div>
+                <div class="dimensions-info">
+                    Final size in calendar: 80×50 pixels<br>
+                    This preview shows actual calendar size
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <h4>Cropped Image Preview</h4>
+                <canvas id="preview-canvas" class="crop-preview-canvas" width="320" height="200"></canvas>
+                <div class="dimensions-info">
+                    Storage size: 320×200 pixels<br>
+                    Aspect ratio: 1.6:1 (landscape)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="crop-form" method="post" action="{% url 'calendars:process_crop' calendar.year %}">
+        {% csrf_token %}
+        <input type="hidden" name="temp_image_path" value="{{ temp_image_path }}">
+        <input type="hidden" name="original_filename" value="{{ original_filename }}">
+        <input type="hidden" name="event_name" value="{{ event_name }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <input type="hidden" name="day" value="{{ day }}">
+        <input type="hidden" name="crop_data" id="crop-data">
+
+        <div class="action-buttons">
+            <div>
+                <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+            </div>
+            <div>
+                <button type="submit" class="btn btn--primary" id="save-cropped">
+                    💾 Save Cropped Photo
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/cropper.min.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const image = document.getElementById('crop-image');
+    const previewCanvas = document.getElementById('preview-canvas');
+    const previewCanvasSmall = document.getElementById('preview-canvas-small');
+    const cropDataInput = document.getElementById('crop-data');
+    const cropForm = document.getElementById('crop-form');
+
+    // Initialize Cropper.js
+    const cropper = new Cropper(image, {
+        aspectRatio: 1.6, // 320:200 ratio
+        viewMode: 2,
+        guides: true,
+        center: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        responsive: true,
+        restore: false,
+        checkOrientation: false,
+        modal: true,
+        dragMode: 'move',
+        crop: function(event) {
+            updatePreview();
+        },
+        ready: function() {
+            // Auto-crop to center when ready
+            autoCrop();
+        }
+    });
+
+    // Control buttons
+    document.getElementById('zoom-in').addEventListener('click', function() {
+        cropper.zoom(0.1);
+    });
+
+    document.getElementById('zoom-out').addEventListener('click', function() {
+        cropper.zoom(-0.1);
+    });
+
+    document.getElementById('reset-crop').addEventListener('click', function() {
+        cropper.reset();
+    });
+
+    document.getElementById('auto-crop').addEventListener('click', function() {
+        autoCrop();
+    });
+
+    function autoCrop() {
+        const containerData = cropper.getContainerData();
+        const imageData = cropper.getImageData();
+
+        // Calculate optimal crop area maintaining 1.6:1 ratio
+        let cropWidth, cropHeight;
+
+        if (imageData.width / imageData.height > 1.6) {
+            // Image is wider than target ratio
+            cropHeight = imageData.height * 0.8; // Use 80% of height
+            cropWidth = cropHeight * 1.6;
+        } else {
+            // Image is taller than target ratio
+            cropWidth = imageData.width * 0.8; // Use 80% of width
+            cropHeight = cropWidth / 1.6;
+        }
+
+        // Center the crop area
+        const x = (imageData.width - cropWidth) / 2;
+        const y = (imageData.height - cropHeight) / 2;
+
+        cropper.setCropBoxData({
+            left: x + imageData.left,
+            top: y + imageData.top,
+            width: cropWidth,
+            height: cropHeight
+        });
+    }
+
+    function updatePreview() {
+        if (!cropper) return;
+
+        // Get crop data
+        const cropBoxData = cropper.getCropBoxData();
+        const imageData = cropper.getImageData();
+
+        // Create cropped canvas at target size (320x200)
+        const croppedCanvas = cropper.getCroppedCanvas({
+            width: 320,
+            height: 200,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (croppedCanvas) {
+            // Update main preview (320x200)
+            const ctx = previewCanvas.getContext('2d');
+            ctx.clearRect(0, 0, 320, 200);
+            ctx.drawImage(croppedCanvas, 0, 0, 320, 200);
+
+            // Update small calendar preview (80x50)
+            const ctxSmall = previewCanvasSmall.getContext('2d');
+            ctxSmall.clearRect(0, 0, 80, 50);
+            ctxSmall.drawImage(croppedCanvas, 0, 0, 80, 50);
+        }
+    }
+
+    // Form submission
+    cropForm.addEventListener('submit', function(e) {
+        if (!cropper) {
+            e.preventDefault();
+            alert('Please wait for the image to load.');
+            return;
+        }
+
+        // Get the cropped canvas data
+        const croppedCanvas = cropper.getCroppedCanvas({
+            width: 320,
+            height: 200,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (croppedCanvas) {
+            // Convert to base64 and store in hidden field
+            const imageData = croppedCanvas.toDataURL('image/jpeg', 0.85);
+            cropDataInput.value = imageData;
+        } else {
+            e.preventDefault();
+            alert('Failed to process crop. Please try again.');
+        }
+    });
+
+    // Initial preview update
+    setTimeout(updatePreview, 500);
+});
+</script>
+{% endblock %}

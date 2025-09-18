@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Bulk Upload Photos - Calendar {{ calendar.year }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📁 Bulk Upload Photos for {{ calendar.year }}</h1>
+    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+</div>
+
+<div class="upload-instructions">
+    <div class="instruction-card">
+        <h3 class="instruction-card__title">File Naming Format</h3>
+        <div class="instruction-card__content">
+            <p>Name your image files using either format:</p>
+            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                <li><strong>MMDD eventname.jpg</strong> (space separator)</li>
+                <li><strong>MMDD_eventname.jpg</strong> (underscore separator)</li>
+            </ul>
+            <div class="examples">
+                <div class="example-item">
+                    <code>0121 Brynn's Birthday.png</code>
+                    <span class="example-description">January 21st - Brynn's Birthday</span>
+                </div>
+                <div class="example-item">
+                    <code>0101 New Years Day.jpg</code>
+                    <span class="example-description">January 1st - New Years Day</span>
+                </div>
+                <div class="example-item">
+                    <code>0314_birthday_party.jpg</code>
+                    <span class="example-description">March 14th - Birthday Party</span>
+                </div>
+                <div class="example-item">
+                    <code>1225 Christmas.png</code>
+                    <span class="example-description">December 25th - Christmas</span>
+                </div>
+                <div class="example-item">
+                    <code>0701_vacation_start.jpeg</code>
+                    <span class="example-description">July 1st - Vacation Start</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" enctype="multipart/form-data" class="form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="{{ form.images.id_for_label }}" class="form-label">
+                {{ form.images.label }}
+            </label>
+            {{ form.images }}
+            {% if form.images.help_text %}
+                <div class="form-help">{{ form.images.help_text }}</div>
+            {% endif %}
+            {% if form.images.errors %}
+                <div class="form-errors">
+                    {% for error in form.images.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}
+                    <div class="form-error">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Upload Images</button>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="upload-tips">
+    <h3>Bulk Upload Information</h3>
+    <ul>
+        <li>📁 Upload multiple images at once by selecting them all</li>
+        <li>⚠️ <strong>Filename format is required:</strong> MMDD eventname.jpg</li>
+        <li>✨ Images will be automatically resized to 320×200 pixels</li>
+        <li>🔄 If an event already exists for a date, the new image will replace it</li>
+        <li>💾 Supported formats: JPG, JPEG, PNG, GIF (up to 10MB each)</li>
+    </ul>
+
+    <div style="margin-top: 1rem; padding: 1rem; background: var(--color-bg-secondary); border-radius: var(--border-radius);">
+        <strong>💡 Tip:</strong> For custom dates and cropping, use the
+        <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}">Upload & Edit Photo</a> feature instead.
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+// Add some basic file upload feedback
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                console.log(`Selected ${files.length} file(s)`);
+                // You could add more sophisticated feedback here
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,166 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env
+    ports:
+      - "5437:5432"  # External port to avoid conflicts
+    networks:
+      - app_network
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${DB_NAME} -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: 
+      context: ./
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      # Persistent volumes that survive rebuilds
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - log_volume:/app/logs
+      # Persistent media storage (survives rebuilds)
+      - ./persistent_media:/app/persistent_media
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_CHECK=1
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    build: ./nginx
+    restart: always
+    # No external ports - Cloudflare handles external access
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      # Persistent media storage (survives rebuilds) 
+      - ./persistent_media:/app/persistent_media
+      # SSL certificates if using local SSL
+      - ./ssl:/etc/ssl/certs:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Cloudflare Tunnel service
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      nginx:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "info"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+
+  # Celery worker (optional - remove if not using Celery)
+  celery:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    command: celery -A config worker -l info --concurrency=2
+    restart: always
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - log_volume:/app/logs
+      - ./persistent_media:/app/persistent_media
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_CHECK=1
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "celery", "-A", "config", "inspect", "ping"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+
+  # Celery beat scheduler (optional - remove if not using Celery)
+  celery-beat:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    restart: always
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - log_volume:/app/logs
+      - ./persistent_media:/app/persistent_media
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_CHECK=1
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  static_volume:
+    driver: local
+  media_volume:
+    driver: local
+  log_volume:
+    driver: local
+
+networks:
+  app_network:
+    name: ${PROJECT_NAME}_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

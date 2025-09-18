@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Header - Calendar {{ calendar.year }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        {% if calendar.header %}Update{% else %}Upload{% endif %} Header for {{ calendar.year }}
+    </h1>
+    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+</div>
+
+<div class="upload-instructions">
+    <div class="instruction-card">
+        <h3 class="instruction-card__title">Header Document Requirements</h3>
+        <div class="instruction-card__content">
+            <ul>
+                <li><strong>File Format:</strong> PDF only</li>
+                <li><strong>Content:</strong> Should contain decorative headers/tops for calendar pages</li>
+                <li><strong>Layout:</strong> Designed for 8.5" x 11" landscape orientation</li>
+                <li><strong>Pages:</strong> Should contain 12 pages (one for each month) or will cycle through available pages</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" enctype="multipart/form-data" class="form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="{{ form.document.id_for_label }}" class="form-label">
+                {{ form.document.label }}
+            </label>
+            {{ form.document }}
+            {% if form.document.help_text %}
+                <div class="form-help">{{ form.document.help_text }}</div>
+            {% endif %}
+            {% if form.document.errors %}
+                <div class="form-errors">
+                    {% for error in form.document.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.january_page.id_for_label }}" class="form-label">
+                {{ form.january_page.label }}
+            </label>
+            {{ form.january_page }}
+            {% if form.january_page.help_text %}
+                <div class="form-help">{{ form.january_page.help_text }}</div>
+            {% endif %}
+            {% if form.january_page.errors %}
+                <div class="form-errors">
+                    {% for error in form.january_page.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}
+                    <div class="form-error">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                {% if calendar.header %}Update Header{% else %}Upload Header{% endif %}
+            </button>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+{% if calendar.header %}
+    <div class="current-header">
+        <h3>Current Header Document</h3>
+        <div class="header-info">
+            <div class="header-detail">
+                <strong>File:</strong> {{ calendar.header.document.name|default:"Unknown" }}
+            </div>
+            <div class="header-detail">
+                <strong>January starts at page:</strong> {{ calendar.header.january_page }}
+            </div>
+            <div class="header-detail">
+                <strong>Uploaded:</strong> {{ calendar.header.created_at|date:"M j, Y g:i A" }}
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<div class="usage-info">
+    <h3>How Headers Work</h3>
+    <div class="info-grid">
+        <div class="info-item">
+            <h4>Calendar Only</h4>
+            <p>Generates just the calendar pages without any headers.</p>
+        </div>
+        <div class="info-item">
+            <h4>With Headers</h4>
+            <p>Alternates between header pages and calendar pages (header, calendar, header, calendar, etc.).</p>
+        </div>
+        <div class="info-item">
+            <h4>Combined Spread</h4>
+            <p>Creates 2-page spreads with the header on top and calendar below on the same page.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
