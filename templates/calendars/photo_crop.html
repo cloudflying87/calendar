@@ -207,6 +207,53 @@
         </div>
     </div>
 
+    <div class="crop-preview">
+        <h3>Step 3: Choose Date & Event Name</h3>
+        <p>Now that you can see your cropped photo, choose the calendar date and event name:</p>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label for="month-select" class="form-label">Month</label>
+                <select name="month_input" id="month-select" class="form-select" required>
+                    <option value="">Select month...</option>
+                    <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="day-select" class="form-label">Day</label>
+                <select name="day_input" id="day-select" class="form-select" required>
+                    <option value="">Select day...</option>
+                    {% for d in "x"|rjust:31 %}
+                        <option value="{{ forloop.counter }}" {% if day == forloop.counter %}selected{% endif %}>{{ forloop.counter }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="event-name-input" class="form-label">Event Name</label>
+                <input type="text"
+                       name="event_name_input"
+                       id="event-name-input"
+                       class="form-control"
+                       placeholder="e.g., Birthday Party, Anniversary, Vacation"
+                       value="{{ event_name|default:'' }}"
+                       required>
+            </div>
+        </div>
+    </div>
+
     <form id="crop-form" method="post" action="{% url 'calendars:process_crop' calendar.year %}">
         {% csrf_token %}
         <input type="hidden" name="temp_image_path" value="{{ temp_image_path }}">
@@ -218,7 +265,7 @@
 
         <div class="action-buttons">
             <div>
-                <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+                <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--outline">← Back to Upload</a>
             </div>
             <div>
                 <button type="submit" class="btn btn--primary" id="save-cropped">
@@ -346,6 +393,22 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Validate date/event inputs
+        const monthSelect = document.getElementById('month-select');
+        const daySelect = document.getElementById('day-select');
+        const eventNameInput = document.getElementById('event-name-input');
+
+        if (!monthSelect.value || !daySelect.value || !eventNameInput.value.trim()) {
+            e.preventDefault();
+            alert('Please fill in the month, day, and event name.');
+            return;
+        }
+
+        // Copy values from visible form to hidden form
+        document.querySelector('input[name="month"]').value = monthSelect.value;
+        document.querySelector('input[name="day"]').value = daySelect.value;
+        document.querySelector('input[name="event_name"]').value = eventNameInput.value.trim();
+
         // Get the cropped canvas data
         const croppedCanvas = cropper.getCroppedCanvas({
             width: 320,
@@ -355,12 +418,39 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (croppedCanvas) {
-            // Convert to base64 and store in hidden field
-            const imageData = croppedCanvas.toDataURL('image/jpeg', 0.85);
+            // Convert to base64 with higher quality
+            const imageData = croppedCanvas.toDataURL('image/jpeg', 0.95);
             cropDataInput.value = imageData;
         } else {
             e.preventDefault();
             alert('Failed to process crop. Please try again.');
+        }
+    });
+
+    // Handle month/day validation
+    const monthSelect = document.getElementById('month-select');
+    const daySelect = document.getElementById('day-select');
+
+    monthSelect.addEventListener('change', function() {
+        const month = parseInt(this.value);
+        const year = {{ year }};
+
+        if (month) {
+            // Calculate days in month
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const currentDay = parseInt(daySelect.value);
+
+            // Update day options
+            daySelect.innerHTML = '<option value="">Select day...</option>';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                if (i === currentDay && i <= daysInMonth) {
+                    option.selected = true;
+                }
+                daySelect.appendChild(option);
+            }
         }
     });
 

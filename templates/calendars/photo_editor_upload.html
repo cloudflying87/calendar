@@ -4,31 +4,63 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">✏️ Upload & Edit Photo</h1>
-    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+    {% if edit_event_data %}
+        <h1 class="page-title">✏️ {% if edit_event_data.event_id %}Change Photo{% else %}Add Photo{% endif %}</h1>
+        <div class="page-meta">
+            <span class="meta-item">📅 {{ edit_event_data.month|stringformat:"02d" }}/{{ edit_event_data.day|stringformat:"02d" }}/{{ calendar.year }}</span>
+            <span class="meta-item">🎉 {{ edit_event_data.event_name }}</span>
+        </div>
+        <a href="{% url 'calendars:edit_event' event_id=edit_event_data.event_id %}" class="btn btn--outline">Back to Event</a>
+    {% else %}
+        <h1 class="page-title">✏️ Upload & Edit Photo</h1>
+        <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+    {% endif %}
 </div>
 
 <div class="upload-instructions">
     <div class="instruction-card">
-        <h3 class="instruction-card__title">Photo Editor Workflow</h3>
+        <h3 class="instruction-card__title">Photo Editor Options</h3>
         <div class="instruction-card__content">
-            <p>Upload any photo and we'll help you:</p>
-            <ol style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                <li><strong>Crop</strong> your photo to the perfect size</li>
-                <li><strong>Choose</strong> the date (month and day)</li>
-                <li><strong>Name</strong> your event</li>
-                <li><strong>Save</strong> to your calendar</li>
-            </ol>
+            <p>Choose how you want to create your calendar event:</p>
+
+            <div class="photo-options">
+                <div class="photo-option" data-option="single">
+                    <div class="option-icon">📷</div>
+                    <div class="option-content">
+                        <h4>Single Photo</h4>
+                        <p>Upload one photo for your event</p>
+                        <ul>
+                            <li>Upload → Crop → Save</li>
+                            <li>Perfect for birthdays, anniversaries</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="photo-option" data-option="multi">
+                    <div class="option-icon">🖼️</div>
+                    <div class="option-content">
+                        <h4>Multiple Photos</h4>
+                        <p>Combine 2-3 photos into one event</p>
+                        <ul>
+                            <li>Upload multiple → Choose layout → Crop each → Save</li>
+                            <li>Great for vacations, parties, busy days</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <p style="margin-top: 1rem; color: var(--color-text-secondary);">
-                💡 <em>No specific filename format required - name your file anything!</em>
+                💡 <em>You'll choose the date and event name after editing your photos!</em>
             </p>
         </div>
     </div>
 </div>
 
 <div class="form-container">
-    <form method="post" enctype="multipart/form-data" class="form" id="photo-editor-form">
+    <!-- Single Photo Form -->
+    <form method="post" enctype="multipart/form-data" class="form" id="single-photo-form" style="display: none;">
         {% csrf_token %}
+        <input type="hidden" name="photo_mode" value="single">
 
         <div class="form-group">
             <label for="photo" class="form-label">Select Photo</label>
@@ -41,48 +73,6 @@
             <div class="form-help">Any image format (JPG, PNG, GIF) up to 10MB</div>
         </div>
 
-        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <div class="form-group">
-                <label for="month" class="form-label">Month</label>
-                <select name="month" id="month" class="form-select" required>
-                    <option value="">Select month...</option>
-                    <option value="1">January</option>
-                    <option value="2">February</option>
-                    <option value="3">March</option>
-                    <option value="4">April</option>
-                    <option value="5">May</option>
-                    <option value="6">June</option>
-                    <option value="7">July</option>
-                    <option value="8">August</option>
-                    <option value="9">September</option>
-                    <option value="10">October</option>
-                    <option value="11">November</option>
-                    <option value="12">December</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="day" class="form-label">Day</label>
-                <select name="day" id="day" class="form-select" required>
-                    <option value="">Select day...</option>
-                    {% for d in "x"|rjust:31 %}
-                        <option value="{{ forloop.counter }}">{{ forloop.counter }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label for="event_name" class="form-label">Event Name</label>
-            <input type="text"
-                   name="event_name"
-                   id="event_name"
-                   class="form-control"
-                   placeholder="e.g., Birthday Party, Anniversary, Vacation"
-                   required>
-            <div class="form-help">This will be displayed on your calendar</div>
-        </div>
-
         {% if form.non_field_errors %}
             <div class="form-errors">
                 {% for error in form.non_field_errors %}
@@ -93,11 +83,80 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn--primary">
-                Continue to Photo Editor →
+                Continue to Crop & Name →
             </button>
             <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
         </div>
     </form>
+
+    <!-- Multi Photo Form -->
+    <form method="post" enctype="multipart/form-data" class="form" id="multi-photo-form" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="photo_mode" value="multi">
+
+        <div class="form-group">
+            <label class="form-label">Choose Layout Template</label>
+            <div class="layout-options">
+                <div class="layout-option" data-layout="two-horizontal">
+                    <div class="layout-preview">
+                        <div class="layout-box" style="width: 50%; height: 100%; float: left; border-right: 1px solid #ddd;"></div>
+                        <div class="layout-box" style="width: 50%; height: 100%; float: right;"></div>
+                    </div>
+                    <div class="layout-label">Two Photos Side-by-Side</div>
+                </div>
+
+                <div class="layout-option" data-layout="two-vertical">
+                    <div class="layout-preview">
+                        <div class="layout-box" style="width: 100%; height: 50%; border-bottom: 1px solid #ddd;"></div>
+                        <div class="layout-box" style="width: 100%; height: 50%;"></div>
+                    </div>
+                    <div class="layout-label">Two Photos Stacked</div>
+                </div>
+
+                <div class="layout-option" data-layout="three-grid">
+                    <div class="layout-preview">
+                        <div class="layout-box" style="width: 50%; height: 100%; float: left; border-right: 1px solid #ddd;"></div>
+                        <div class="layout-box" style="width: 50%; height: 50%; float: right; border-bottom: 1px solid #ddd;"></div>
+                        <div class="layout-box" style="width: 50%; height: 50%; float: right;"></div>
+                    </div>
+                    <div class="layout-label">Three Photos Grid</div>
+                </div>
+            </div>
+            <input type="hidden" name="layout" id="selected-layout" required>
+        </div>
+
+        <div class="form-group">
+            <label for="photos" class="form-label">Select Photos</label>
+            <input type="file"
+                   name="photos"
+                   id="photos"
+                   accept="image/*"
+                   multiple
+                   required
+                   class="form-control">
+            <div class="form-help" id="photo-count-help">Select 2-3 photos (any image format, up to 10MB each)</div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary" id="multi-submit-btn" disabled>
+                Continue to Layout & Crop →
+            </button>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+
+    <!-- Initial selection (shown by default) -->
+    <div class="initial-selection" id="mode-selection">
+        <p class="selection-prompt">Choose your photo editing mode to get started:</p>
+        <div class="mode-buttons">
+            <button type="button" class="btn btn--primary" id="select-single">
+                📷 Single Photo
+            </button>
+            <button type="button" class="btn btn--primary" id="select-multi">
+                🖼️ Multiple Photos
+            </button>
+        </div>
+    </div>
 </div>
 
 <div class="info-section" style="margin-top: 2rem;">
@@ -111,8 +170,120 @@
 </div>
 
 <style>
-.form-row {
+.photo-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.photo-option {
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--color-background-light);
+}
+
+.photo-option:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.photo-option.selected {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.option-icon {
+    font-size: 2.5rem;
     margin-bottom: 1rem;
+}
+
+.option-content h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+}
+
+.option-content p {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+}
+
+.option-content ul {
+    text-align: left;
+    margin: 0;
+    padding-left: 1.5rem;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.layout-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.layout-option {
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: center;
+}
+
+.layout-option:hover {
+    border-color: var(--primary-color);
+}
+
+.layout-option.selected {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.layout-preview {
+    width: 80px;
+    height: 50px;
+    margin: 0 auto 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: #f8f9fa;
+    position: relative;
+    overflow: hidden;
+}
+
+.layout-box {
+    background: #e9ecef;
+    box-sizing: border-box;
+}
+
+.layout-label {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.initial-selection {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.selection-prompt {
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    color: var(--color-text-primary);
+}
+
+.mode-buttons {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
 }
 
 .info-section {
@@ -136,40 +307,192 @@
     padding: 0.5rem 0;
     color: var(--color-text-secondary);
 }
+
+@media (max-width: 768px) {
+    .photo-options {
+        grid-template-columns: 1fr;
+    }
+
+    .layout-options {
+        grid-template-columns: 1fr;
+    }
+
+    .mode-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+}
 </style>
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const monthSelect = document.getElementById('month');
-    const daySelect = document.getElementById('day');
-    const fileInput = document.getElementById('photo');
+    const modeSelection = document.getElementById('mode-selection');
+    const singleForm = document.getElementById('single-photo-form');
+    const multiForm = document.getElementById('multi-photo-form');
+    const selectSingleBtn = document.getElementById('select-single');
+    const selectMultiBtn = document.getElementById('select-multi');
 
-    // Update days based on selected month
-    monthSelect.addEventListener('change', function() {
-        const month = parseInt(this.value);
-        const year = {{ calendar.year }};
+    // Functions to show forms
+    function showSingleForm() {
+        console.log('Single photo selected');
+        modeSelection.style.display = 'none';
+        singleForm.style.display = 'block';
 
-        if (month) {
-            // Calculate days in month
-            const daysInMonth = new Date(year, month, 0).getDate();
+        // Smooth scroll to the form
+        setTimeout(() => {
+            singleForm.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }, 100);
+    }
 
-            // Update day options
-            daySelect.innerHTML = '<option value="">Select day...</option>';
-            for (let i = 1; i <= daysInMonth; i++) {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = i;
-                daySelect.appendChild(option);
-            }
-        }
+    function showMultiForm() {
+        console.log('Multi photo selected');
+        modeSelection.style.display = 'none';
+        multiForm.style.display = 'block';
+
+        // Smooth scroll to the form
+        setTimeout(() => {
+            multiForm.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }, 100);
+    }
+
+    // Mode selection - button clicks
+    if (selectSingleBtn && selectMultiBtn && modeSelection && singleForm && multiForm) {
+        selectSingleBtn.addEventListener('click', showSingleForm);
+        selectMultiBtn.addEventListener('click', showMultiForm);
+
+        // Mode selection - photo option card clicks
+        const photoOptions = document.querySelectorAll('.photo-option');
+        photoOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                const optionType = this.dataset.option;
+                if (optionType === 'single') {
+                    showSingleForm();
+                } else if (optionType === 'multi') {
+                    showMultiForm();
+                }
+            });
+        });
+    } else {
+        console.error('Missing elements:', {
+            selectSingleBtn: !!selectSingleBtn,
+            selectMultiBtn: !!selectMultiBtn,
+            modeSelection: !!modeSelection,
+            singleForm: !!singleForm,
+            multiForm: !!multiForm
+        });
+    }
+
+    // Layout selection for multi-photo
+    const layoutOptions = document.querySelectorAll('.layout-option');
+    const selectedLayoutInput = document.getElementById('selected-layout');
+
+    layoutOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            // Remove selected class from all options
+            layoutOptions.forEach(opt => opt.classList.remove('selected'));
+            // Add selected class to clicked option
+            this.classList.add('selected');
+            // Set hidden input value
+            selectedLayoutInput.value = this.dataset.layout;
+            // Check if we can enable submit
+            checkMultiFormValid();
+        });
     });
 
-    // Show file name when selected
-    fileInput.addEventListener('change', function(e) {
+    // Multi-photo file validation
+    const photosInput = document.getElementById('photos');
+    const photoCountHelp = document.getElementById('photo-count-help');
+    const multiSubmitBtn = document.getElementById('multi-submit-btn');
+
+    photosInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        const layout = selectedLayoutInput.value;
+
+        let maxFiles = 3;
+        let minFiles = 2;
+
+        if (layout === 'two-horizontal' || layout === 'two-vertical') {
+            maxFiles = 2;
+            minFiles = 2;
+        }
+
+        if (files.length < minFiles) {
+            photoCountHelp.textContent = `Please select at least ${minFiles} photos`;
+            photoCountHelp.style.color = 'var(--color-error)';
+        } else if (files.length > maxFiles) {
+            photoCountHelp.textContent = `Please select no more than ${maxFiles} photos`;
+            photoCountHelp.style.color = 'var(--color-error)';
+        } else {
+            photoCountHelp.textContent = `Selected ${files.length} photos - looks good!`;
+            photoCountHelp.style.color = 'var(--color-success)';
+        }
+
+        checkMultiFormValid();
+    });
+
+    function checkMultiFormValid() {
+        const files = photosInput.files;
+        const layout = selectedLayoutInput.value;
+
+        let maxFiles = 3;
+        let minFiles = 2;
+
+        if (layout === 'two-horizontal' || layout === 'two-vertical') {
+            maxFiles = 2;
+            minFiles = 2;
+        }
+
+        const isValid = layout && files.length >= minFiles && files.length <= maxFiles;
+        multiSubmitBtn.disabled = !isValid;
+    }
+
+    // Single photo file input
+    const singleFileInput = document.getElementById('photo');
+    singleFileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
             console.log('Selected file:', file.name);
+        }
+    });
+
+    // Form validation
+    singleForm.addEventListener('submit', function(e) {
+        const fileInput = document.getElementById('photo');
+        if (!fileInput.files.length) {
+            e.preventDefault();
+            alert('Please select a photo to upload.');
+        }
+    });
+
+    multiForm.addEventListener('submit', function(e) {
+        const files = photosInput.files;
+        const layout = selectedLayoutInput.value;
+
+        if (!layout) {
+            e.preventDefault();
+            alert('Please select a layout template.');
+            return;
+        }
+
+        let maxFiles = 3;
+        let minFiles = 2;
+
+        if (layout === 'two-horizontal' || layout === 'two-vertical') {
+            maxFiles = 2;
+            minFiles = 2;
+        }
+
+        if (files.length < minFiles || files.length > maxFiles) {
+            e.preventDefault();
+            alert(`Please select ${minFiles === maxFiles ? minFiles : minFiles + '-' + maxFiles} photos for the ${layout.replace('-', ' ')} layout.`);
+            return;
         }
     });
 });

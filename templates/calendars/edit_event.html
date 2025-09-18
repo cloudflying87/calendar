@@ -20,14 +20,37 @@
                 <span class="event-info__label">Original Filename:</span>
                 <span class="event-info__value">{{ event.original_filename }}</span>
             </div>
-            {% if event.image %}
             <div class="event-info__item">
-                <span class="event-info__label">Image:</span>
-                <div class="event-info__image">
-                    <img src="{{ event.image.url }}" alt="{{ event.event_name }}" style="max-width: 200px; max-height: 150px; border-radius: 8px;">
+                <span class="event-info__label">Photo:</span>
+                <div class="event-photo-section">
+                    {% if event.image %}
+                        <div class="current-photo">
+                            <img src="{{ event.image.url }}" alt="{{ event.event_name }}" class="event-photo">
+                            <div class="photo-actions">
+                                <a href="{% url 'calendars:edit_event_photo' event_id=event.id %}" class="btn btn--secondary btn--small">
+                                    ✏️ Change Photo
+                                </a>
+                                <form method="post" action="{% url 'calendars:remove_event_photo' event_id=event.id %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn--outline btn--small">
+                                        ❌ Remove Photo
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="no-photo">
+                            <div class="no-photo-placeholder">
+                                <span class="no-photo-icon">📷</span>
+                                <span class="no-photo-text">No photo</span>
+                            </div>
+                            <a href="{% url 'calendars:edit_event_photo' event_id=event.id %}" class="btn btn--primary btn--small">
+                                ✏️ Add Photo
+                            </a>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
@@ -119,8 +142,63 @@
     color: var(--color-text-primary);
 }
 
-.event-info__image {
+.event-photo-section {
     margin-top: 0.5rem;
+}
+
+.current-photo {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.event-photo {
+    max-width: 200px;
+    max-height: 150px;
+    border-radius: 8px;
+    border: 2px solid var(--color-border);
+}
+
+.photo-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.no-photo {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.no-photo-placeholder {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 2px dashed var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-secondary);
+    max-width: 200px;
+}
+
+.no-photo-icon {
+    font-size: 1.5rem;
+    opacity: 0.5;
+}
+
+.no-photo-text {
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.btn--small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
 }
 
 .danger-zone {

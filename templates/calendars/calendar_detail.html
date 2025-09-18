@@ -33,6 +33,11 @@
             <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--secondary" title="Bulk upload multiple photos (requires MMDD_eventname format)">
                 📁 Bulk Upload Photos
             </a>
+            {% if calendar.events.exists %}
+            <a href="{% url 'calendars:download_all_photos' year=calendar.year %}" class="btn btn--secondary" title="Download all calendar photos as a ZIP file">
+                📥 Download All Photos
+            </a>
+            {% endif %}
             <a href="{% url 'calendars:holiday_management' year=calendar.year %}" class="btn btn--secondary">
                 🎉 Manage Holidays
             </a>

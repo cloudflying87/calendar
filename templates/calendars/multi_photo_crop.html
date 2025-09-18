@@ -1,0 +1,659 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crop Photos {{ current_index|add:1 }}/{{ total_photos }} - Calendar {{ calendar.year }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cropper.min.css' %}">
+<style>
+.multi-crop-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.crop-progress {
+    background: var(--color-background-light);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1rem 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary-color);
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.layout-preview-section {
+    background: var(--color-background-light);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.layout-preview-container {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.layout-preview-large {
+    width: 160px;
+    height: 100px;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    background: #f8f9fa;
+    position: relative;
+    overflow: hidden;
+}
+
+.layout-box-large {
+    background: #e9ecef;
+    position: absolute;
+}
+
+.current-photo-indicator {
+    background: var(--primary-color);
+    opacity: 0.7;
+}
+
+.crop-stage {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.crop-preview {
+    background: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.cropper-container {
+    max-width: 100%;
+    max-height: 400px;
+    margin: 1rem 0;
+}
+
+.crop-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+.preview-section h4 {
+    margin-bottom: 1rem;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.calendar-preview {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    background: white;
+    text-align: center;
+}
+
+.calendar-cell {
+    width: 120px;
+    height: 80px;
+    border: 1px solid #dee2e6;
+    margin: 0 auto;
+    position: relative;
+    background: white;
+    border-radius: 4px;
+}
+
+.calendar-day {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: #495057;
+}
+
+.calendar-image {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 100px;
+    max-height: 40px;
+    object-fit: cover;
+    border-radius: 2px;
+}
+
+.calendar-event-name {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    font-style: italic;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+}
+
+.crop-preview-canvas {
+    border: 2px solid var(--color-primary);
+    border-radius: 8px;
+    max-width: 100%;
+    height: auto;
+}
+
+.dimensions-info {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 1rem;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.event-details-section {
+    background: var(--color-background-light);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+    .preview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .crop-controls {
+        justify-content: center;
+    }
+
+    .layout-preview-container {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Crop Photo {{ current_index|add:1 }} of {{ total_photos }}</h1>
+    <div class="page-meta">
+        <span class="meta-item">📁 {{ current_filename }}</span>
+        <span class="meta-item">📐 {{ layout|capfirst }} Layout</span>
+    </div>
+    <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--outline">← Start Over</a>
+</div>
+
+<div class="multi-crop-container">
+    <div class="crop-progress">
+        <h3>Multi-Photo Progress</h3>
+        <p>Cropping photo {{ current_index|add:1 }} of {{ total_photos }} for your {{ layout|capfirst }} layout</p>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {% widthratio current_index|add:1 total_photos 100 %}%"></div>
+        </div>
+    </div>
+
+    <div class="layout-preview-section">
+        <h3>Layout Preview - {{ layout|capfirst }}</h3>
+        <p>See where this photo will be positioned in your final combined image:</p>
+        <div class="layout-preview-container">
+            <div class="layout-preview-large">
+                {% if layout == 'two-horizontal' %}
+                    <div class="layout-box-large {% if current_index == 0 %}current-photo-indicator{% endif %}" style="width: 50%; height: 100%; left: 0; top: 0;"></div>
+                    <div class="layout-box-large {% if current_index == 1 %}current-photo-indicator{% endif %}" style="width: 50%; height: 100%; right: 0; top: 0;"></div>
+                {% elif layout == 'two-vertical' %}
+                    <div class="layout-box-large {% if current_index == 0 %}current-photo-indicator{% endif %}" style="width: 100%; height: 50%; left: 0; top: 0;"></div>
+                    <div class="layout-box-large {% if current_index == 1 %}current-photo-indicator{% endif %}" style="width: 100%; height: 50%; left: 0; bottom: 0;"></div>
+                {% elif layout == 'three-grid' %}
+                    <div class="layout-box-large {% if current_index == 0 %}current-photo-indicator{% endif %}" style="width: 50%; height: 100%; left: 0; top: 0;"></div>
+                    <div class="layout-box-large {% if current_index == 1 %}current-photo-indicator{% endif %}" style="width: 50%; height: 50%; right: 0; top: 0;"></div>
+                    <div class="layout-box-large {% if current_index == 2 %}current-photo-indicator{% endif %}" style="width: 50%; height: 50%; right: 0; bottom: 0;"></div>
+                {% endif %}
+            </div>
+            <div class="layout-info">
+                <p><strong>Currently cropping:</strong> Photo {{ current_index|add:1 }} (highlighted in blue)</p>
+                <p>Crop this photo to focus on the most important part - it will be automatically resized to fit the layout.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="crop-stage">
+        <h3>Crop Photo {{ current_index|add:1 }}</h3>
+        <p>Drag the corners to select the area you want to include. The crop will be automatically sized for the {{ layout|capfirst }} layout.</p>
+
+        <div class="cropper-container">
+            <img id="crop-image" src="{{ temp_image_url }}" alt="Photo to crop" style="max-width: 100%;">
+        </div>
+
+        <div class="crop-controls">
+            <button type="button" id="zoom-in" class="btn btn--outline btn--small">🔍+ Zoom In</button>
+            <button type="button" id="zoom-out" class="btn btn--outline btn--small">🔍- Zoom Out</button>
+            <button type="button" id="reset-crop" class="btn btn--outline btn--small">↻ Reset</button>
+            <button type="button" id="auto-crop" class="btn btn--outline btn--small">✨ Auto Crop</button>
+        </div>
+    </div>
+
+    <div class="crop-preview">
+        <h3>Preview</h3>
+        <p>See how this cropped photo will look:</p>
+
+        <div class="preview-grid">
+            <div class="preview-section">
+                <h4>Calendar Preview</h4>
+                <div class="calendar-preview">
+                    <div class="calendar-cell">
+                        <div class="calendar-day">15</div>
+                        <canvas id="preview-canvas-small" class="calendar-image" width="80" height="50"></canvas>
+                        <div class="calendar-event-name">Multi-Photo Event</div>
+                    </div>
+                </div>
+                <div class="dimensions-info">
+                    Preview shows how the combined image will look in calendar
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <h4>Individual Photo Crop</h4>
+                <canvas id="preview-canvas" class="crop-preview-canvas" width="320" height="200"></canvas>
+                <div class="dimensions-info">
+                    Individual crop preview<br>
+                    Will be resized to fit {{ layout|capfirst }} layout
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if current_index|add:1 == total_photos %}
+    <!-- Final step: Event details -->
+    <div class="event-details-section">
+        <h3>Event Details</h3>
+        <p>Choose the date and name for your multi-photo event:</p>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label for="month-select" class="form-label">Month</label>
+                <select name="month_input" id="month-select" class="form-select" required>
+                    <option value="">Select month...</option>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="day-select" class="form-label">Day</label>
+                <select name="day_input" id="day-select" class="form-select" required>
+                    <option value="">Select day...</option>
+                    {% for d in "x"|rjust:31 %}
+                        <option value="{{ forloop.counter }}">{{ forloop.counter }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="event-name-input" class="form-label">Event Name</label>
+                <input type="text"
+                       name="event_name_input"
+                       id="event-name-input"
+                       class="form-control"
+                       placeholder="e.g., Beach Vacation, Family Party, Weekend Trip"
+                       required>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form id="crop-form" method="post" action="{% url 'calendars:process_multi_crop' calendar.year %}">
+        {% csrf_token %}
+        <input type="hidden" name="crop_data" id="crop-data">
+        <input type="hidden" name="month" id="month-hidden">
+        <input type="hidden" name="day" id="day-hidden">
+        <input type="hidden" name="event_name" id="event-name-hidden">
+
+        <div class="action-buttons">
+            <div>
+                <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--outline">← Start Over</a>
+            </div>
+            <div>
+                {% if current_index|add:1 == total_photos %}
+                    <button type="submit" class="btn btn--primary" id="save-cropped">
+                        💾 Save Multi-Photo Event
+                    </button>
+                {% else %}
+                    <button type="submit" class="btn btn--primary" id="save-cropped">
+                        Continue to Photo {{ current_index|add:2 }} →
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/cropper.min.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const image = document.getElementById('crop-image');
+    const previewCanvas = document.getElementById('preview-canvas');
+    const previewCanvasSmall = document.getElementById('preview-canvas-small');
+    const cropDataInput = document.getElementById('crop-data');
+    const cropForm = document.getElementById('crop-form');
+
+    // Calculate aspect ratio based on layout and current photo position
+    const layout = '{{ layout }}';
+    const currentIndex = {{ current_index }};
+    let aspectRatio;
+
+    if (layout === 'two-horizontal') {
+        // Each photo is 160×200, so ratio is 160/200 = 0.8 (portrait)
+        aspectRatio = 0.8;
+    } else if (layout === 'two-vertical') {
+        // Each photo is 320×100, so ratio is 320/100 = 3.2 (wide landscape)
+        aspectRatio = 3.2;
+    } else if (layout === 'three-grid') {
+        if (currentIndex === 0) {
+            // Left photo: 160×200, ratio = 0.8 (portrait)
+            aspectRatio = 0.8;
+        } else {
+            // Right photos: 160×100, ratio = 1.6 (landscape)
+            aspectRatio = 1.6;
+        }
+    } else {
+        // Default fallback
+        aspectRatio = 1.6;
+    }
+
+    // Initialize Cropper.js with dynamic aspect ratio
+    const cropper = new Cropper(image, {
+        aspectRatio: aspectRatio,
+        viewMode: 2,
+        guides: true,
+        center: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        responsive: true,
+        restore: false,
+        checkOrientation: false,
+        modal: true,
+        dragMode: 'move',
+        crop: function(event) {
+            updatePreview();
+        },
+        ready: function() {
+            // Auto-crop to center when ready
+            autoCrop();
+        }
+    });
+
+    // Control buttons
+    document.getElementById('zoom-in').addEventListener('click', function() {
+        cropper.zoom(0.1);
+    });
+
+    document.getElementById('zoom-out').addEventListener('click', function() {
+        cropper.zoom(-0.1);
+    });
+
+    document.getElementById('reset-crop').addEventListener('click', function() {
+        cropper.reset();
+    });
+
+    document.getElementById('auto-crop').addEventListener('click', function() {
+        autoCrop();
+    });
+
+    function autoCrop() {
+        const containerData = cropper.getContainerData();
+        const imageData = cropper.getImageData();
+
+        // Calculate optimal crop area maintaining the template-specific aspect ratio
+        let cropWidth, cropHeight;
+
+        if (imageData.width / imageData.height > aspectRatio) {
+            // Image is wider than target ratio
+            cropHeight = imageData.height * 0.8; // Use 80% of height
+            cropWidth = cropHeight * aspectRatio;
+        } else {
+            // Image is taller than target ratio
+            cropWidth = imageData.width * 0.8; // Use 80% of width
+            cropHeight = cropWidth / aspectRatio;
+        }
+
+        // Center the crop area
+        const x = (imageData.width - cropWidth) / 2;
+        const y = (imageData.height - cropHeight) / 2;
+
+        cropper.setCropBoxData({
+            left: x + imageData.left,
+            top: y + imageData.top,
+            width: cropWidth,
+            height: cropHeight
+        });
+    }
+
+    function updatePreview() {
+        if (!cropper) return;
+
+        // Calculate target dimensions for this photo slot
+        let targetWidth, targetHeight;
+
+        if (layout === 'two-horizontal') {
+            targetWidth = 160;
+            targetHeight = 200;
+        } else if (layout === 'two-vertical') {
+            targetWidth = 320;
+            targetHeight = 100;
+        } else if (layout === 'three-grid') {
+            if (currentIndex === 0) {
+                // Left photo
+                targetWidth = 160;
+                targetHeight = 200;
+            } else {
+                // Right photos
+                targetWidth = 160;
+                targetHeight = 100;
+            }
+        } else {
+            // Default
+            targetWidth = 320;
+            targetHeight = 200;
+        }
+
+        // Create cropped canvas at target size for this photo slot
+        const croppedCanvas = cropper.getCroppedCanvas({
+            width: targetWidth,
+            height: targetHeight,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (croppedCanvas) {
+            // Update main preview - scale to fit 320x200 canvas
+            const ctx = previewCanvas.getContext('2d');
+            ctx.clearRect(0, 0, 320, 200);
+
+            // Center the preview in the canvas
+            const previewScale = Math.min(320/targetWidth, 200/targetHeight);
+            const previewWidth = targetWidth * previewScale;
+            const previewHeight = targetHeight * previewScale;
+            const previewX = (320 - previewWidth) / 2;
+            const previewY = (200 - previewHeight) / 2;
+
+            ctx.drawImage(croppedCanvas, previewX, previewY, previewWidth, previewHeight);
+
+            // Update small calendar preview (80x50) - scale appropriately
+            const ctxSmall = previewCanvasSmall.getContext('2d');
+            ctxSmall.clearRect(0, 0, 80, 50);
+
+            const smallScale = Math.min(80/targetWidth, 50/targetHeight);
+            const smallWidth = targetWidth * smallScale;
+            const smallHeight = targetHeight * smallScale;
+            const smallX = (80 - smallWidth) / 2;
+            const smallY = (50 - smallHeight) / 2;
+
+            ctxSmall.drawImage(croppedCanvas, smallX, smallY, smallWidth, smallHeight);
+        }
+    }
+
+    // Form submission
+    cropForm.addEventListener('submit', function(e) {
+        if (!cropper) {
+            e.preventDefault();
+            alert('Please wait for the image to load.');
+            return;
+        }
+
+        // Check if this is the final step
+        const isLastPhoto = {{ current_index|add:1 }} === {{ total_photos }};
+
+        if (isLastPhoto) {
+            // Validate event details
+            const monthSelect = document.getElementById('month-select');
+            const daySelect = document.getElementById('day-select');
+            const eventNameInput = document.getElementById('event-name-input');
+
+            if (!monthSelect.value || !daySelect.value || !eventNameInput.value.trim()) {
+                e.preventDefault();
+                alert('Please fill in the month, day, and event name.');
+                return;
+            }
+
+            // Copy values to hidden inputs
+            document.getElementById('month-hidden').value = monthSelect.value;
+            document.getElementById('day-hidden').value = daySelect.value;
+            document.getElementById('event-name-hidden').value = eventNameInput.value.trim();
+        }
+
+        // Calculate target dimensions for this photo slot
+        let targetWidth, targetHeight;
+
+        if (layout === 'two-horizontal') {
+            targetWidth = 160;
+            targetHeight = 200;
+        } else if (layout === 'two-vertical') {
+            targetWidth = 320;
+            targetHeight = 100;
+        } else if (layout === 'three-grid') {
+            if (currentIndex === 0) {
+                // Left photo
+                targetWidth = 160;
+                targetHeight = 200;
+            } else {
+                // Right photos
+                targetWidth = 160;
+                targetHeight = 100;
+            }
+        } else {
+            // Default
+            targetWidth = 320;
+            targetHeight = 200;
+        }
+
+        // Get the cropped canvas data at the correct dimensions
+        const croppedCanvas = cropper.getCroppedCanvas({
+            width: targetWidth,
+            height: targetHeight,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (croppedCanvas) {
+            // Convert to base64 with higher quality
+            const imageData = croppedCanvas.toDataURL('image/jpeg', 0.95);
+            cropDataInput.value = imageData;
+        } else {
+            e.preventDefault();
+            alert('Failed to process crop. Please try again.');
+        }
+    });
+
+    // Handle month/day validation for final step
+    {% if current_index|add:1 == total_photos %}
+    const monthSelect = document.getElementById('month-select');
+    const daySelect = document.getElementById('day-select');
+
+    monthSelect.addEventListener('change', function() {
+        const month = parseInt(this.value);
+        const year = {{ year }};
+
+        if (month) {
+            // Calculate days in month
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const currentDay = parseInt(daySelect.value);
+
+            // Update day options
+            daySelect.innerHTML = '<option value="">Select day...</option>';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                if (i === currentDay && i <= daysInMonth) {
+                    option.selected = true;
+                }
+                daySelect.appendChild(option);
+            }
+        }
+    });
+    {% endif %}
+
+    // Initial preview update
+    setTimeout(updatePreview, 500);
+});
+</script>
+{% endblock %}

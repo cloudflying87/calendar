@@ -33,150 +33,171 @@
     <form method="post" enctype="multipart/form-data" class="form holiday-form">
         {% csrf_token %}
 
-        <div class="holiday-grid">
-            <!-- New Year's Day -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_new_years }}
-                        <label for="{{ form.include_new_years.id_for_label }}" class="holiday-label">New Year's Day</label>
-                    </div>
-                    <div class="holiday-date">January 1, {{ calendar.year }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-new_years" style="display: none;">
-                    <label for="{{ form.image_new_years.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_new_years }}
-                    <div class="form-help">Upload an image for New Year's Day (optional)</div>
-                </div>
-            </div>
+        <div class="holiday-table-container">
+            <table class="holiday-table">
+                <thead>
+                    <tr>
+                        <th>Include</th>
+                        <th>Holiday</th>
+                        <th>Date</th>
+                        <th>Optional Image</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- New Year's Day -->
+                    <tr class="holiday-row" data-holiday="new_years">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_new_years }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_new_years.id_for_label }}" class="holiday-label">New Year's Day</label>
+                        </td>
+                        <td class="holiday-date">January 1, {{ calendar.year }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-new_years" style="display: none;">
+                                {{ form.image_new_years }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Easter -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_easter }}
-                        <label for="{{ form.include_easter.id_for_label }}" class="holiday-label">Easter</label>
-                    </div>
-                    <div class="holiday-date">{{ holiday_dates.easter }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-easter" style="display: none;">
-                    <label for="{{ form.image_easter.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_easter }}
-                    <div class="form-help">Upload an image for Easter (optional)</div>
-                </div>
-            </div>
+                    <!-- Easter -->
+                    <tr class="holiday-row" data-holiday="easter">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_easter }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_easter.id_for_label }}" class="holiday-label">Easter</label>
+                        </td>
+                        <td class="holiday-date">{{ holiday_dates.easter }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-easter" style="display: none;">
+                                {{ form.image_easter }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Mother's Day -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_mothers_day }}
-                        <label for="{{ form.include_mothers_day.id_for_label }}" class="holiday-label">Mother's Day</label>
-                    </div>
-                    <div class="holiday-date">{{ holiday_dates.mothers_day }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-mothers_day" style="display: none;">
-                    <label for="{{ form.image_mothers_day.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_mothers_day }}
-                    <div class="form-help">Upload an image for Mother's Day (optional)</div>
-                </div>
-            </div>
+                    <!-- Mother's Day -->
+                    <tr class="holiday-row" data-holiday="mothers_day">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_mothers_day }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_mothers_day.id_for_label }}" class="holiday-label">Mother's Day</label>
+                        </td>
+                        <td class="holiday-date">{{ holiday_dates.mothers_day }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-mothers_day" style="display: none;">
+                                {{ form.image_mothers_day }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Father's Day -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_fathers_day }}
-                        <label for="{{ form.include_fathers_day.id_for_label }}" class="holiday-label">Father's Day</label>
-                    </div>
-                    <div class="holiday-date">{{ holiday_dates.fathers_day }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-fathers_day" style="display: none;">
-                    <label for="{{ form.image_fathers_day.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_fathers_day }}
-                    <div class="form-help">Upload an image for Father's Day (optional)</div>
-                </div>
-            </div>
+                    <!-- Father's Day -->
+                    <tr class="holiday-row" data-holiday="fathers_day">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_fathers_day }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_fathers_day.id_for_label }}" class="holiday-label">Father's Day</label>
+                        </td>
+                        <td class="holiday-date">{{ holiday_dates.fathers_day }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-fathers_day" style="display: none;">
+                                {{ form.image_fathers_day }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Memorial Day -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_memorial_day }}
-                        <label for="{{ form.include_memorial_day.id_for_label }}" class="holiday-label">Memorial Day</label>
-                    </div>
-                    <div class="holiday-date">{{ holiday_dates.memorial_day }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-memorial_day" style="display: none;">
-                    <label for="{{ form.image_memorial_day.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_memorial_day }}
-                    <div class="form-help">Upload an image for Memorial Day (optional)</div>
-                </div>
-            </div>
+                    <!-- Memorial Day -->
+                    <tr class="holiday-row" data-holiday="memorial_day">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_memorial_day }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_memorial_day.id_for_label }}" class="holiday-label">Memorial Day</label>
+                        </td>
+                        <td class="holiday-date">{{ holiday_dates.memorial_day }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-memorial_day" style="display: none;">
+                                {{ form.image_memorial_day }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Independence Day -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_independence_day }}
-                        <label for="{{ form.include_independence_day.id_for_label }}" class="holiday-label">Independence Day</label>
-                    </div>
-                    <div class="holiday-date">July 4, {{ calendar.year }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-independence_day" style="display: none;">
-                    <label for="{{ form.image_independence_day.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_independence_day }}
-                    <div class="form-help">Upload an image for Independence Day (optional)</div>
-                </div>
-            </div>
+                    <!-- Independence Day -->
+                    <tr class="holiday-row" data-holiday="independence_day">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_independence_day }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_independence_day.id_for_label }}" class="holiday-label">Independence Day</label>
+                        </td>
+                        <td class="holiday-date">July 4, {{ calendar.year }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-independence_day" style="display: none;">
+                                {{ form.image_independence_day }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Labor Day -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_labor_day }}
-                        <label for="{{ form.include_labor_day.id_for_label }}" class="holiday-label">Labor Day</label>
-                    </div>
-                    <div class="holiday-date">{{ holiday_dates.labor_day }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-labor_day" style="display: none;">
-                    <label for="{{ form.image_labor_day.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_labor_day }}
-                    <div class="form-help">Upload an image for Labor Day (optional)</div>
-                </div>
-            </div>
+                    <!-- Labor Day -->
+                    <tr class="holiday-row" data-holiday="labor_day">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_labor_day }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_labor_day.id_for_label }}" class="holiday-label">Labor Day</label>
+                        </td>
+                        <td class="holiday-date">{{ holiday_dates.labor_day }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-labor_day" style="display: none;">
+                                {{ form.image_labor_day }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Thanksgiving -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_thanksgiving }}
-                        <label for="{{ form.include_thanksgiving.id_for_label }}" class="holiday-label">Thanksgiving</label>
-                    </div>
-                    <div class="holiday-date">{{ holiday_dates.thanksgiving }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-thanksgiving" style="display: none;">
-                    <label for="{{ form.image_thanksgiving.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_thanksgiving }}
-                    <div class="form-help">Upload an image for Thanksgiving (optional)</div>
-                </div>
-            </div>
+                    <!-- Thanksgiving -->
+                    <tr class="holiday-row" data-holiday="thanksgiving">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_thanksgiving }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_thanksgiving.id_for_label }}" class="holiday-label">Thanksgiving</label>
+                        </td>
+                        <td class="holiday-date">{{ holiday_dates.thanksgiving }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-thanksgiving" style="display: none;">
+                                {{ form.image_thanksgiving }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
 
-            <!-- Christmas -->
-            <div class="holiday-item">
-                <div class="holiday-item__header">
-                    <div class="holiday-checkbox">
-                        {{ form.include_christmas }}
-                        <label for="{{ form.include_christmas.id_for_label }}" class="holiday-label">Christmas</label>
-                    </div>
-                    <div class="holiday-date">December 25, {{ calendar.year }}</div>
-                </div>
-                <div class="holiday-item__image" id="image-section-christmas" style="display: none;">
-                    <label for="{{ form.image_christmas.id_for_label }}" class="form-label">Optional Image</label>
-                    {{ form.image_christmas }}
-                    <div class="form-help">Upload an image for Christmas (optional)</div>
-                </div>
-            </div>
+                    <!-- Christmas -->
+                    <tr class="holiday-row" data-holiday="christmas">
+                        <td class="holiday-checkbox-cell">
+                            {{ form.include_christmas }}
+                        </td>
+                        <td class="holiday-name">
+                            <label for="{{ form.include_christmas.id_for_label }}" class="holiday-label">Christmas</label>
+                        </td>
+                        <td class="holiday-date">December 25, {{ calendar.year }}</td>
+                        <td class="holiday-image-cell">
+                            <div class="holiday-image-upload" id="image-section-christmas" style="display: none;">
+                                {{ form.image_christmas }}
+                                <div class="form-help">Upload image (optional)</div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         {% if form.non_field_errors %}
@@ -199,58 +220,81 @@
     max-width: none;
 }
 
-.holiday-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+.holiday-table-container {
     margin-bottom: 2rem;
+    overflow-x: auto;
 }
 
-@media (min-width: 768px) {
-    .holiday-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (min-width: 1200px) {
-    .holiday-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-.holiday-item {
+.holiday-table {
+    width: 100%;
+    border-collapse: collapse;
     background: var(--color-background-light);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
-    padding: 1.5rem;
-    transition: border-color var(--transition-fast);
 }
 
-.holiday-item.selected {
-    border-color: var(--primary-color);
+.holiday-table th {
+    background: var(--color-background);
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.holiday-table th:first-child {
+    width: 80px;
+    text-align: center;
+}
+
+.holiday-table th:nth-child(2) {
+    width: 200px;
+}
+
+.holiday-table th:nth-child(3) {
+    width: 180px;
+}
+
+.holiday-table th:last-child {
+    min-width: 200px;
+}
+
+.holiday-row {
+    transition: background-color var(--transition-fast);
+}
+
+.holiday-row:hover {
+    background: rgba(37, 99, 235, 0.03);
+}
+
+.holiday-row.selected {
     background: rgba(37, 99, 235, 0.05);
 }
 
-.holiday-item__header {
-    margin-bottom: 1rem;
+.holiday-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
 }
 
-.holiday-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
+.holiday-checkbox-cell {
+    text-align: center;
+    vertical-align: middle;
 }
 
-.holiday-checkbox input[type="checkbox"] {
+.holiday-checkbox-cell input[type="checkbox"] {
     width: auto;
     margin: 0;
+}
+
+.holiday-name {
+    vertical-align: middle;
 }
 
 .holiday-label {
     font-weight: 600;
     color: var(--color-text-primary);
-    font-size: 1.125rem;
+    font-size: 1rem;
     margin: 0;
     cursor: pointer;
 }
@@ -258,23 +302,39 @@
 .holiday-date {
     font-size: 0.875rem;
     color: var(--color-text-secondary);
-    font-style: italic;
+    vertical-align: middle;
 }
 
-.holiday-item__image {
-    border-top: 1px solid var(--color-border);
-    padding-top: 1rem;
-    margin-top: 1rem;
+.holiday-image-cell {
+    min-width: 200px;
 }
 
-.holiday-item__image .form-label {
+.holiday-image-upload {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.holiday-image-upload input[type="file"] {
     font-size: 0.875rem;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
 }
 
-.holiday-item__image input[type="file"] {
-    margin-bottom: 0.5rem;
+.holiday-image-upload .form-help {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .holiday-table th:nth-child(3),
+    .holiday-table td:nth-child(3) {
+        display: none;
+    }
+
+    .holiday-table th:last-child,
+    .holiday-table td:last-child {
+        min-width: 150px;
+    }
 }
 </style>
 
@@ -306,21 +366,21 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
         const holidayCode = checkbox.name.replace('include_', '');
         const imageSection = document.getElementById('image-section-' + holidayCode);
-        const holidayItem = checkbox.closest('.holiday-item');
+        const holidayRow = checkbox.closest('.holiday-row');
 
         // Initial state
         if (checkbox.checked) {
-            if (imageSection) imageSection.style.display = 'block';
-            if (holidayItem) holidayItem.classList.add('selected');
+            if (imageSection) imageSection.style.display = 'flex';
+            if (holidayRow) holidayRow.classList.add('selected');
         }
 
         checkbox.addEventListener('change', function() {
             if (this.checked) {
-                if (imageSection) imageSection.style.display = 'block';
-                if (holidayItem) holidayItem.classList.add('selected');
+                if (imageSection) imageSection.style.display = 'flex';
+                if (holidayRow) holidayRow.classList.add('selected');
             } else {
                 if (imageSection) imageSection.style.display = 'none';
-                if (holidayItem) holidayItem.classList.remove('selected');
+                if (holidayRow) holidayRow.classList.remove('selected');
                 // Clear the file input if unchecked
                 const fileInput = imageSection ? imageSection.querySelector('input[type="file"]') : null;
                 if (fileInput) fileInput.value = '';

@@ -41,7 +41,7 @@ class CalendarPDFGenerator:
             spaceAfter=12,
             alignment=TA_CENTER,
             fontName='Times-Bold',
-            textColor=colors.HexColor('#2563eb'),
+            textColor=colors.black,
             leading=40
         )
 
@@ -107,14 +107,15 @@ class CalendarPDFGenerator:
         events = self.calendar.events.filter(month=month_num)
         events_dict = {event.day: event for event in events}
 
-        # Create calendar grid
+        # Create calendar grid starting with Sunday
+        cal.setfirstweekday(6)  # 6 = Sunday as first day
         cal_obj = cal.monthcalendar(self.year, month_num)
 
         # Prepare table data
         table_data = []
 
-        # Days of week header - using abbreviated names for modern look
-        days_header = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+        # Days of week header - starting with Sunday
+        days_header = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
         table_data.append(days_header)
 
         # Calendar days
@@ -136,10 +137,12 @@ class CalendarPDFGenerator:
 
         # Dynamically adjust row height based on number of weeks
         num_weeks = len(cal_obj)
-        # Use smaller heights to ensure fit: 1.3" for 5 weeks, 1.1" for 6 weeks
-        if num_weeks == 6:
+        # Adjust heights based on number of weeks: 1.65" for 4 weeks, 1.3" for 5 weeks, 1.1" for 6 weeks
+        if num_weeks == 4:
+            row_height = 1.65*inch
+        elif num_weeks == 6:
             row_height = 1.1*inch
-        else:
+        else:  # 5 weeks
             row_height = 1.3*inch
 
         table = Table(table_data, colWidths=[col_width]*7, rowHeights=[header_height] + [row_height]*num_weeks)
@@ -161,7 +164,7 @@ class CalendarPDFGenerator:
             ('BACKGROUND', (0, 1), (-1, -1), colors.white),
             # Grid for calendar cells (not header) - slightly darker gray
             ('GRID', (0, 1), (-1, -1), 0.75, colors.HexColor('#9ca3af')),
-            ('LINEBELOW', (0, -1), (-1, -1), 2, colors.black),  # Bold bottom border
+            # No bold bottom border
             ('VALIGN', (0, 1), (-1, -1), 'TOP'),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 10),
@@ -176,12 +179,22 @@ class CalendarPDFGenerator:
     def get_optimal_font_size(self, text, max_width_chars):
         """Calculate optimal font size based on text length"""
         text_length = len(text)
-        if text_length <= max_width_chars:
-            return 10
-        elif text_length <= max_width_chars * 1.5:
-            return 9
+        # Smaller base sizes for 6-week months
+        num_weeks = getattr(self, 'current_month_weeks', 5)
+        if num_weeks == 6:
+            if text_length <= max_width_chars:
+                return 8
+            elif text_length <= max_width_chars * 1.5:
+                return 7
+            else:
+                return 6
         else:
-            return 8
+            if text_length <= max_width_chars:
+                return 10
+            elif text_length <= max_width_chars * 1.5:
+                return 9
+            else:
+                return 8
 
     def create_day_cell(self, day, event):
         """Create content for a day cell"""
@@ -199,56 +212,96 @@ class CalendarPDFGenerator:
             )
             return Paragraph(str(day), day_style_left)
 
-        # Create a mini table for the cell content
+        # Create a mini table for the cell content with overlapping layout
         cell_data = []
 
-        # Day number in top row with modern styling
-        day_style_left = ParagraphStyle(
-            'DayStyleLeft',
-            parent=self.styles['Normal'],
-            fontSize=16,
-            alignment=TA_LEFT,
-            fontName='Times-Bold',
-            textColor=colors.HexColor('#1f2937')
-        )
-        cell_data.append([Paragraph(str(day), day_style_left)])
-
-        # Add image if available - make it much larger
+        # Add image first (as background)
         if event.image:
             try:
                 img_path = event.image.path
                 if os.path.exists(img_path):
-                    # Process image for PDF - make it larger to fill more of the cell
+                    # Process image for PDF
                     with Image.open(img_path) as img:
                         # Convert to RGB if necessary
                         if img.mode in ('RGBA', 'LA', 'P'):
                             img = img.convert('RGB')
 
-                        # Dynamically size images based on number of weeks
+                        # Dynamically size images based on number of weeks - higher resolution for better quality
                         num_weeks = getattr(self, 'current_month_weeks', 5)
-                        if num_weeks == 6:
-                            # Smaller images for 6-week months
-                            img.thumbnail((100, 75), Image.Resampling.LANCZOS)
-                            img_width, img_height = 85, 60
-                        else:
-                            # Larger images for 5-week months
-                            img.thumbnail((120, 90), Image.Resampling.LANCZOS)
-                            img_width, img_height = 100, 70
+                        if num_weeks == 4:
+                            # Larger images for 4-week months - higher res
+                            img.thumbnail((200, 150), Image.Resampling.LANCZOS)  # Process at higher res
+                            img_width, img_height = 105, 80  # Display at original size
+                        elif num_weeks == 6:
+                            # Smaller images for 6-week months - higher res
+                            img.thumbnail((150, 110), Image.Resampling.LANCZOS)  # Process at higher res
+                            img_width, img_height = 80, 60  # Display at original size
+                        else:  # 5 weeks
+                            # Medium images for 5-week months - higher res
+                            img.thumbnail((180, 130), Image.Resampling.LANCZOS)  # Process at higher res
+                            img_width, img_height = 95, 70  # Display at original size
 
-                        # Save to temporary file
+                        # Save to temporary file with maximum quality
                         temp_img_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-                        img.save(temp_img_file.name, 'JPEG', quality=85)
+                        img.save(temp_img_file.name, 'JPEG', quality=100, optimize=True, dpi=(300, 300))
 
-                        # Create ReportLab image - sized based on weeks
+                        # Create ReportLab image
                         rl_img = RLImage(temp_img_file.name, width=img_width, height=img_height)
-                        cell_data.append([rl_img])
+
+                        # Create day number with white background box overlay - no border, small box
+                        day_overlay_style = ParagraphStyle(
+                            'DayOverlay',
+                            parent=self.styles['Normal'],
+                            fontSize=16,
+                            alignment=TA_CENTER,
+                            fontName='Times-Bold',
+                            textColor=colors.HexColor('#1f2937')
+                        )
+
+                        # Create overlay table with image and small white box for day number
+                        overlay_data = [
+                            [rl_img],  # Image as background row
+                            [Paragraph(f'<para alignment="center" backColor="white" borderPadding="7">{day}</para>', day_overlay_style)]  # Day number overlay, no border
+                        ]
+
+                        # Position small white box right in top-left corner
+                        overlay_table = CellTable(overlay_data, colWidths=[1.4*inch], rowHeights=[img_height, 0.01*inch])
+                        overlay_table.setStyle(TableStyle([
+                            # Image cell (0, 0) styling
+                            ('ALIGN', (0, 0), (0, 0), 'CENTER'),  # Center image
+                            ('VALIGN', (0, 0), (0, 0), 'TOP'),    # Align image to top
+                            ('LEFTPADDING', (0, 0), (0, 0), 0),   # No left padding for image
+                            ('RIGHTPADDING', (0, 0), (0, 0), 0),  # No right padding for image
+                            ('TOPPADDING', (0, 0), (0, 0), 0),    # No top padding for image
+                            ('BOTTOMPADDING', (0, 0), (0, 0), 0), # No bottom padding for image
+
+                            # Day number overlay cell (0, 1) styling
+                            ('ALIGN', (0, 1), (0, 1), 'LEFT'),    # Position day number box on left
+                            ('VALIGN', (0, 1), (0, 1), 'TOP'),    # Align day number to top
+                            ('LEFTPADDING', (0, 1), (0, 1), 2),   # Small left padding for day number
+                            ('RIGHTPADDING', (0, 1), (0, 1), 81), # Large right padding to keep box small
+                            ('TOPPADDING', (0, 1), (0, 1), -img_height-4),  # Negative padding to overlay on image
+                            ('BOTTOMPADDING', (0, 1), (0, 1), img_height), # Keep day number box small
+                        ]))
+
+                        cell_data.append([overlay_table])
 
                         # Store temp file name for cleanup
                         if not hasattr(self, '_temp_files'):
                             self._temp_files = []
                         self._temp_files.append(temp_img_file.name)
                 else:
-                    # Image not found, use text placeholder
+                    # Image not found, add day number normally then placeholder
+                    day_style = ParagraphStyle(
+                        'DayStyleLeft',
+                        parent=self.styles['Normal'],
+                        fontSize=16,
+                        alignment=TA_LEFT,
+                        fontName='Times-Bold',
+                        textColor=colors.HexColor('#1f2937')
+                    )
+                    cell_data.append([Paragraph(str(day), day_style)])
+
                     img_style = ParagraphStyle(
                         'ImagePlaceholder',
                         parent=self.styles['Normal'],
@@ -257,7 +310,17 @@ class CalendarPDFGenerator:
                     )
                     cell_data.append([Paragraph("📷 Image", img_style)])
             except Exception as e:
-                # Error processing image, use text placeholder
+                # Error processing image, add day number normally then error placeholder
+                day_style = ParagraphStyle(
+                    'DayStyleLeft',
+                    parent=self.styles['Normal'],
+                    fontSize=16,
+                    alignment=TA_LEFT,
+                    fontName='Times-Bold',
+                    textColor=colors.HexColor('#1f2937')
+                )
+                cell_data.append([Paragraph(str(day), day_style)])
+
                 img_style = ParagraphStyle(
                     'ImagePlaceholder',
                     parent=self.styles['Normal'],
@@ -265,19 +328,39 @@ class CalendarPDFGenerator:
                     alignment=TA_CENTER
                 )
                 cell_data.append([Paragraph("📷 Error", img_style)])
+        else:
+            # No image, just add day number at top
+            day_style = ParagraphStyle(
+                'DayStyleLeft',
+                parent=self.styles['Normal'],
+                fontSize=16,
+                alignment=TA_LEFT,
+                fontName='Times-Bold',
+                textColor=colors.HexColor('#1f2937')
+            )
+            cell_data.append([Paragraph(str(day), day_style)])
 
         # Add event name with wrapping and dynamic sizing
-        if event.event_name:
+        if event and event.event_name:
             # Calculate optimal font size
             optimal_font_size = self.get_optimal_font_size(event.event_name, 15)
+
+            # Make font smaller for 6-week months
+            num_weeks = getattr(self, 'current_month_weeks', 5)
+            if num_weeks == 6:
+                font_size = optimal_font_size  # No +2 for 6-week months
+                leading = optimal_font_size + 1  # Tighter line spacing
+            else:
+                font_size = optimal_font_size + 2  # Normal sizing for 4-5 week months
+                leading = optimal_font_size + 3
 
             event_style = ParagraphStyle(
                 'EventStyle',
                 parent=self.styles['Normal'],
-                fontSize=optimal_font_size + 2,  # Slightly larger for readability
+                fontSize=font_size,
                 alignment=TA_CENTER,
                 fontName='Helvetica-Oblique',  # Italic for event names
-                leading=optimal_font_size + 3,  # Better line spacing
+                leading=leading,  # Adjusted line spacing
                 textColor=colors.HexColor('#374151'),
                 wordWrap='LTR'  # Enable word wrapping
             )
@@ -289,25 +372,31 @@ class CalendarPDFGenerator:
 
         # Dynamically adjust row heights based on number of weeks in month
         num_weeks = getattr(self, 'current_month_weeks', 5)
-        if num_weeks == 6:
+        if num_weeks == 4:
+            available_height = 1.65*inch
+        elif num_weeks == 6:
             available_height = 1.1*inch
-        else:
+        else:  # 5 weeks
             available_height = 1.3*inch
 
-        # Adjust row heights based on content - larger to fill cell
-        if len(cell_data) == 3:  # Day + Image + Text
-            row_heights = [0.15*inch, available_height - 0.35*inch, 0.2*inch]  # More space for image
-        elif len(cell_data) == 2:  # Day + Text (no image)
-            row_heights = [0.15*inch, available_height - 0.15*inch]
+        # Adjust row heights based on content - images with overlay take full space
+        if len(cell_data) == 2 and event and event.image:  # Image with overlay + Text
+            row_heights = [available_height - 0.45*inch, 0.45*inch]  # Image takes most space, very small text gap
+            # row_heights = [available_height]  # Image takes most space, very small text gap
+        elif len(cell_data) == 2:  # Day + Text (no image) or Day + Image (no text)
+            if event and event.image:
+                row_heights = [available_height]  # Image with overlay takes full space
+            else:
+                row_heights = [0.15*inch, available_height - 0.15*inch]  # Normal day + text layout
         else:  # Just day
             row_heights = [available_height]
 
         mini_table = CellTable(cell_data, colWidths=[1.4*inch], rowHeights=row_heights)
         mini_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),  # Day number aligned left
-            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),  # Image and text centered
-            ('VALIGN', (0, 0), (0, 0), 'TOP'),  # Day number at top
-            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),  # Image and text centered
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),     # Day number aligned left
+            ('ALIGN', (0, 1), (-1, -1), 'CENTER'), # Image and text centered
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),     # Day number at top
+            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'), # Image and text centered
             ('LEFTPADDING', (0, 0), (-1, -1), 1),
             ('RIGHTPADDING', (0, 0), (-1, -1), 1),
             ('TOPPADDING', (0, 0), (-1, -1), 1),

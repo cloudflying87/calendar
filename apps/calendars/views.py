@@ -16,6 +16,11 @@ import tempfile
 import base64
 from PIL import Image
 import io
+import zipfile
+import shutil
+from django.utils.text import slugify
+from datetime import datetime
+import calendar as cal
 
 
 class CalendarListView(LoginRequiredMixin, ListView):
@@ -40,7 +45,53 @@ class CalendarCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+
+        # Handle copying from another calendar if selected
+        copy_from_calendar = form.cleaned_data.get('copy_from_calendar')
+        if copy_from_calendar:
+            self.copy_calendar_events(copy_from_calendar, self.object)
+
+        return response
+
+    def copy_calendar_events(self, source_calendar, target_calendar):
+        """Copy all events and their photos from source to target calendar"""
+        from django.core.files.base import ContentFile
+        import os
+
+        copied_count = 0
+
+        for event in source_calendar.events.all():
+            # Create new event
+            new_event = CalendarEvent(
+                calendar=target_calendar,
+                month=event.month,
+                day=event.day,
+                event_name=event.event_name,
+                original_filename=event.original_filename
+            )
+
+            # Copy image if it exists
+            if event.image and os.path.exists(event.image.path):
+                with open(event.image.path, 'rb') as f:
+                    image_content = f.read()
+
+                # Create new file with updated path
+                new_filename = f"copy_{event.original_filename}" if event.original_filename else f"copy_{event.image.name}"
+                new_event.image.save(
+                    new_filename,
+                    ContentFile(image_content),
+                    save=False
+                )
+
+            new_event.save()
+            copied_count += 1
+
+        if copied_count > 0:
+            messages.success(
+                self.request,
+                f"Successfully copied {copied_count} events from {source_calendar.year} calendar."
+            )
 
     def get_success_url(self):
         return reverse('calendars:calendar_detail', kwargs={'year': self.object.year})
@@ -176,9 +227,9 @@ class GenerateCalendarView(View):
             if generation_type == 'calendar_only':
                 pdf_file = generator.generate_calendar_only()
             elif generation_type == 'with_headers':
-                pdf_file = generator.generate_with_headers()
-            elif generation_type == 'combined':
                 pdf_file = generator.generate_combined_spread()
+            elif generation_type == 'combined':
+                pdf_file = generator.generate_with_headers()
             else:
                 messages.error(request, "Invalid generation type.")
                 return redirect('calendars:calendar_detail', year=year)
@@ -315,39 +366,92 @@ class PhotoEditorUploadView(View):
     """New upload view specifically for the photo editor - accepts any filename"""
     def get(self, request, year):
         calendar = get_object_or_404(Calendar, year=year, user=request.user)
-        return render(request, 'calendars/photo_editor_upload.html', {
+
+        # Check if we're editing an existing event
+        edit_event_data = request.session.get('edit_event_data')
+        context = {
             'calendar': calendar,
-        })
+            'edit_event_data': edit_event_data,
+        }
+
+        return render(request, 'calendars/photo_editor_upload.html', context)
 
     def post(self, request, year):
         calendar = get_object_or_404(Calendar, year=year, user=request.user)
 
         # Get form data
-        uploaded_file = request.FILES.get('photo')
-        month = int(request.POST.get('month'))
-        day = int(request.POST.get('day'))
-        event_name = request.POST.get('event_name')
+        photo_mode = request.POST.get('photo_mode', 'single')
 
-        if not uploaded_file:
-            messages.error(request, "Please select a photo to upload.")
+        if photo_mode == 'single':
+            # Handle single photo upload
+            uploaded_file = request.FILES.get('photo')
+
+            if not uploaded_file:
+                messages.error(request, "Please select a photo to upload.")
+                return redirect('calendars:photo_editor_upload', year=year)
+
+            # Save temporary file for cropping
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            for chunk in uploaded_file.chunks():
+                temp_file.write(chunk)
+            temp_file.close()
+
+            # Store data in session for the crop view (no date/event data yet)
+            request.session['crop_data'] = {
+                'temp_path': temp_file.name,
+                'original_filename': uploaded_file.name,
+                'photo_mode': 'single'
+            }
+
+            return redirect('calendars:photo_crop', year=year)
+
+        elif photo_mode == 'multi':
+            # Handle multiple photo upload
+            uploaded_files = request.FILES.getlist('photos')
+            layout = request.POST.get('layout')
+
+            if not uploaded_files:
+                messages.error(request, "Please select photos to upload.")
+                return redirect('calendars:photo_editor_upload', year=year)
+
+            if not layout:
+                messages.error(request, "Please select a layout template.")
+                return redirect('calendars:photo_editor_upload', year=year)
+
+            # Validate file count based on layout
+            max_files = 2 if layout in ['two-horizontal', 'two-vertical'] else 3
+            min_files = 2
+
+            if len(uploaded_files) < min_files or len(uploaded_files) > max_files:
+                messages.error(request, f"Please select {min_files}-{max_files} photos for the {layout.replace('-', ' ')} layout.")
+                return redirect('calendars:photo_editor_upload', year=year)
+
+            # Save temporary files
+            temp_paths = []
+            original_filenames = []
+
+            for i, uploaded_file in enumerate(uploaded_files):
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'_photo{i+1}.jpg')
+                for chunk in uploaded_file.chunks():
+                    temp_file.write(chunk)
+                temp_file.close()
+                temp_paths.append(temp_file.name)
+                original_filenames.append(uploaded_file.name)
+
+            # Store data in session for the multi-crop view
+            request.session['multi_crop_data'] = {
+                'temp_paths': temp_paths,
+                'original_filenames': original_filenames,
+                'layout': layout,
+                'photo_mode': 'multi',
+                'current_photo_index': 0  # Start with first photo
+            }
+
+            return redirect('calendars:multi_photo_crop', year=year)
+
+        else:
+            messages.error(request, "Invalid photo mode selected.")
             return redirect('calendars:photo_editor_upload', year=year)
-
-        # Save temporary file for cropping
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-        for chunk in uploaded_file.chunks():
-            temp_file.write(chunk)
-        temp_file.close()
-
-        # Store data in session for the crop view
-        request.session['crop_data'] = {
-            'temp_path': temp_file.name,
-            'original_filename': uploaded_file.name,
-            'month': month,
-            'day': day,
-            'event_name': event_name,
-        }
-
-        return redirect('calendars:photo_crop', year=year)
 
 
 @method_decorator(login_required, name='dispatch')
@@ -377,18 +481,39 @@ class PhotoCropView(View):
 
         temp_image_url = f"{settings.MEDIA_URL}temp/{temp_filename}"
 
-        # Format event date
-        event_date = f"{crop_data['month']:02d}/{crop_data['day']:02d}/{year}"
+        # Check if we have edit event data or crop data
+        edit_event_data = request.session.get('edit_event_data')
+
+        if edit_event_data:
+            # Editing existing event - use event data
+            event_date = f"{edit_event_data['month']:02d}/{edit_event_data['day']:02d}/{year}"
+            event_name = edit_event_data['event_name']
+            month = edit_event_data['month']
+            day = edit_event_data['day']
+        elif 'month' in crop_data and 'day' in crop_data:
+            # Old workflow - has date/event data in crop_data
+            event_date = f"{crop_data['month']:02d}/{crop_data['day']:02d}/{year}"
+            event_name = crop_data['event_name']
+            month = crop_data['month']
+            day = crop_data['day']
+        else:
+            # New workflow - no date/event data yet
+            event_date = "Choose Date"
+            event_name = "Enter Event Name"
+            month = ''
+            day = ''
 
         return render(request, 'calendars/photo_crop.html', {
             'calendar': calendar,
             'temp_image_url': temp_image_url,
             'temp_image_path': crop_data['temp_path'],
             'original_filename': crop_data['original_filename'],
-            'event_name': crop_data['event_name'],
-            'month': crop_data['month'],
-            'day': crop_data['day'],
+            'event_name': event_name,
+            'month': month,
+            'day': day,
             'event_date': event_date,
+            'year': year,
+            'edit_event_data': edit_event_data,
         })
 
 
@@ -421,9 +546,9 @@ class ProcessCropView(View):
             if image.mode in ('RGBA', 'LA', 'P'):
                 image = image.convert('RGB')
 
-            # Save cropped image to a temporary file
+            # Save cropped image to a temporary file with higher quality
             temp_cropped = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-            image.save(temp_cropped.name, 'JPEG', quality=85, optimize=True)
+            image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
             temp_cropped.close()
 
             # Create Django file from temporary file
@@ -458,13 +583,21 @@ class ProcessCropView(View):
             except OSError:
                 pass
 
-            # Clear session data
+            # Clear session data and check for return destination
+            edit_event_data = request.session.get('edit_event_data')
             if 'crop_data' in request.session:
                 del request.session['crop_data']
+            if 'edit_event_data' in request.session:
+                del request.session['edit_event_data']
 
             action = "created" if created else "updated"
             messages.success(request, f"Event '{event_name}' {action} successfully with cropped photo.")
-            return redirect('calendars:calendar_detail', year=year)
+
+            # Return to event edit page if we were editing an event
+            if edit_event_data and edit_event_data.get('return_to_edit'):
+                return redirect('calendars:edit_event', event_id=event.id)
+            else:
+                return redirect('calendars:calendar_detail', year=year)
 
         except Exception as e:
             messages.error(request, f"Error processing cropped image: {str(e)}")
@@ -508,3 +641,349 @@ class DeleteGeneratedPDFView(View):
 
         messages.success(request, f"Generated PDF '{generation_type}' deleted successfully.")
         return redirect('calendars:calendar_detail', year=calendar_year)
+
+
+@method_decorator(login_required, name='dispatch')
+class DownloadAllPhotosView(View):
+    def get(self, request, year):
+        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+
+        # Get all events with images
+        events_with_images = calendar.events.filter(image__isnull=False).order_by('month', 'day')
+
+        if not events_with_images.exists():
+            messages.error(request, "No photos found in this calendar.")
+            return redirect('calendars:calendar_detail', year=year)
+
+        # Create temporary zip file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip:
+            with zipfile.ZipFile(tmp_zip, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+
+                # Create events manifest
+                events_info = []
+
+                # Group events by month for organization
+                current_month = None
+
+                for event in events_with_images:
+                    # Create month folder if needed
+                    month_name = f"{event.month:02d}-{cal.month_name[event.month]}"
+
+                    if event.image and os.path.exists(event.image.path):
+                        # Create safe filename
+                        event_name_safe = slugify(event.event_name)
+                        original_ext = os.path.splitext(event.original_filename)[1] if event.original_filename else '.jpg'
+                        filename = f"{event.month:02d}{event.day:02d}_{event_name_safe}{original_ext}"
+
+                        # Add to zip in month folder
+                        zip_path = f"{month_name}/{filename}"
+                        zip_file.write(event.image.path, zip_path)
+
+                        # Track for manifest
+                        events_info.append({
+                            'date': f"{event.month:02d}/{event.day:02d}/{year}",
+                            'event_name': event.event_name,
+                            'filename': filename,
+                            'folder': month_name
+                        })
+
+                # Create events manifest file
+                manifest_content = f"Calendar {year} Photos Export\n"
+                manifest_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                manifest_content += "Events List:\n"
+                manifest_content += "=" * 50 + "\n"
+
+                for event_info in events_info:
+                    manifest_content += f"Date: {event_info['date']}\n"
+                    manifest_content += f"Event: {event_info['event_name']}\n"
+                    manifest_content += f"File: {event_info['folder']}/{event_info['filename']}\n"
+                    manifest_content += "-" * 30 + "\n"
+
+                # Add manifest to zip
+                zip_file.writestr("events_list.txt", manifest_content)
+
+            # Read the zip file
+            with open(tmp_zip.name, 'rb') as f:
+                zip_content = f.read()
+
+            # Clean up temp file
+            os.unlink(tmp_zip.name)
+
+            # Return as download
+            response = HttpResponse(zip_content, content_type='application/zip')
+            response['Content-Disposition'] = f'attachment; filename="Calendar-{year}-Photos.zip"'
+            return response
+
+
+@method_decorator(login_required, name='dispatch')
+class EditEventPhotoView(View):
+    """Edit photo for an existing event using the photo editor"""
+    def get(self, request, event_id):
+        event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
+
+        # Store event info in session for the photo editor
+        request.session['edit_event_data'] = {
+            'event_id': event.id,
+            'month': event.month,
+            'day': event.day,
+            'event_name': event.event_name,
+            'return_to_edit': True,
+        }
+
+        # Redirect to photo editor upload
+        return redirect('calendars:photo_editor_upload', year=event.calendar.year)
+
+
+@method_decorator(login_required, name='dispatch')
+class RemoveEventPhotoView(View):
+    """Remove photo from an event"""
+    def post(self, request, event_id):
+        event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
+
+        # Delete the image file
+        if event.image:
+            try:
+                if os.path.exists(event.image.path):
+                    os.remove(event.image.path)
+            except OSError:
+                pass
+
+        # Clear the image field
+        event.image = None
+        event.save()
+
+        messages.success(request, f"Photo removed from '{event.event_name}'.")
+        return redirect('calendars:edit_event', event_id=event.id)
+
+
+@method_decorator(login_required, name='dispatch')
+class MultiPhotoCropView(View):
+    """Crop multiple photos sequentially for combination"""
+    def get(self, request, year):
+        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+
+        # Get multi-crop data from session
+        multi_crop_data = request.session.get('multi_crop_data')
+        if not multi_crop_data:
+            messages.error(request, "No images to crop. Please upload images first.")
+            return redirect('calendars:photo_editor_upload', year=year)
+
+        current_index = multi_crop_data.get('current_photo_index', 0)
+        temp_paths = multi_crop_data['temp_paths']
+
+        # Check if we're done with all photos
+        if current_index >= len(temp_paths):
+            messages.error(request, "All photos have been processed.")
+            return redirect('calendars:photo_editor_upload', year=year)
+
+        # Check if current temp file exists
+        current_temp_path = temp_paths[current_index]
+        if not os.path.exists(current_temp_path):
+            messages.error(request, "Temporary image file not found. Please upload again.")
+            return redirect('calendars:photo_editor_upload', year=year)
+
+        # Create a URL for the temporary image by copying to media/temp
+        import shutil
+        temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+
+        temp_filename = f"multi_crop_{current_index}_{os.path.basename(current_temp_path)}"
+        temp_media_path = os.path.join(temp_dir, temp_filename)
+        shutil.copy2(current_temp_path, temp_media_path)
+
+        temp_image_url = f"{settings.MEDIA_URL}temp/{temp_filename}"
+
+        return render(request, 'calendars/multi_photo_crop.html', {
+            'calendar': calendar,
+            'temp_image_url': temp_image_url,
+            'current_index': current_index,
+            'total_photos': len(temp_paths),
+            'layout': multi_crop_data['layout'],
+            'current_filename': multi_crop_data['original_filenames'][current_index],
+            'year': year,
+        })
+
+
+@method_decorator(login_required, name='dispatch')
+class ProcessMultiCropView(View):
+    """Process cropped photos and combine them"""
+    def post(self, request, year):
+        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+
+        # Get multi-crop data from session
+        multi_crop_data = request.session.get('multi_crop_data')
+        if not multi_crop_data:
+            messages.error(request, "No crop data found.")
+            return redirect('calendars:photo_editor_upload', year=year)
+
+        current_index = multi_crop_data.get('current_photo_index', 0)
+        crop_data_base64 = request.POST.get('crop_data')
+
+        if not crop_data_base64:
+            messages.error(request, "No crop data received.")
+            return redirect('calendars:multi_photo_crop', year=year)
+
+        # Decode and save the cropped image
+        try:
+            # Remove data URL prefix if present
+            if crop_data_base64.startswith('data:image'):
+                crop_data_base64 = crop_data_base64.split(',')[1]
+
+            # Decode base64 to image
+            image_data = base64.b64decode(crop_data_base64)
+            image = Image.open(io.BytesIO(image_data))
+
+            # Save cropped image temporarily with higher quality
+            cropped_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'_cropped_{current_index}.jpg')
+            image.save(cropped_temp_file.name, 'JPEG', quality=95, optimize=True)
+            cropped_temp_file.close()
+
+            # Store cropped image path
+            if 'cropped_paths' not in multi_crop_data:
+                multi_crop_data['cropped_paths'] = []
+
+            # Ensure list is long enough
+            while len(multi_crop_data['cropped_paths']) <= current_index:
+                multi_crop_data['cropped_paths'].append(None)
+
+            multi_crop_data['cropped_paths'][current_index] = cropped_temp_file.name
+
+            # Move to next photo
+            multi_crop_data['current_photo_index'] = current_index + 1
+
+            # Update session
+            request.session['multi_crop_data'] = multi_crop_data
+
+            # Check if we have more photos to crop
+            if current_index + 1 < len(multi_crop_data['temp_paths']):
+                # More photos to crop
+                return redirect('calendars:multi_photo_crop', year=year)
+            else:
+                # All photos cropped, now combine and save
+                return self._combine_and_save_photos(request, year, calendar, multi_crop_data)
+
+        except Exception as e:
+            messages.error(request, f"Error processing crop: {str(e)}")
+            return redirect('calendars:multi_photo_crop', year=year)
+
+    def _combine_and_save_photos(self, request, year, calendar, multi_crop_data):
+        """Combine cropped photos according to layout and save to calendar"""
+        try:
+            layout = multi_crop_data['layout']
+            cropped_paths = multi_crop_data['cropped_paths']
+
+            # Create combined image based on layout
+            combined_image = self._create_combined_image(cropped_paths, layout)
+
+            # Get event details from form
+            month = int(request.POST.get('month', 1))
+            day = int(request.POST.get('day', 1))
+            event_name = request.POST.get('event_name', 'Multi-Photo Event')
+
+            # Save the combined image with higher quality
+            temp_combined_file = tempfile.NamedTemporaryFile(delete=False, suffix='_combined.jpg')
+            combined_image.save(temp_combined_file.name, 'JPEG', quality=95, optimize=True)
+            temp_combined_file.close()
+
+            # Create or update calendar event
+            event, created = CalendarEvent.objects.get_or_create(
+                calendar=calendar,
+                month=month,
+                day=day,
+                defaults={'event_name': event_name}
+            )
+
+            if not created:
+                # Update existing event
+                event.event_name = event_name
+                # Delete old image if exists
+                if event.image:
+                    try:
+                        if os.path.exists(event.image.path):
+                            os.remove(event.image.path)
+                    except OSError:
+                        pass
+
+            # Save new image to event
+            from django.core.files import File
+            with open(temp_combined_file.name, 'rb') as f:
+                event.image.save(
+                    f"{event_name.replace(' ', '_')}_{month:02d}_{day:02d}.jpg",
+                    File(f),
+                    save=True
+                )
+
+            # Clean up temporary files
+            for temp_path in multi_crop_data.get('temp_paths', []):
+                try:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                except OSError:
+                    pass
+
+            for cropped_path in cropped_paths:
+                try:
+                    if cropped_path and os.path.exists(cropped_path):
+                        os.remove(cropped_path)
+                except OSError:
+                    pass
+
+            try:
+                if os.path.exists(temp_combined_file.name):
+                    os.remove(temp_combined_file.name)
+            except OSError:
+                pass
+
+            # Clear session data
+            if 'multi_crop_data' in request.session:
+                del request.session['multi_crop_data']
+
+            messages.success(request, f"Multi-photo event '{event_name}' created successfully!")
+            return redirect('calendars:calendar_detail', year=year)
+
+        except Exception as e:
+            messages.error(request, f"Error creating combined image: {str(e)}")
+            return redirect('calendars:photo_editor_upload', year=year)
+
+    def _create_combined_image(self, cropped_paths, layout):
+        """Create combined image based on layout template"""
+        # Target size is 320x200 (same as single photos)
+        combined_width, combined_height = 320, 200
+
+        # Create new image with white background
+        combined = Image.new('RGB', (combined_width, combined_height), 'white')
+
+        # Load cropped images
+        images = []
+        for path in cropped_paths:
+            if path and os.path.exists(path):
+                img = Image.open(path)
+                images.append(img)
+
+        if not images:
+            raise ValueError("No valid cropped images found")
+
+        if layout == 'two-horizontal':
+            # Two photos side by side - images already cropped to 160x200
+            if len(images) >= 2:
+                # Images are already the correct size from cropping
+                combined.paste(images[0], (0, 0))
+                combined.paste(images[1], (160, 0))
+
+        elif layout == 'two-vertical':
+            # Two photos stacked - images already cropped to 320x100
+            if len(images) >= 2:
+                # Images are already the correct size from cropping
+                combined.paste(images[0], (0, 0))
+                combined.paste(images[1], (0, 100))
+
+        elif layout == 'three-grid':
+            # Three photos: large left, two small right
+            if len(images) >= 3:
+                # Images are already cropped to correct sizes:
+                # img1: 160x200, img2: 160x100, img3: 160x100
+                combined.paste(images[0], (0, 0))
+                combined.paste(images[1], (160, 0))
+                combined.paste(images[2], (160, 100))
+
+        return combined

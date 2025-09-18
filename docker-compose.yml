@@ -9,7 +9,7 @@ services:
     env_file:
       - ./.env
     ports:
-      - "5437:5432"  # External port to avoid conflicts
+      - "76843:5432"  # External port to avoid conflicts
     networks:
       - app_network
     environment:

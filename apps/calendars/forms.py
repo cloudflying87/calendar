@@ -23,6 +23,14 @@ class MultipleFileField(forms.FileField):
 
 
 class CalendarForm(forms.ModelForm):
+    copy_from_calendar = forms.ModelChoiceField(
+        queryset=Calendar.objects.none(),
+        required=False,
+        empty_label="Create blank calendar",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Optionally copy events and photos from an existing calendar"
+    )
+
     class Meta:
         model = Calendar
         fields = ['year']
@@ -38,6 +46,12 @@ class CalendarForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+
+        # Populate copy_from_calendar options with user's existing calendars
+        if self.user:
+            self.fields['copy_from_calendar'].queryset = Calendar.objects.filter(
+                user=self.user
+            ).order_by('-year')
 
     def clean_year(self):
         year = self.cleaned_data['year']
