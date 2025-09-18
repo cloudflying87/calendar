@@ -1,5 +1,5 @@
 # Multi-stage build for production optimization
-FROM python:3.13.1-slim as builder
+FROM python:3.13.1-slim AS builder
 
 # Set environment variables for build
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -17,12 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies
 WORKDIR /build
-COPY requirements/production.txt requirements.txt
+COPY requirements/ requirements/
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements/production.txt
 
 # Production stage
-FROM python:3.13.1-slim
+FROM python:3.13.1-slim AS production
 
 # Security: Create non-root user early
 RUN groupadd -r app && \
@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Copy Python packages from builder stage
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Create app directory with proper structure

@@ -309,7 +309,7 @@ class CalendarPDFGenerator:
                         alignment=TA_CENTER
                     )
                     cell_data.append([Paragraph("📷 Image", img_style)])
-            except Exception as e:
+            except Exception:
                 # Error processing image, add day number normally then error placeholder
                 day_style = ParagraphStyle(
                     'DayStyleLeft',
