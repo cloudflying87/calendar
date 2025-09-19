@@ -94,15 +94,16 @@ def get_user_calendars(user, include_shared=True):
     Returns:
         QuerySet of Calendar objects with permission annotations
     """
-    # Get owned calendars
-    owned_calendars = Calendar.objects.filter(user=user)
+    from django.db.models import Q
 
-    if not include_shared:
-        return owned_calendars
+    # Build query for owned calendars
+    q = Q(user=user)
 
-    # Get shared calendars
-    shared_calendar_ids = user.shared_calendars.values_list('calendar_id', flat=True)
-    shared_calendars = Calendar.objects.filter(id__in=shared_calendar_ids)
+    if include_shared:
+        # Add shared calendars to the query
+        shared_calendar_ids = user.shared_calendars.values_list('calendar_id', flat=True)
+        if shared_calendar_ids:
+            q |= Q(id__in=shared_calendar_ids)
 
-    # Combine and return
-    return owned_calendars.union(shared_calendars).order_by('-year')
+    # Return a single queryset that can be filtered
+    return Calendar.objects.filter(q).distinct().order_by('-year')
