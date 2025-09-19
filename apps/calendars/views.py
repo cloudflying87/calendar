@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import ListView, DetailView, CreateView, TemplateView
 from django.views import View
-from django.http import JsonResponse, HttpResponse, FileResponse
+from django.http import JsonResponse, HttpResponse, FileResponse, Http404
 from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.conf import settings
@@ -1053,7 +1053,6 @@ class CalendarShareView(LoginRequiredMixin, View):
         from .models import CalendarShare, CalendarInvitation
         from django.utils import timezone
         from datetime import timedelta
-        from django.http import Http404
 
         # Get the calendar that belongs to the user (they can only share their own calendars)
         calendar = get_object_or_404(Calendar, year=year, user=request.user)
@@ -1130,7 +1129,6 @@ class CalendarUnshareView(LoginRequiredMixin, View):
 
     def post(self, request, year):
         from .models import CalendarShare
-        from django.http import Http404
 
         # Get the calendar that belongs to the user (they can only unshare their own calendars)
         calendar = get_object_or_404(Calendar, year=year, user=request.user)
