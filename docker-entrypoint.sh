@@ -12,7 +12,7 @@ echo -e "${BLUE}🚀 Starting calendar-builder application...${NC}"
 
 # Fix volume permissions (volumes override container ownership)
 echo -e "${YELLOW}🔧 Fixing volume permissions...${NC}"
-chown -R app:app /app/staticfiles /app/media /app/logs 2>/dev/null || true
+chown -R app:app /app/staticfiles /app/media /app/logs /app/persistent_media 2>/dev/null || true
 
 # Function to wait for a service
 wait_for_service() {
