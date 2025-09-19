@@ -188,20 +188,32 @@ class UploadProgressHandler {
 
                     // Handle redirect or form response
                     try {
-                        // If response is JSON, handle it
+                        // Check if response is JSON first
                         const contentType = xhr.getResponseHeader('content-type');
                         if (contentType && contentType.includes('application/json')) {
                             const response = JSON.parse(xhr.responseText);
                             if (response.redirect) {
                                 window.location.href = response.redirect;
+                                return;
                             }
+                        }
+
+                        // For HTML responses, check if it's a Django redirect by looking at the final URL
+                        // XHR will follow redirects automatically, so xhr.responseURL gives us the final destination
+                        if (xhr.responseURL && xhr.responseURL !== window.location.href) {
+                            // The server redirected us, follow that redirect
+                            window.location.href = xhr.responseURL;
                         } else {
-                            // For HTML responses, redirect to form action or current page
+                            // No redirect detected, try form action or reload current page
                             window.location.href = form.action || window.location.href;
                         }
                     } catch (e) {
-                        // Fallback: redirect to form action
-                        window.location.href = form.action || window.location.href;
+                        // Fallback: try responseURL first, then form action
+                        if (xhr.responseURL && xhr.responseURL !== window.location.href) {
+                            window.location.href = xhr.responseURL;
+                        } else {
+                            window.location.href = form.action || window.location.href;
+                        }
                     }
                 }, 1000);
             } else {

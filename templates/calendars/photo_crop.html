@@ -454,6 +454,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Handle clearing placeholder-like values in event name input
+    const eventNameInput = document.getElementById('event-name-input');
+    const originalPlaceholder = eventNameInput.placeholder;
+
+    // Check if the current value looks like a placeholder value
+    function isPlaceholderLikeValue(value) {
+        const trimmedValue = value.trim();
+        // If it's empty, clearly not a placeholder
+        if (!trimmedValue) return false;
+
+        // Check if it contains common placeholder patterns
+        const placeholderPatterns = [
+            /^e\.g\.,?\s/i,  // starts with "e.g.," or "e.g. "
+            /example/i,      // contains "example"
+            /placeholder/i,  // contains "placeholder"
+            /sample/i        // contains "sample"
+        ];
+
+        return placeholderPatterns.some(pattern => pattern.test(trimmedValue));
+    }
+
+    // Clear input if it contains placeholder-like text when focused
+    eventNameInput.addEventListener('focus', function() {
+        if (isPlaceholderLikeValue(this.value)) {
+            this.value = '';
+        }
+    });
+
+    // If user leaves input empty, don't restore placeholder text
+    eventNameInput.addEventListener('blur', function() {
+        // Don't do anything - let the user decide what to put
+    });
+
     // Initial preview update
     setTimeout(updatePreview, 500);
 });
