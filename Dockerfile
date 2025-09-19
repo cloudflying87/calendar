@@ -24,14 +24,9 @@ RUN pip install --upgrade pip && \
 # Production stage
 FROM python:3.13.1-slim AS production
 
-# Security: Create non-root user early
-RUN groupadd -r app && \
-    useradd -r -g app -d /app -s /bin/bash -c "App user" app
-
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PATH="/app/.local/bin:$PATH"
 ENV DJANGO_SETTINGS_MODULE=config.settings.production
 
 # Install runtime dependencies only
@@ -49,18 +44,14 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Create app directory with proper structure
 WORKDIR /app
-RUN mkdir -p /app/{staticfiles,media,logs,persistent_media} && \
-    chown -R app:app /app
+RUN mkdir -p /app/{staticfiles,media,logs,persistent_media}
 
 # Copy application code
-COPY --chown=app:app . /app/
+COPY . /app/
 
 # Copy and set permissions for entrypoint
-COPY --chown=app:app ./docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY ./docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
-
-# Security: Switch to non-root user
-USER app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
