@@ -24,6 +24,10 @@ RUN pip install --upgrade pip && \
 # Production stage
 FROM python:3.13.1-slim AS production
 
+# Create non-root user
+RUN groupadd -r app && \
+    useradd -r -g app -d /app -s /bin/bash -c "App user" app
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -44,14 +48,18 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Create app directory with proper structure
 WORKDIR /app
-RUN mkdir -p /app/{staticfiles,media,logs,persistent_media}
+RUN mkdir -p /app/{staticfiles,media,persistent_media} && \
+    chown -R app:app /app
 
 # Copy application code
-COPY . /app/
+COPY --chown=app:app . /app/
 
 # Copy and set permissions for entrypoint
-COPY ./docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=app:app ./docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+
+# Switch to non-root user
+USER app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

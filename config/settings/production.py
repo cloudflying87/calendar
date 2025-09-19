@@ -84,9 +84,8 @@ DATABASES['default'].update({
     }
 })
 
-# Production logging
-LOGGING['handlers']['file']['filename'] = '/app/logs/django.log'
-LOGGING['handlers']['file']['level'] = 'WARNING'
+# Production logging - console only
+LOGGING['handlers']['console']['level'] = 'WARNING'
 LOGGING['root']['level'] = 'WARNING'
 
 # Additional production apps
