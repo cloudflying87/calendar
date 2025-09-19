@@ -55,6 +55,50 @@
     </div>
 </div>
 
+{% if event.master_event %}
+<div class="master-event-info">
+    <div class="master-event-info__card">
+        <h3 class="master-event-info__title">Master Event Information</h3>
+        <div class="master-event-info__content">
+            <div class="master-event-info__item">
+                <span class="master-event-info__label">Master Event:</span>
+                <span class="master-event-info__value">{{ event.master_event.name }}</span>
+            </div>
+            {% if event.master_event.groups %}
+            <div class="master-event-info__item">
+                <span class="master-event-info__label">Event Groups:</span>
+                <span class="master-event-info__value">{{ event.master_event.groups }}</span>
+            </div>
+            {% endif %}
+            {% if calendars_using_event %}
+            <div class="master-event-info__item">
+                <span class="master-event-info__label">Used in Calendars:</span>
+                <div class="calendars-list">
+                    {% for calendar in calendars_using_event %}
+                        <span class="calendar-tag">{{ calendar.calendar_year.name }} {{ calendar.year }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="master-event-actions">
+    <div class="master-event-actions__card">
+        <h3 class="master-event-actions__title">Master Events</h3>
+        <div class="master-event-actions__content">
+            <p class="master-event-actions__description">
+                Add this event to your master list to reuse it across multiple calendars.
+            </p>
+            <a href="{% url 'calendars:add_event_to_master_list' event_id=event.id %}" class="btn btn--secondary">
+                Add to Master List
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="form-container">
     <form method="post" class="form">
         {% csrf_token %}
@@ -236,13 +280,80 @@
     border-color: #b91c1c;
 }
 
+.master-event-info,
+.master-event-actions {
+    margin-bottom: 2rem;
+}
+
+.master-event-info__card,
+.master-event-actions__card {
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+}
+
+.master-event-info__title,
+.master-event-actions__title {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+    font-size: 1.25rem;
+}
+
+.master-event-info__content,
+.master-event-actions__content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.master-event-info__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.master-event-info__label {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.master-event-info__value {
+    color: var(--color-text-primary);
+}
+
+.master-event-actions__description {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.calendars-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.calendar-tag {
+    background: #2563eb;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
 @media (min-width: 768px) {
-    .event-info__item {
+    .event-info__item,
+    .master-event-info__item {
         flex-direction: row;
         align-items: center;
     }
 
-    .event-info__label {
+    .event-info__label,
+    .master-event-info__label {
         min-width: 150px;
     }
 }

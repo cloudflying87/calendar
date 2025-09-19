@@ -1,11 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 from django.http import JsonResponse, HttpResponse
 from django.urls import reverse_lazy
 from django.db.models import Q
-from .models import EventMaster, EventGroup, UserEventPreferences, CalendarEvent
+from .models import EventMaster, EventGroup, UserEventPreferences, CalendarEvent, Calendar
 from django.contrib import messages
 from django.views import View
 import calendar as cal
@@ -535,3 +535,117 @@ class BulkAddToMasterListView(LoginRequiredMixin, View):
 
         messages.success(request, message)
         return redirect('calendars:calendar_detail', pk=calendar.id)
+
+
+class AddEventToMasterListView(LoginRequiredMixin, View):
+    """Add a single calendar event to the master event list"""
+
+    def get(self, request, event_id):
+        from .models import Calendar, CalendarEvent
+        from .forms import AddEventToMasterListForm
+
+        event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
+
+        # Check if event is already linked to a master event
+        if event.master_event:
+            messages.info(request, f"This event is already linked to master event '{event.master_event.event_name}'.")
+            return redirect('calendars:edit_event', event_id=event.id)
+
+        form = AddEventToMasterListForm(user=request.user, event=event)
+
+        context = {
+            'event': event,
+            'form': form
+        }
+        return render(request, 'calendars/add_event_to_master_list.html', context)
+
+    def post(self, request, event_id):
+        from .models import Calendar, CalendarEvent, EventMaster
+        from .forms import AddEventToMasterListForm
+
+        event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
+
+        # Check if event is already linked to a master event
+        if event.master_event:
+            messages.info(request, f"This event is already linked to master event '{event.master_event.event_name}'.")
+            return redirect('calendars:edit_event', event_id=event.id)
+
+        form = AddEventToMasterListForm(request.POST, user=request.user, event=event)
+
+        if form.is_valid():
+            master_event_name = form.cleaned_data['master_event_name']
+            event_type = form.cleaned_data['event_type']
+            birth_year = form.cleaned_data.get('birth_year')
+            anniversary_year = form.cleaned_data.get('anniversary_year')
+            event_group = form.cleaned_data.get('event_group')
+
+            # Determine the year_occurred based on event type
+            final_year_occurred = None
+            if event_type == 'birthday' and birth_year:
+                final_year_occurred = birth_year
+            elif event_type == 'anniversary' and anniversary_year:
+                final_year_occurred = anniversary_year
+
+            # Convert event group to string for groups field
+            groups_str = ""
+            if event_group:
+                groups_str = event_group.name
+
+            # Check if master event already exists with this name and date
+            existing_master = EventMaster.objects.filter(
+                user=request.user,
+                name__iexact=master_event_name,
+                month=event.month,
+                day=event.day
+            ).first()
+
+            if existing_master:
+                # Link to existing master event
+                event.master_event = existing_master
+                event.save()
+                messages.success(request, f'Event linked to existing master event: {existing_master.name}')
+            else:
+                # Create new master event
+                master_event = EventMaster.objects.create(
+                    user=request.user,
+                    name=master_event_name,
+                    event_type=event_type,
+                    month=event.month,
+                    day=event.day,
+                    year_occurred=final_year_occurred,
+                    groups=groups_str
+                )
+
+                # Link calendar event to new master event
+                event.master_event = master_event
+                event.save()
+
+                messages.success(request, f'Event "{master_event_name}" added to master list and linked!')
+
+            return redirect('calendars:edit_event', event_id=event.id)
+
+        # Form is not valid, render with errors
+        context = {
+            'event': event,
+            'form': form
+        }
+        return render(request, 'calendars/add_event_to_master_list.html', context)
+
+
+class SettingsView(LoginRequiredMixin, TemplateView):
+    """Central settings page with links to all user configuration options"""
+    template_name = 'calendars/settings.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get counts for each section
+        context.update({
+            'event_groups_count': EventGroup.objects.filter(user=self.request.user).count(),
+            'master_events_count': EventMaster.objects.filter(user=self.request.user).count(),
+            'shared_calendars_count': Calendar.objects.filter(
+                shares__shared_with=self.request.user
+            ).count(),
+        })
+
+        return context

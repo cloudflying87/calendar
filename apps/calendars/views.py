@@ -137,6 +137,53 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
         from .permissions import get_user_calendars
         return get_user_calendars(self.request.user)
 
+    def get(self, request, *args, **kwargs):
+        """Override to handle multiple calendars per year"""
+        year = self.kwargs.get('year')
+        calendar_name = self.kwargs.get('calendar_name')
+
+        if not calendar_name:
+            # Check if there are multiple calendars for this year
+            queryset = self.get_queryset()
+            calendars = queryset.filter(year=year)
+
+            if calendars.count() > 1:
+                # Multiple calendars, show selection page
+                from django.shortcuts import render
+                return render(request, 'calendars/calendar_select.html', {
+                    'calendars': calendars,
+                    'year': year
+                })
+
+        return super().get(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        """Override to handle multiple calendars per year"""
+        if queryset is None:
+            queryset = self.get_queryset()
+
+        year = self.kwargs.get('year')
+        calendar_name = self.kwargs.get('calendar_name')
+
+        if calendar_name:
+            # If calendar_name is provided, get specific calendar
+            try:
+                return queryset.get(year=year, calendar_year__name=calendar_name)
+            except Calendar.DoesNotExist:
+                from django.http import Http404
+                raise Http404("Calendar not found")
+        else:
+            # If no calendar_name, get the single calendar for this year
+            try:
+                return queryset.get(year=year)
+            except Calendar.MultipleObjectsReturned:
+                # This should be handled by the get() method above
+                from django.http import Http404
+                raise Http404("Multiple calendars found")
+            except Calendar.DoesNotExist:
+                from django.http import Http404
+                raise Http404("Calendar not found")
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['events_by_month'] = self.get_events_by_month()
@@ -148,6 +195,34 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
         context['user_can_edit'] = self.object.can_edit(self.request.user)
         context['user_permission'] = self.object.get_user_permission(self.request.user)
 
+        return context
+
+    def get_events_by_month(self):
+        events_by_month = {}
+        for month in range(1, 13):
+            events_by_month[month] = self.object.events.filter(month=month).order_by('day')
+        return events_by_month
+
+
+class CalendarDetailByIdView(LoginRequiredMixin, DetailView):
+    """View for accessing calendars directly by their ID"""
+    model = Calendar
+    template_name = 'calendars/calendar_detail.html'
+    context_object_name = 'calendar'
+    pk_url_kwarg = 'calendar_id'
+
+    def get_queryset(self):
+        from .permissions import get_user_calendars
+        return get_user_calendars(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Reuse the same methods from CalendarDetailView
+        context['events_by_month'] = self.get_events_by_month()
+        context['has_header'] = hasattr(self.object, 'header')
+        context['generated_calendars'] = self.object.generated_pdfs.all()
+        context['user_can_share'] = self.object.can_share(self.request.user)
+        context['shared_with'] = self.object.shares.all() if self.object.can_share(self.request.user) else None
         return context
 
     def get_events_by_month(self):
@@ -344,10 +419,20 @@ class EditEventView(View):
     def get(self, request, event_id):
         event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
         form = EventEditForm(instance=event)
+
+        # Get calendars that use this master event (if it has one)
+        calendars_using_event = None
+        if event.master_event:
+            calendars_using_event = Calendar.objects.filter(
+                events__master_event=event.master_event,
+                user=request.user
+            ).distinct()
+
         return render(request, 'calendars/edit_event.html', {
             'event': event,
             'calendar': event.calendar,
-            'form': form
+            'form': form,
+            'calendars_using_event': calendars_using_event
         })
 
     def post(self, request, event_id):
@@ -359,10 +444,19 @@ class EditEventView(View):
             messages.success(request, f"Event '{event.event_name}' updated successfully.")
             return redirect('calendars:calendar_detail', year=event.calendar.year)
 
+        # Get calendars that use this master event (if it has one)
+        calendars_using_event = None
+        if event.master_event:
+            calendars_using_event = Calendar.objects.filter(
+                events__master_event=event.master_event,
+                user=request.user
+            ).distinct()
+
         return render(request, 'calendars/edit_event.html', {
             'event': event,
             'calendar': event.calendar,
-            'form': form
+            'form': form,
+            'calendars_using_event': calendars_using_event
         })
 
 

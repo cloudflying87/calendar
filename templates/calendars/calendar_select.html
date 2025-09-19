@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}Select Calendar - {{ year }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Select Calendar for {{ year }}</h1>
+    <a href="{% url 'calendars:calendar_list' %}" class="btn btn--outline">Back to Calendar List</a>
+</div>
+
+<div class="info-panel">
+    <h3 class="info-panel__title">Multiple Calendars Found</h3>
+    <div class="info-panel__content">
+        <p>You have {{ calendars.count }} calendar{{ calendars.count|pluralize }} for {{ year }}. Please select which one you'd like to view:</p>
+    </div>
+</div>
+
+<div class="calendar-select-grid">
+    {% for calendar in calendars %}
+        <div class="calendar-select-card">
+            <div class="calendar-select-card__header">
+                <h3 class="calendar-select-card__title">
+                    {% if calendar.calendar_year %}
+                        {{ calendar.calendar_year.name }}
+                    {% else %}
+                        Calendar {{ forloop.counter }}
+                    {% endif %}
+                </h3>
+            </div>
+
+            <div class="calendar-select-card__content">
+                <div class="calendar-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Events:</span>
+                        <span class="stat-value">{{ calendar.events.count }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Created:</span>
+                        <span class="stat-value">{{ calendar.created_at|date:"M j, Y" }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Header:</span>
+                        <span class="stat-value">
+                            {% if calendar.header %}
+                                <span class="status status--success">✓ Uploaded</span>
+                            {% else %}
+                                <span class="status status--warning">Not uploaded</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="calendar-select-card__actions">
+                {% if calendar.calendar_year %}
+                    <a href="{% url 'calendars:calendar_detail_named' year=calendar.year calendar_name=calendar.calendar_year.name %}" class="btn btn--primary">
+                        View This Calendar
+                    </a>
+                {% else %}
+                    <a href="{% url 'calendars:calendar_detail_by_id' calendar_id=calendar.id %}" class="btn btn--primary">
+                        View This Calendar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<style>
+.calendar-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.calendar-select-card {
+    background: var(--color-background-light);
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+}
+
+.calendar-select-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: #2563eb;
+}
+
+.calendar-select-card__header {
+    margin-bottom: 1rem;
+}
+
+.calendar-select-card__title {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--color-text-primary);
+}
+
+.calendar-select-card__content {
+    margin-bottom: 1.5rem;
+}
+
+.calendar-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+}
+
+.status--success {
+    background: #10b981;
+    color: white;
+}
+
+.status--warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.calendar-select-card__actions {
+    display: flex;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .calendar-select-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

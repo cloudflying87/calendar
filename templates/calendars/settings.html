@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Settings</h1>
+    <p class="page-subtitle">Manage your calendar preferences and configuration</p>
+</div>
+
+<div class="settings-grid">
+    <!-- Event Groups -->
+    <div class="settings-card">
+        <div class="settings-card__header">
+            <h3 class="settings-card__title">Event Groups</h3>
+            <span class="settings-card__badge">{{ event_groups_count }}</span>
+        </div>
+        <div class="settings-card__content">
+            <p class="settings-card__description">
+                Organize your master events into groups for easier management and bulk operations.
+            </p>
+        </div>
+        <div class="settings-card__actions">
+            <a href="{% url 'calendars:event_groups' %}" class="btn btn--primary">Manage Groups</a>
+            <a href="{% url 'calendars:event_group_create' %}" class="btn btn--outline">New Group</a>
+        </div>
+    </div>
+
+    <!-- User Preferences -->
+    <div class="settings-card">
+        <div class="settings-card__header">
+            <h3 class="settings-card__title">User Preferences</h3>
+        </div>
+        <div class="settings-card__content">
+            <p class="settings-card__description">
+                Configure how events are automatically added to your master list and other behavioral settings.
+            </p>
+        </div>
+        <div class="settings-card__actions">
+            <a href="{% url 'calendars:user_preferences' %}" class="btn btn--primary">Edit Preferences</a>
+        </div>
+    </div>
+
+    <!-- Shared Calendars -->
+    <div class="settings-card">
+        <div class="settings-card__header">
+            <h3 class="settings-card__title">Shared Calendars</h3>
+            <span class="settings-card__badge">{{ shared_calendars_count }}</span>
+        </div>
+        <div class="settings-card__content">
+            <p class="settings-card__description">
+                View and manage calendars that have been shared with you by other users.
+            </p>
+        </div>
+        <div class="settings-card__actions">
+            <a href="{% url 'calendars:shared_calendars' %}" class="btn btn--primary">View Shared</a>
+        </div>
+    </div>
+
+    <!-- Master Events -->
+    <div class="settings-card">
+        <div class="settings-card__header">
+            <h3 class="settings-card__title">Master Events</h3>
+            <span class="settings-card__badge">{{ master_events_count }}</span>
+        </div>
+        <div class="settings-card__content">
+            <p class="settings-card__description">
+                Manage your reusable events, import/export functionality, and bulk operations.
+            </p>
+        </div>
+        <div class="settings-card__actions">
+            <a href="{% url 'calendars:master_events' %}" class="btn btn--primary">Manage Events</a>
+            <a href="{% url 'calendars:master_event_create' %}" class="btn btn--outline">New Event</a>
+        </div>
+    </div>
+
+    <!-- Import/Export -->
+    <div class="settings-card">
+        <div class="settings-card__header">
+            <h3 class="settings-card__title">Import & Export</h3>
+        </div>
+        <div class="settings-card__content">
+            <p class="settings-card__description">
+                Import and export your master events to share between accounts or backup your data.
+            </p>
+        </div>
+        <div class="settings-card__actions">
+            <a href="{% url 'calendars:export_master_events' %}" class="btn btn--secondary">Export Events</a>
+            <a href="{% url 'calendars:import_master_events' %}" class="btn btn--outline">Import Events</a>
+        </div>
+    </div>
+
+    <!-- Account -->
+    <div class="settings-card">
+        <div class="settings-card__header">
+            <h3 class="settings-card__title">Account</h3>
+        </div>
+        <div class="settings-card__content">
+            <p class="settings-card__description">
+                Account information and security settings.
+            </p>
+        </div>
+        <div class="settings-card__actions">
+            {% if user.is_staff %}
+                <a href="/admin/" class="btn btn--secondary">Admin Panel</a>
+            {% endif %}
+            <a href="{% url 'accounts:logout' %}" class="btn btn--outline">Logout</a>
+        </div>
+    </div>
+</div>
+
+<style>
+.page-subtitle {
+    margin: 0.5rem 0 0 0;
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    font-weight: normal;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.settings-card {
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    transition: box-shadow 0.2s ease;
+}
+
+.settings-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.settings-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.settings-card__title {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.settings-card__badge {
+    background: #2563eb;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.settings-card__content {
+    margin-bottom: 1.5rem;
+}
+
+.settings-card__description {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.settings-card__actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn--secondary {
+    background: #6b7280;
+    color: white;
+    border: 1px solid #6b7280;
+}
+
+.btn--secondary:hover {
+    background: #4b5563;
+    border-color: #4b5563;
+}
+
+@media (max-width: 768px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .settings-card {
+        padding: 1rem;
+    }
+
+    .settings-card__actions {
+        flex-direction: column;
+    }
+
+    .settings-card__actions .btn {
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

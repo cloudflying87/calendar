@@ -19,7 +19,14 @@
         {% for calendar in calendars %}
             <div class="calendar-card">
                 <div class="calendar-card__header">
-                    <h2 class="calendar-card__title">{{ calendar.year }}</h2>
+                    <h2 class="calendar-card__title">
+                        {{ calendar.year }}
+                        {% if calendar.calendar_year and calendar.calendar_year.name and calendar.calendar_year.name != "Default" %}
+                            <span class="calendar-card__name">{{ calendar.calendar_year.name }}</span>
+                        {% elif calendar.calendar_year and calendar.calendar_year.name %}
+                            <span class="calendar-card__name">{{ calendar.calendar_year.name }}</span>
+                        {% endif %}
+                    </h2>
                     <div class="calendar-card__meta">
                         <span class="meta-item">{{ calendar.events.count }} events</span>
                         <span class="meta-item">
@@ -39,7 +46,11 @@
                 </div>
 
                 <div class="calendar-card__actions">
-                    <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">View</a>
+                    {% if calendar.calendar_year and calendar.calendar_year.name %}
+                        <a href="{% url 'calendars:calendar_detail_named' year=calendar.year calendar_name=calendar.calendar_year.name %}" class="btn btn--outline">View</a>
+                    {% else %}
+                        <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">View</a>
+                    {% endif %}
                     <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--secondary">Upload Images</a>
                     <a href="{% url 'calendars:delete_calendar' year=calendar.year %}" class="btn btn--danger">🗑️ Delete</a>
                 </div>

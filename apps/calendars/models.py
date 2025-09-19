@@ -440,6 +440,12 @@ class CalendarEvent(models.Model):
     def __str__(self):
         return f"{self.calendar.year}-{self.month:02d}-{self.day:02d}: {self.event_name}"
 
+    @property
+    def event_date(self):
+        """Get the event date as a datetime object"""
+        from datetime import date
+        return date(self.calendar.year, self.month, self.day)
+
     def get_display_name(self):
         """Get display name considering master event with year calculation"""
         if self.combined_events:

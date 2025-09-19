@@ -7,7 +7,9 @@ app_name = 'calendars'
 urlpatterns = [
     path('', views.CalendarListView.as_view(), name='calendar_list'),
     path('create/', views.CalendarCreateView.as_view(), name='calendar_create'),
+    path('id/<int:calendar_id>/', views.CalendarDetailByIdView.as_view(), name='calendar_detail_by_id'),
     path('<int:year>/', views.CalendarDetailView.as_view(), name='calendar_detail'),
+    path('<int:year>/<str:calendar_name>/', views.CalendarDetailView.as_view(), name='calendar_detail_named'),
     path('<int:year>/upload/', views.ImageUploadView.as_view(), name='image_upload'),
     path('<int:year>/upload-edit/', views.PhotoEditorUploadView.as_view(), name='photo_editor_upload'),
     path('<int:year>/crop/', views.PhotoCropView.as_view(), name='photo_crop'),
@@ -49,6 +51,9 @@ urlpatterns = [
     path('event-groups/<int:pk>/edit/', views_events.EventGroupUpdateView.as_view(), name='event_group_edit'),
     path('event-groups/<int:pk>/delete/', views_events.EventGroupDeleteView.as_view(), name='event_group_delete'),
 
+    # Settings page (central hub)
+    path('settings/', views_events.SettingsView.as_view(), name='settings'),
+
     # User Preferences
     path('preferences/', views_events.user_preferences_view, name='user_preferences'),
 
@@ -57,6 +62,9 @@ urlpatterns = [
 
     # Bulk Add to Master List
     path('<int:calendar_id>/bulk-add-to-master/', views_events.BulkAddToMasterListView.as_view(), name='bulk_add_to_master_list'),
+
+    # Single Event to Master List
+    path('event/<int:event_id>/add-to-master/', views_events.AddEventToMasterListView.as_view(), name='add_event_to_master_list'),
 
     # API endpoints
     path('api/master-events/', views_events.get_master_events_json, name='api_master_events'),

@@ -203,3 +203,86 @@ class HolidayManagementForm(forms.Form):
                     include_image=bool(image),
                     image=image
                 )
+
+
+class AddEventToMasterListForm(forms.Form):
+    """Form for adding a calendar event to the master event list"""
+
+    EVENT_TYPE_CHOICES = [
+        ('custom', 'Custom Event'),
+        ('birthday', 'Birthday'),
+        ('anniversary', 'Anniversary'),
+    ]
+
+    master_event_name = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter the master event name'
+        }),
+        help_text="Name for this event in your master list"
+    )
+
+    event_type = forms.ChoiceField(
+        choices=EVENT_TYPE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Type of event for automatic naming"
+    )
+
+    birth_year = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': 1900,
+            'max': 2100,
+            'placeholder': 'Year of birth'
+        }),
+        help_text="Birth year for automatic age calculation"
+    )
+
+    anniversary_year = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': 1900,
+            'max': 2100,
+            'placeholder': 'Anniversary year'
+        }),
+        help_text="Year of anniversary for automatic calculation"
+    )
+
+
+    event_group = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        empty_label="No group",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Optional: Add this event to a group"
+    )
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        event = kwargs.pop('event', None)
+        super().__init__(*args, **kwargs)
+
+        if user:
+            from .models import EventGroup
+            self.fields['event_group'].queryset = EventGroup.objects.filter(user=user)
+
+        if event:
+            # Pre-populate with event name
+            self.initial['master_event_name'] = event.event_name
+
+    def clean(self):
+        cleaned_data = super().clean()
+        event_type = cleaned_data.get('event_type')
+        birth_year = cleaned_data.get('birth_year')
+        anniversary_year = cleaned_data.get('anniversary_year')
+
+        if event_type == 'birthday' and not birth_year:
+            raise forms.ValidationError("Birth year is required for birthday events.")
+
+        if event_type == 'anniversary' and not anniversary_year:
+            raise forms.ValidationError("Anniversary year is required for anniversary events.")
+
+        return cleaned_data

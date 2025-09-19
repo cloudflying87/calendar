@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Event to Master List - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Add Event to Master List</h1>
+    <a href="{% url 'calendars:edit_event' event.id %}" class="btn btn--outline">Back to Event</a>
+</div>
+
+<div class="form-container">
+    <div class="info-panel">
+        <h3 class="info-panel__title">Event Details</h3>
+        <div class="info-panel__content">
+            <p><strong>Event:</strong> {{ event.event_name }}</p>
+            <p><strong>Date:</strong> {{ event.event_date|date:"F j, Y" }}</p>
+            <p><strong>Calendar:</strong> {{ event.calendar.calendar_year.name }} {{ event.calendar.year }}</p>
+        </div>
+    </div>
+
+    <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="{{ form.master_event_name.id_for_label }}" class="form-label">
+                {{ form.master_event_name.label }}
+            </label>
+            {{ form.master_event_name }}
+            {% if form.master_event_name.help_text %}
+                <div class="form-help">{{ form.master_event_name.help_text }}</div>
+            {% endif %}
+            {% if form.master_event_name.errors %}
+                <div class="form-errors">
+                    {% for error in form.master_event_name.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.event_type.id_for_label }}" class="form-label">
+                {{ form.event_type.label }}
+            </label>
+            {{ form.event_type }}
+            {% if form.event_type.help_text %}
+                <div class="form-help">{{ form.event_type.help_text }}</div>
+            {% endif %}
+            {% if form.event_type.errors %}
+                <div class="form-errors">
+                    {% for error in form.event_type.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="birth-year-group" style="display: none;">
+            <label for="{{ form.birth_year.id_for_label }}" class="form-label">
+                {{ form.birth_year.label }}
+            </label>
+            {{ form.birth_year }}
+            {% if form.birth_year.help_text %}
+                <div class="form-help">{{ form.birth_year.help_text }}</div>
+            {% endif %}
+            {% if form.birth_year.errors %}
+                <div class="form-errors">
+                    {% for error in form.birth_year.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="anniversary-year-group" style="display: none;">
+            <label for="{{ form.anniversary_year.id_for_label }}" class="form-label">
+                {{ form.anniversary_year.label }}
+            </label>
+            {{ form.anniversary_year }}
+            {% if form.anniversary_year.help_text %}
+                <div class="form-help">{{ form.anniversary_year.help_text }}</div>
+            {% endif %}
+            {% if form.anniversary_year.errors %}
+                <div class="form-errors">
+                    {% for error in form.anniversary_year.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.event_group.id_for_label }}" class="form-label">
+                {{ form.event_group.label }}
+            </label>
+            {{ form.event_group }}
+            {% if form.event_group.help_text %}
+                <div class="form-help">{{ form.event_group.help_text }}</div>
+            {% endif %}
+            {% if form.event_group.errors %}
+                <div class="form-errors">
+                    {% for error in form.event_group.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}
+                    <div class="form-error">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Add to Master List</button>
+            <a href="{% url 'calendars:edit_event' event.id %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const eventTypeField = document.getElementById('{{ form.event_type.id_for_label }}');
+    const birthYearGroup = document.getElementById('birth-year-group');
+    const anniversaryYearGroup = document.getElementById('anniversary-year-group');
+
+    function toggleYearFields() {
+        const selectedType = eventTypeField.value;
+
+        birthYearGroup.style.display = selectedType === 'birthday' ? 'block' : 'none';
+        anniversaryYearGroup.style.display = selectedType === 'anniversary' ? 'block' : 'none';
+    }
+
+    eventTypeField.addEventListener('change', toggleYearFields);
+    toggleYearFields(); // Initial call
+});
+</script>
+{% endblock %}

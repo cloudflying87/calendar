@@ -21,11 +21,10 @@
                     <a href="{% url 'calendars:calendar_list' %}" class="nav-link">Calendars</a>
                     <a href="{% url 'calendars:calendar_create' %}" class="nav-link">New Calendar</a>
                     <a href="{% url 'calendars:master_events' %}" class="nav-link">Events</a>
-                    <a href="{% url 'calendars:event_groups' %}" class="nav-link">Groups</a>
+                    <a href="{% url 'calendars:settings' %}" class="nav-link">Settings</a>
                     {% if user.is_staff %}
                         <a href="/admin/" class="nav-link">Admin</a>
                     {% endif %}
-                    <span class="nav-user">Welcome, {{ user.first_name|default:user.username }}!</span>
                     <a href="{% url 'accounts:logout' %}" class="nav-link nav-link--logout">Logout</a>
                 {% else %}
                     <a href="{% url 'accounts:login' %}" class="nav-link">Login</a>
