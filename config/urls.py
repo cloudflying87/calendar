@@ -18,14 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.shortcuts import redirect
 from django.http import JsonResponse
-
-def root_redirect(request):
-    if request.user.is_authenticated:
-        return redirect('calendars:calendar_list')
-    else:
-        return redirect('accounts:login')
 
 def health_check(request):
     return JsonResponse({'status': 'ok'})
@@ -35,7 +28,7 @@ urlpatterns = [
     path('accounts/', include('apps.accounts.urls')),
     path('calendars/', include('apps.calendars.urls')),
     path('health/', health_check, name='health'),
-    path('', root_redirect, name='root'),
+    path('', include('apps.core.urls')),  # Beautiful landing page
 ]
 
 # Serve media files during development

@@ -1,0 +1,425 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Calendar Builder - Create Beautiful Custom Calendars{% endblock %}
+
+{% block description %}Create stunning personalized calendars with your photos. Upload images, add events, holidays, and generate professional PDF calendars for print or digital use. Free to start!{% endblock %}
+
+{% block keywords %}calendar maker, custom calendar, photo calendar, calendar builder, personalized calendar, calendar app, photo calendar creator, custom calendar maker{% endblock %}
+
+{% block og_title %}Calendar Builder - Create Beautiful Custom Calendars{% endblock %}
+{% block og_description %}Create stunning personalized calendars with your photos. Upload images, add events, holidays, and generate professional PDF calendars for print or digital use.{% endblock %}
+
+{% block twitter_title %}Calendar Builder - Create Beautiful Custom Calendars{% endblock %}
+{% block twitter_description %}Create stunning personalized calendars with your photos. Upload images, add events, holidays, and generate professional PDF calendars for print or digital use.{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero">
+    <div class="hero__content">
+        <div class="hero__text">
+            <h1 class="hero__title">Create Beautiful<br>Custom Calendars</h1>
+            <p class="hero__subtitle">Turn your photos into stunning personalized calendars. Add events, holidays, and special moments to create the perfect calendar for your home, office, or as a gift.</p>
+
+            <div class="hero__cta">
+                <a href="{% url 'accounts:register' %}" class="btn btn--primary btn--large">
+                    🎨 Start Creating Free
+                </a>
+                <a href="{% url 'accounts:login' %}" class="btn btn--outline btn--large">
+                    🔑 Sign In
+                </a>
+            </div>
+
+            <div class="hero__stats">
+                <div class="stat">
+                    <span class="stat__number">{{ total_users }}+</span>
+                    <span class="stat__label">Happy Users</span>
+                </div>
+                <div class="stat">
+                    <span class="stat__number">{{ total_calendars }}+</span>
+                    <span class="stat__label">Calendars Created</span>
+                </div>
+                <div class="stat">
+                    <span class="stat__number">{{ total_events }}+</span>
+                    <span class="stat__label">Events & Photos</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero__image">
+            <img src="{% static 'img/social-share.png' %}" alt="Beautiful calendar example" class="hero__calendar">
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="features">
+    <div class="container">
+        <h2 class="features__title">Everything You Need to Create Amazing Calendars</h2>
+
+        <div class="features__grid">
+            <div class="feature">
+                <div class="feature__icon">📸</div>
+                <h3 class="feature__title">Upload Your Photos</h3>
+                <p class="feature__description">Add your favorite photos to any day. Crop, resize, and position them perfectly with our easy-to-use photo editor.</p>
+            </div>
+
+            <div class="feature">
+                <div class="feature__icon">📅</div>
+                <h3 class="feature__title">Add Events & Holidays</h3>
+                <p class="feature__description">Mark birthdays, anniversaries, holidays, and special events. Create master event lists to reuse across multiple calendars.</p>
+            </div>
+
+            <div class="feature">
+                <div class="feature__icon">🎨</div>
+                <h3 class="feature__title">Beautiful Designs</h3>
+                <p class="feature__description">Professional layouts that look great in print or digital formats. Multiple calendar styles to choose from.</p>
+            </div>
+
+            <div class="feature">
+                <div class="feature__icon">📄</div>
+                <h3 class="feature__title">Generate PDFs</h3>
+                <p class="feature__description">Export high-quality PDF calendars ready for printing or sharing. Perfect for home, office, or gift giving.</p>
+            </div>
+
+            <div class="feature">
+                <div class="feature__icon">🌐</div>
+                <h3 class="feature__title">Share & Collaborate</h3>
+                <p class="feature__description">Share calendars with family and friends. Create public links or collaborate with others on calendar creation.</p>
+            </div>
+
+            <div class="feature">
+                <div class="feature__icon">📱</div>
+                <h3 class="feature__title">Works Everywhere</h3>
+                <p class="feature__description">Use Calendar Builder on any device - desktop, tablet, or mobile. Your calendars sync across all devices.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- How It Works Section -->
+<div class="how-it-works">
+    <div class="container">
+        <h2 class="section-title">How It Works</h2>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step__number">1</div>
+                <div class="step__content">
+                    <h3>Create Your Calendar</h3>
+                    <p>Choose a year and give your calendar a name. You can create multiple calendars for different purposes.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step__number">2</div>
+                <div class="step__content">
+                    <h3>Add Photos & Events</h3>
+                    <p>Upload photos for each day, add important events, birthdays, and holidays. Use our photo editor to get the perfect look.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step__number">3</div>
+                <div class="step__content">
+                    <h3>Generate & Share</h3>
+                    <p>Export your calendar as a high-quality PDF for printing, or share it online with family and friends.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Social Sharing for Landing Page -->
+{% include 'components/social_share.html' with page_title="Calendar Builder - Create Beautiful Custom Calendars" %}
+
+<!-- CTA Section -->
+<div class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Ready to Create Your Perfect Calendar?</h2>
+            <p>Join thousands of users creating beautiful custom calendars with Calendar Builder. It's free to get started!</p>
+
+            <div class="cta-buttons">
+                <a href="{% url 'accounts:register' %}" class="btn btn--primary btn--large">
+                    🚀 Get Started Free
+                </a>
+                <a href="{% url 'accounts:login' %}" class="btn btn--outline btn--large">
+                    Already have an account?
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Hero Section */
+.hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4rem 2rem;
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+}
+
+.hero__content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+.hero__title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0 0 1.5rem 0;
+}
+
+.hero__subtitle {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    margin: 0 0 2rem 0;
+    opacity: 0.9;
+}
+
+.hero__cta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 3rem;
+}
+
+.hero__stats {
+    display: flex;
+    gap: 2rem;
+}
+
+.stat {
+    text-align: center;
+}
+
+.stat__number {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ffd700;
+}
+
+.stat__label {
+    display: block;
+    font-size: 0.875rem;
+    opacity: 0.8;
+}
+
+.hero__image {
+    text-align: center;
+}
+
+.hero__calendar {
+    max-width: 100%;
+    height: auto;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    transform: perspective(1000px) rotateY(-15deg) rotateX(5deg);
+    transition: transform 0.3s ease;
+}
+
+.hero__calendar:hover {
+    transform: perspective(1000px) rotateY(-10deg) rotateX(2deg) scale(1.05);
+}
+
+/* Features Section */
+.features {
+    padding: 5rem 2rem;
+    background: var(--color-background);
+}
+
+.features__title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin: 0 0 3rem 0;
+    color: var(--color-text-primary);
+}
+
+.features__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.feature {
+    text-align: center;
+    padding: 2rem;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.feature__icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.feature__title {
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+}
+
+.feature__description {
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+/* How It Works Section */
+.how-it-works {
+    padding: 5rem 2rem;
+    background: var(--color-background-light);
+}
+
+.section-title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin: 0 0 3rem 0;
+    color: var(--color-text-primary);
+}
+
+.steps {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 3rem;
+    padding: 2rem;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.step__number {
+    width: 60px;
+    height: 60px;
+    background: var(--color-primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.step__content h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+}
+
+.step__content p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+/* CTA Section */
+.cta-section {
+    padding: 5rem 2rem;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    color: white;
+    text-align: center;
+}
+
+.cta-content h2 {
+    font-size: 2.5rem;
+    margin: 0 0 1rem 0;
+}
+
+.cta-content p {
+    font-size: 1.25rem;
+    margin: 0 0 2rem 0;
+    opacity: 0.9;
+}
+
+.cta-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.btn--large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .hero__content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        text-align: center;
+    }
+
+    .hero__title {
+        font-size: 2.5rem;
+    }
+
+    .hero__cta {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .hero__stats {
+        justify-content: center;
+    }
+
+    .hero__calendar {
+        transform: none;
+        max-width: 80%;
+    }
+
+    .features__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .step {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .cta-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero {
+        padding: 2rem 1rem;
+    }
+
+    .features, .how-it-works, .cta-section {
+        padding: 3rem 1rem;
+    }
+
+    .hero__title {
+        font-size: 2rem;
+    }
+}
+</style>
+{% endblock %}
