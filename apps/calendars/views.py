@@ -1023,9 +1023,8 @@ class CalendarShareView(LoginRequiredMixin, View):
         from datetime import timedelta
         from django.http import Http404
 
-        calendar = get_object_or_404(Calendar, year=year)
-        if not calendar.can_share(request.user):
-            raise Http404("Calendar not found")
+        # Get the calendar that belongs to the user (they can only share their own calendars)
+        calendar = get_object_or_404(Calendar, year=year, user=request.user)
 
         email = request.POST.get('email', '').strip()
         permission_level = request.POST.get('permission_level', 'viewer')
@@ -1101,9 +1100,8 @@ class CalendarUnshareView(LoginRequiredMixin, View):
         from .models import CalendarShare
         from django.http import Http404
 
-        calendar = get_object_or_404(Calendar, year=year)
-        if not calendar.can_share(request.user):
-            raise Http404("Calendar not found")
+        # Get the calendar that belongs to the user (they can only unshare their own calendars)
+        calendar = get_object_or_404(Calendar, year=year, user=request.user)
 
         share_id = request.POST.get('share_id')
         if not share_id:

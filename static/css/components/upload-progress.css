@@ -30,14 +30,14 @@
 
 .upload-modal__content {
     position: relative;
-    background: var(--color-background);
+    background: var(--bg-primary);
     border-radius: var(--border-radius);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
     padding: 2rem;
     width: 100%;
     max-width: 500px;
     min-width: 400px;
-    border: 2px solid var(--color-border);
+    border: 2px solid var(--border-color);
 }
 
 .upload-modal__header {
@@ -49,12 +49,12 @@
     margin: 0 0 0.5rem 0;
     font-size: 1.5rem;
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
 }
 
 .upload-modal__subtitle {
     margin: 0;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-size: 0.9rem;
 }
 
@@ -65,16 +65,16 @@
 
 .upload-progress__bar-container {
     margin-bottom: 1rem;
-    background: var(--color-bg-secondary);
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 3px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
 }
 
 .upload-progress__bar {
     width: 100%;
     height: 12px;
-    background: var(--color-bg-secondary);
+    background: var(--bg-secondary);
     border-radius: 6px;
     overflow: hidden;
     position: relative;
@@ -129,7 +129,7 @@
 
 .upload-progress__text {
     font-weight: 500;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
     font-size: 0.9rem;
     flex: 1;
 }
@@ -148,16 +148,16 @@
 }
 
 .upload-file-info {
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-size: 0.85rem;
     padding: 0.5rem;
-    background: var(--color-bg-secondary);
+    background: var(--bg-secondary);
     border-radius: 4px;
     border-left: 3px solid var(--primary-color);
 }
 
 .upload-speed {
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-size: 0.8rem;
     text-align: right;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -167,7 +167,7 @@
 .upload-modal__actions {
     text-align: center;
     padding-top: 1rem;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--border-color);
 }
 
 /* Prevent body scroll when modal is open */
@@ -287,7 +287,7 @@ body.upload-modal-open {
 /* High DPI displays */
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
     .upload-progress__bar {
-        border: 0.5px solid var(--color-border);
+        border: 0.5px solid var(--border-color);
     }
 }
 
