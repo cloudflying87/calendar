@@ -82,7 +82,7 @@
         {% endif %}
 
         <div class="form-actions">
-            <button type="submit" class="btn btn--primary">
+            <button type="submit" class="btn btn--primary" id="single-upload-btn">
                 Continue to Crop & Name →
             </button>
             <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
@@ -453,12 +453,31 @@ document.addEventListener('DOMContentLoaded', function() {
         multiSubmitBtn.disabled = !isValid;
     }
 
-    // Single photo file input
+    // Single photo file input with size feedback
     const singleFileInput = document.getElementById('photo');
+    const singleUploadBtn = document.getElementById('single-upload-btn');
+
     singleFileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
-            console.log('Selected file:', file.name);
+            const fileSize = file.size;
+            console.log('Selected file:', file.name, formatFileSize(fileSize));
+
+            // Show file preview for single photo
+            showSinglePhotoInfo(file);
+
+            // Update button for large files
+            if (fileSize > 10 * 1024 * 1024) { // 10MB
+                singleUploadBtn.textContent = `Continue with Large Photo (${formatFileSize(fileSize)}) →`;
+                singleUploadBtn.title = 'Large photo will show upload progress';
+            } else {
+                singleUploadBtn.textContent = 'Continue to Crop & Name →';
+                singleUploadBtn.title = '';
+            }
+        } else {
+            singleUploadBtn.textContent = 'Continue to Crop & Name →';
+            singleUploadBtn.title = '';
+            hideSinglePhotoInfo();
         }
     });
 
@@ -495,7 +514,80 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
     });
+
+    // Helper functions for file size and preview
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function showSinglePhotoInfo(file) {
+        hideSinglePhotoInfo();
+
+        const form = document.getElementById('single-photo-form');
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'upload-file-preview single-photo-preview';
+        fileInfo.innerHTML = `
+            <div class="file-preview-header">
+                <strong>📷 ${file.name}</strong>
+                <span class="file-preview-size">${formatFileSize(file.size)}</span>
+            </div>
+            ${file.size > 10 * 1024 * 1024 ?
+                '<div class="file-preview-notice">⏳ Large photo will show upload progress</div>' : ''
+            }
+        `;
+
+        form.appendChild(fileInfo);
+    }
+
+    function hideSinglePhotoInfo() {
+        const existing = document.querySelector('.upload-file-preview.single-photo-preview');
+        if (existing) {
+            existing.remove();
+        }
+    }
 });
 </script>
+
+<style>
+.upload-file-preview {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--color-bg-secondary);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--primary-color);
+}
+
+.file-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    color: var(--color-text-primary);
+}
+
+.file-preview-size {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+
+.file-preview-notice {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+@media (max-width: 576px) {
+    .file-preview-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+</style>
 {% endblock %}
 {% endblock %}

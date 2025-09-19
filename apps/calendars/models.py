@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from PIL import Image
 import os
 import re
+import uuid
 from datetime import datetime, date, timedelta
 import calendar as cal
 
@@ -143,6 +144,34 @@ class Calendar(models.Model):
 
     def __str__(self):
         return f"Calendar {self.year}"
+
+    def get_user_permission(self, user):
+        """Get the permission level for a user on this calendar"""
+        if self.user == user:
+            return 'owner'
+
+        try:
+            share = self.shares.get(shared_with=user)
+            return share.permission_level
+        except CalendarShare.DoesNotExist:
+            return None
+
+    def can_view(self, user):
+        """Check if user can view this calendar"""
+        return self.get_user_permission(user) is not None
+
+    def can_edit(self, user):
+        """Check if user can edit this calendar"""
+        permission = self.get_user_permission(user)
+        return permission in ['owner', 'editor']
+
+    def can_share(self, user):
+        """Check if user can share this calendar (only owners can share)"""
+        return self.get_user_permission(user) == 'owner'
+
+    def get_shared_users(self):
+        """Get all users this calendar is shared with"""
+        return User.objects.filter(shared_calendars__calendar=self)
 
     def delete(self, *args, **kwargs):
         """Override delete to clean up associated files"""
@@ -395,3 +424,80 @@ class Holiday(models.Model):
                 pass  # Event doesn't exist, nothing to delete
 
         super().delete(*args, **kwargs)
+
+
+class CalendarShare(models.Model):
+    """Model for sharing calendars between users"""
+
+    PERMISSION_CHOICES = [
+        ('viewer', 'Viewer'),
+        ('editor', 'Editor'),
+    ]
+
+    calendar = models.ForeignKey(Calendar, on_delete=models.CASCADE, related_name='shares')
+    shared_with = models.ForeignKey(User, on_delete=models.CASCADE, related_name='shared_calendars')
+    shared_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='calendars_shared_by_me')
+    permission_level = models.CharField(max_length=10, choices=PERMISSION_CHOICES, default='viewer')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['calendar', 'shared_with']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.calendar} shared with {self.shared_with.username} ({self.permission_level})"
+
+
+class CalendarInvitation(models.Model):
+    """Model for calendar sharing invitations"""
+
+    PERMISSION_CHOICES = [
+        ('viewer', 'Viewer'),
+        ('editor', 'Editor'),
+    ]
+
+    calendar = models.ForeignKey(Calendar, on_delete=models.CASCADE, related_name='invitations')
+    email = models.EmailField()
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_invitations')
+    permission_level = models.CharField(max_length=10, choices=PERMISSION_CHOICES, default='viewer')
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    accepted = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['calendar', 'email']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Invitation to {self.email} for {self.calendar}"
+
+    def is_expired(self):
+        """Check if the invitation has expired"""
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+
+    def accept_invitation(self, user):
+        """Accept the invitation and create a CalendarShare"""
+        if self.is_expired():
+            raise ValueError("Invitation has expired")
+
+        if self.accepted:
+            raise ValueError("Invitation has already been accepted")
+
+        # Create the share
+        share, created = CalendarShare.objects.get_or_create(
+            calendar=self.calendar,
+            shared_with=user,
+            defaults={
+                'shared_by': self.invited_by,
+                'permission_level': self.permission_level,
+            }
+        )
+
+        # Mark invitation as accepted
+        self.accepted = True
+        self.save()
+
+        return share

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday
+from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday, CalendarShare, CalendarInvitation
 
 
 @admin.register(Calendar)
@@ -102,3 +102,25 @@ class HolidayAdmin(admin.ModelAdmin):
             return format_html('<img src="{}" width="50" height="50" style="object-fit: cover;" />', obj.image.url)
         return "No image"
     image_preview.short_description = "Preview"
+
+
+
+@admin.register(CalendarShare)
+class CalendarShareAdmin(admin.ModelAdmin):
+    list_display = ["calendar", "shared_with", "shared_by", "permission_level", "created_at"]
+    list_filter = ["permission_level", "created_at"]
+    search_fields = ["calendar__year", "shared_with__username", "shared_with__email", "shared_by__username"]
+    readonly_fields = ["created_at", "updated_at"]
+
+
+@admin.register(CalendarInvitation)  
+class CalendarInvitationAdmin(admin.ModelAdmin):
+    list_display = ["calendar", "email", "invited_by", "permission_level", "accepted", "is_expired_status", "created_at"]
+    list_filter = ["permission_level", "accepted", "created_at"]
+    search_fields = ["calendar__year", "email", "invited_by__username"]
+    readonly_fields = ["token", "created_at", "is_expired_status"]
+
+    def is_expired_status(self, obj):
+        return obj.is_expired()
+    is_expired_status.boolean = True
+    is_expired_status.short_description = "Expired"

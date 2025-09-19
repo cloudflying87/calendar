@@ -66,6 +66,73 @@
     </div>
 </div>
 
+<!-- Calendar Sharing Section -->
+{% if user_can_share %}
+<div class="sharing-panel">
+    <h3>Share Calendar</h3>
+
+    <!-- Share Form -->
+    <form method="post" action="{% url 'calendars:calendar_share' year=calendar.year %}" class="share-form">
+        {% csrf_token %}
+        <div class="form-group form-group--inline">
+            <input type="email" name="email" placeholder="Enter email address" class="form-input" required>
+            <select name="permission_level" class="form-select">
+                <option value="viewer">Viewer</option>
+                <option value="editor">Editor</option>
+            </select>
+            <button type="submit" class="btn btn--primary">Share</button>
+        </div>
+    </form>
+
+    <!-- Current Shares -->
+    {% if calendar.shares.exists %}
+    <div class="current-shares">
+        <h4>Shared With</h4>
+        <div class="shares-list">
+            {% for share in calendar.shares.all %}
+            <div class="share-item">
+                <div class="share-item__info">
+                    <strong>{{ share.shared_with.username }}</strong>
+                    <span class="share-item__email">({{ share.shared_with.email }})</span>
+                    <span class="share-item__permission">{{ share.get_permission_level_display }}</span>
+                </div>
+                <form method="post" action="{% url 'calendars:calendar_unshare' year=calendar.year %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="share_id" value="{{ share.id }}">
+                    <button type="submit" class="btn btn--small btn--danger" title="Remove access"
+                            onclick="return confirm('Remove {{ share.shared_with.username }} from this calendar?')">
+                        Remove
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pending Invitations -->
+    {% if calendar.invitations.exists %}
+    <div class="pending-invitations">
+        <h4>Pending Invitations</h4>
+        <div class="invitations-list">
+            {% for invitation in calendar.invitations.all %}
+            {% if not invitation.accepted and not invitation.is_expired %}
+            <div class="invitation-item">
+                <div class="invitation-item__info">
+                    <strong>{{ invitation.email }}</strong>
+                    <span class="invitation-item__permission">{{ invitation.get_permission_level_display }}</span>
+                    <span class="invitation-item__date">Sent {{ invitation.created_at|date:"M j" }}</span>
+                </div>
+                <span class="status status--warning">Pending</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if generated_calendars %}
     <div class="generated-calendars">
         <h3>Generated Calendars</h3>

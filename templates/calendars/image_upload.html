@@ -73,7 +73,7 @@
         {% endif %}
 
         <div class="form-actions">
-            <button type="submit" class="btn btn--primary">Upload Images</button>
+            <button type="submit" class="btn btn--primary" id="upload-submit-btn">Upload Images</button>
             <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
         </div>
     </form>
@@ -97,19 +97,117 @@
 
 {% block extra_js %}
 <script>
-// Add some basic file upload feedback
+// Enhanced file upload feedback with size checking
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.querySelector('input[type="file"]');
-    if (fileInput) {
+    const submitBtn = document.getElementById('upload-submit-btn');
+
+    if (fileInput && submitBtn) {
         fileInput.addEventListener('change', function(e) {
             const files = e.target.files;
             if (files.length > 0) {
-                console.log(`Selected ${files.length} file(s)`);
-                // You could add more sophisticated feedback here
+                let totalSize = 0;
+                let fileList = [];
+
+                for (let i = 0; i < files.length; i++) {
+                    totalSize += files[i].size;
+                    fileList.push(`${files[i].name} (${formatFileSize(files[i].size)})`);
+                }
+
+                console.log(`Selected ${files.length} file(s) - Total: ${formatFileSize(totalSize)}`);
+
+                // Show file info
+                showFileInfo(files.length, totalSize, fileList);
+
+                // Update button text for large uploads
+                if (totalSize > 20 * 1024 * 1024) { // 20MB
+                    submitBtn.textContent = `Upload ${files.length} Large File${files.length > 1 ? 's' : ''} (${formatFileSize(totalSize)})`;
+                    submitBtn.title = 'Large files will show upload progress';
+                } else {
+                    submitBtn.textContent = `Upload ${files.length} File${files.length > 1 ? 's' : ''}`;
+                    submitBtn.title = '';
+                }
+            } else {
+                submitBtn.textContent = 'Upload Images';
+                submitBtn.title = '';
+                hideFileInfo();
             }
         });
     }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function showFileInfo(fileCount, totalSize, fileList) {
+        // Remove existing info
+        hideFileInfo();
+
+        const form = document.querySelector('.form');
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'upload-file-preview';
+        fileInfo.innerHTML = `
+            <div class="file-preview-header">
+                <strong>📁 ${fileCount} file${fileCount > 1 ? 's' : ''} selected</strong>
+                <span class="file-preview-size">Total: ${formatFileSize(totalSize)}</span>
+            </div>
+            ${totalSize > 20 * 1024 * 1024 ?
+                '<div class="file-preview-notice">⏳ Large files will show upload progress</div>' : ''
+            }
+        `;
+
+        form.appendChild(fileInfo);
+    }
+
+    function hideFileInfo() {
+        const existing = document.querySelector('.upload-file-preview');
+        if (existing) {
+            existing.remove();
+        }
+    }
 });
 </script>
+
+<style>
+.upload-file-preview {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--color-bg-secondary);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--primary-color);
+}
+
+.file-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    color: var(--color-text-primary);
+}
+
+.file-preview-size {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+
+.file-preview-notice {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+@media (max-width: 576px) {
+    .file-preview-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+</style>
 {% endblock %}
 {% endblock %}

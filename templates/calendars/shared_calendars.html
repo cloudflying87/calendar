@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Shared Calendars - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Shared Calendars</h1>
+        <p class="page-description">Calendars that others have shared with you</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:calendar_list' %}" class="btn btn--outline">Back to My Calendars</a>
+    </div>
+</div>
+
+{% if shared_calendars %}
+    <div class="calendars-grid">
+        {% for share in shared_calendars %}
+            <div class="calendar-card">
+                <div class="calendar-card__header">
+                    <h3 class="calendar-card__title">
+                        <a href="{% url 'calendars:calendar_detail' year=share.calendar.year %}">
+                            Calendar {{ share.calendar.year }}
+                        </a>
+                    </h3>
+                    <span class="permission-badge permission-badge--{{ share.permission_level }}">
+                        {{ share.get_permission_level_display }}
+                    </span>
+                </div>
+
+                <div class="calendar-card__meta">
+                    <div class="meta-item">
+                        <strong>Owner:</strong> {{ share.shared_by.username }}
+                    </div>
+                    <div class="meta-item">
+                        <strong>Events:</strong> {{ share.calendar.events.count }}
+                    </div>
+                    <div class="meta-item">
+                        <strong>Shared:</strong> {{ share.created_at|date:"M j, Y" }}
+                    </div>
+                </div>
+
+                <div class="calendar-card__actions">
+                    <a href="{% url 'calendars:calendar_detail' year=share.calendar.year %}"
+                       class="btn btn--primary btn--small">
+                        View Calendar
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state__icon">📅</div>
+        <h3 class="empty-state__title">No Shared Calendars</h3>
+        <p class="empty-state__description">
+            When someone shares a calendar with you, it will appear here.
+        </p>
+        <a href="{% url 'calendars:calendar_list' %}" class="btn btn--primary">
+            View My Calendars
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

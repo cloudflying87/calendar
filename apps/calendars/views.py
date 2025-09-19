@@ -30,7 +30,22 @@ class CalendarListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return Calendar.objects.filter(user=self.request.user)
+        from .permissions import get_user_calendars
+        return get_user_calendars(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Add permission info for each calendar
+        calendars_with_permissions = []
+        for calendar in context['calendars']:
+            permission = calendar.get_user_permission(self.request.user)
+            calendars_with_permissions.append({
+                'calendar': calendar,
+                'permission': permission,
+                'is_owner': permission == 'owner'
+            })
+        context['calendars_with_permissions'] = calendars_with_permissions
+        return context
 
 
 class CalendarCreateView(LoginRequiredMixin, CreateView):
@@ -105,13 +120,20 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
     slug_url_kwarg = 'year'
 
     def get_queryset(self):
-        return Calendar.objects.filter(user=self.request.user)
+        from .permissions import get_user_calendars
+        return get_user_calendars(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['events_by_month'] = self.get_events_by_month()
         context['has_header'] = hasattr(self.object, 'header')
         context['generated_calendars'] = self.object.generated_pdfs.all()
+
+        # Add sharing context
+        context['user_can_share'] = self.object.can_share(self.request.user)
+        context['user_can_edit'] = self.object.can_edit(self.request.user)
+        context['user_permission'] = self.object.get_user_permission(self.request.user)
+
         return context
 
     def get_events_by_month(self):
@@ -987,3 +1009,172 @@ class ProcessMultiCropView(View):
                 combined.paste(images[2], (160, 100))
 
         return combined
+
+
+# Calendar Sharing Views
+
+class CalendarShareView(LoginRequiredMixin, View):
+    """View for sharing a calendar with another user"""
+
+    def post(self, request, year):
+        from django.contrib.auth.models import User
+        from .models import CalendarShare, CalendarInvitation
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.http import Http404
+
+        calendar = get_object_or_404(Calendar, year=year)
+        if not calendar.can_share(request.user):
+            raise Http404("Calendar not found")
+
+        email = request.POST.get('email', '').strip()
+        permission_level = request.POST.get('permission_level', 'viewer')
+
+        if not email:
+            messages.error(request, "Email address is required.")
+            return redirect('calendars:calendar_detail', year=year)
+
+        if permission_level not in ['viewer', 'editor']:
+            permission_level = 'viewer'
+
+        try:
+            # Check if user exists
+            try:
+                target_user = User.objects.get(email=email)
+
+                # Check if already shared
+                existing_share = CalendarShare.objects.filter(
+                    calendar=calendar,
+                    shared_with=target_user
+                ).first()
+
+                if existing_share:
+                    messages.info(request, f"Calendar is already shared with {email}")
+                    return redirect('calendars:calendar_detail', year=year)
+
+                # Create direct share
+                CalendarShare.objects.create(
+                    calendar=calendar,
+                    shared_with=target_user,
+                    shared_by=request.user,
+                    permission_level=permission_level
+                )
+
+                messages.success(request, f"Calendar shared with {email} as {permission_level}")
+
+            except User.DoesNotExist:
+                # User doesn't exist, create invitation
+                existing_invitation = CalendarInvitation.objects.filter(
+                    calendar=calendar,
+                    email=email
+                ).first()
+
+                if existing_invitation and not existing_invitation.is_expired():
+                    messages.info(request, f"Invitation already sent to {email}")
+                    return redirect('calendars:calendar_detail', year=year)
+
+                # Delete old expired invitation
+                if existing_invitation:
+                    existing_invitation.delete()
+
+                # Create new invitation
+                CalendarInvitation.objects.create(
+                    calendar=calendar,
+                    email=email,
+                    invited_by=request.user,
+                    permission_level=permission_level,
+                    expires_at=timezone.now() + timedelta(days=7)
+                )
+
+                messages.success(request, f"Invitation sent to {email}")
+
+        except Exception as e:
+            messages.error(request, f"Error sharing calendar: {str(e)}")
+
+        return redirect('calendars:calendar_detail', year=year)
+
+
+class CalendarUnshareView(LoginRequiredMixin, View):
+    """View for unsharing a calendar"""
+
+    def post(self, request, year):
+        from .models import CalendarShare
+        from django.http import Http404
+
+        calendar = get_object_or_404(Calendar, year=year)
+        if not calendar.can_share(request.user):
+            raise Http404("Calendar not found")
+
+        share_id = request.POST.get('share_id')
+        if not share_id:
+            messages.error(request, "Invalid share ID")
+            return redirect('calendars:calendar_detail', year=year)
+
+        try:
+            share = CalendarShare.objects.get(
+                id=share_id,
+                calendar=calendar,
+                shared_by=request.user
+            )
+
+            username = share.shared_with.username
+            share.delete()
+
+            messages.success(request, f"Calendar unshared from {username}")
+
+        except CalendarShare.DoesNotExist:
+            messages.error(request, "Share not found")
+        except Exception as e:
+            messages.error(request, f"Error unsharing calendar: {str(e)}")
+
+        return redirect('calendars:calendar_detail', year=year)
+
+
+class AcceptInvitationView(LoginRequiredMixin, View):
+    """View for accepting a calendar invitation"""
+
+    def get(self, request, token):
+        from .models import CalendarInvitation
+
+        try:
+            invitation = CalendarInvitation.objects.get(token=token)
+
+            if invitation.is_expired():
+                messages.error(request, "This invitation has expired")
+                return redirect('calendars:calendar_list')
+
+            if invitation.accepted:
+                messages.info(request, "This invitation has already been accepted")
+                return redirect('calendars:calendar_list')
+
+            # Check if user's email matches invitation
+            if invitation.email.lower() != request.user.email.lower():
+                messages.error(request, "This invitation was not sent to your email address")
+                return redirect('calendars:calendar_list')
+
+            # Accept the invitation
+            share = invitation.accept_invitation(request.user)
+
+            messages.success(request,
+                f"You now have {share.permission_level} access to {share.calendar}")
+
+            return redirect('calendars:calendar_detail', year=share.calendar.year)
+
+        except CalendarInvitation.DoesNotExist:
+            messages.error(request, "Invalid invitation link")
+            return redirect('calendars:calendar_list')
+        except Exception as e:
+            messages.error(request, f"Error accepting invitation: {str(e)}")
+            return redirect('calendars:calendar_list')
+
+
+class SharedCalendarsView(LoginRequiredMixin, ListView):
+    """View for displaying calendars shared with the user"""
+
+    template_name = 'calendars/shared_calendars.html'
+    context_object_name = 'shared_calendars'
+    paginate_by = 10
+
+    def get_queryset(self):
+        from .models import CalendarShare
+        return CalendarShare.objects.filter(shared_with=self.request.user)

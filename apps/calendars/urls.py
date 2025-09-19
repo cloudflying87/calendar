@@ -24,4 +24,10 @@ urlpatterns = [
     path('event/<int:event_id>/remove-photo/', views.RemoveEventPhotoView.as_view(), name='remove_event_photo'),
     path('event/<int:event_id>/delete/', views.DeleteEventView.as_view(), name='delete_event'),
     path('pdf/<int:pdf_id>/delete/', views.DeleteGeneratedPDFView.as_view(), name='delete_generated_pdf'),
+
+    # Calendar sharing URLs
+    path('<int:year>/share/', views.CalendarShareView.as_view(), name='calendar_share'),
+    path('<int:year>/unshare/', views.CalendarUnshareView.as_view(), name='calendar_unshare'),
+    path('accept/<uuid:token>/', views.AcceptInvitationView.as_view(), name='accept_invitation'),
+    path('shared/', views.SharedCalendarsView.as_view(), name='shared_calendars'),
 ]

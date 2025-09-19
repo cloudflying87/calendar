@@ -71,10 +71,25 @@
         {% endif %}
 
         <div class="form-actions">
-            <button type="submit" class="btn btn--primary">
+            <button type="submit" class="btn btn--primary" id="header-upload-btn">
                 {% if calendar.header %}Update Header{% else %}Upload Header{% endif %}
             </button>
-            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline" id="cancel-btn">Cancel</a>
+        </div>
+
+        <!-- Upload Progress Indicator -->
+        <div id="upload-progress" class="upload-progress" style="display: none;">
+            <div class="progress-header">
+                <span id="progress-text">Uploading...</span>
+                <span id="progress-percentage">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <div class="progress-details">
+                <span id="upload-speed"></span>
+                <span id="time-remaining"></span>
+            </div>
         </div>
     </form>
 </div>
@@ -113,4 +128,272 @@
         </div>
     </div>
 </div>
+
+{% block extra_js %}
+<script>
+// Header upload feedback for large PDF files
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.querySelector('input[type="file"][accept*="pdf"]');
+    const submitBtn = document.getElementById('header-upload-btn');
+    const form = document.querySelector('.form');
+    const originalButtonText = submitBtn.textContent;
+
+    let startTime;
+    let uploadedBytes = 0;
+
+    if (fileInput && submitBtn) {
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const fileSize = file.size;
+                console.log(`Selected PDF: ${file.name} (${formatFileSize(fileSize)})`);
+
+                // Show file info for PDFs
+                showPDFInfo(file);
+
+                // Update button text for large PDFs
+                if (fileSize > 10 * 1024 * 1024) { // 10MB
+                    submitBtn.textContent = `Upload Large PDF (${formatFileSize(fileSize)})`;
+                    submitBtn.title = 'Large PDF will show upload progress';
+                } else {
+                    submitBtn.textContent = `Upload PDF (${formatFileSize(fileSize)})`;
+                    submitBtn.title = '';
+                }
+            } else {
+                submitBtn.textContent = originalButtonText;
+                submitBtn.title = '';
+                hidePDFInfo();
+            }
+        });
+
+        // Enhanced form submission with progress
+        form.addEventListener('submit', function(e) {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            // Show progress for files larger than 5MB
+            if (file.size > 5 * 1024 * 1024) {
+                e.preventDefault();
+                uploadWithProgress(file);
+            }
+        });
+    }
+
+    function uploadWithProgress(file) {
+        const formData = new FormData(form);
+        const progressContainer = document.getElementById('upload-progress');
+        const progressText = document.getElementById('progress-text');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const progressFill = document.getElementById('progress-fill');
+        const uploadSpeed = document.getElementById('upload-speed');
+        const timeRemaining = document.getElementById('time-remaining');
+
+        // Show progress UI
+        progressContainer.style.display = 'block';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Uploading...';
+        document.getElementById('cancel-btn').style.display = 'none';
+
+        startTime = Date.now();
+        uploadedBytes = 0;
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                const elapsed = Date.now() - startTime;
+                const speed = e.loaded / (elapsed / 1000); // bytes per second
+                const remaining = (e.total - e.loaded) / speed; // seconds
+
+                // Update progress bar
+                progressFill.style.width = percentComplete + '%';
+                progressPercentage.textContent = Math.round(percentComplete) + '%';
+
+                // Update speed and time remaining
+                uploadSpeed.textContent = `${formatFileSize(speed)}/s`;
+                timeRemaining.textContent = `${Math.round(remaining)}s remaining`;
+
+                // Update text based on progress
+                if (percentComplete < 100) {
+                    progressText.textContent = `Uploading ${file.name}...`;
+                } else {
+                    progressText.textContent = 'Processing...';
+                    uploadSpeed.textContent = '';
+                    timeRemaining.textContent = 'Please wait...';
+                }
+            }
+        });
+
+        xhr.addEventListener('load', function() {
+            if (xhr.status === 200) {
+                progressText.textContent = 'Upload complete!';
+                progressFill.style.backgroundColor = '#10b981'; // green
+                setTimeout(() => {
+                    window.location.href = xhr.responseURL || window.location.href;
+                }, 1000);
+            } else {
+                handleUploadError('Upload failed. Please try again.');
+            }
+        });
+
+        xhr.addEventListener('error', function() {
+            handleUploadError('Network error. Please check your connection.');
+        });
+
+        xhr.addEventListener('timeout', function() {
+            handleUploadError('Upload timed out. Please try again.');
+        });
+
+        xhr.open('POST', form.action);
+        xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        xhr.timeout = 300000; // 5 minutes
+        xhr.send(formData);
+    }
+
+    function handleUploadError(message) {
+        const progressContainer = document.getElementById('upload-progress');
+        const progressText = document.getElementById('progress-text');
+        const progressFill = document.getElementById('progress-fill');
+
+        progressText.textContent = message;
+        progressFill.style.backgroundColor = '#ef4444'; // red
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalButtonText;
+        document.getElementById('cancel-btn').style.display = 'inline-block';
+
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+        }, 5000);
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function showPDFInfo(file) {
+        // Remove existing info
+        hidePDFInfo();
+
+        const form = document.querySelector('.form');
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'upload-file-preview pdf-preview';
+        fileInfo.innerHTML = `
+            <div class="file-preview-header">
+                <strong>📄 ${file.name}</strong>
+                <span class="file-preview-size">${formatFileSize(file.size)}</span>
+            </div>
+            ${file.size > 10 * 1024 * 1024 ?
+                '<div class="file-preview-notice">⏳ Large PDF will show upload progress</div>' : ''
+            }
+            <div class="pdf-preview-notice">
+                💡 PDF processing may take a moment after upload
+            </div>
+        `;
+
+        form.appendChild(fileInfo);
+    }
+
+    function hidePDFInfo() {
+        const existing = document.querySelector('.upload-file-preview.pdf-preview');
+        if (existing) {
+            existing.remove();
+        }
+    }
+});
+</script>
+
+<style>
+/* Upload Progress Styles */
+.upload-progress {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: var(--color-bg-secondary);
+    border-radius: var(--border-radius);
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary-color);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.progress-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.upload-file-preview {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--color-bg-secondary);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--primary-color);
+}
+
+.file-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    color: var(--color-text-primary);
+}
+
+.file-preview-size {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+
+.file-preview-notice {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    font-style: italic;
+    margin-bottom: 0.5rem;
+}
+
+.pdf-preview-notice {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    background: rgba(37, 99, 235, 0.1);
+    padding: 0.5rem;
+    border-radius: 4px;
+    border-left: 3px solid var(--primary-color);
+}
+
+@media (max-width: 576px) {
+    .file-preview-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+</style>
+{% endblock %}
 {% endblock %}

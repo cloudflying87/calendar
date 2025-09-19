@@ -122,6 +122,23 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# File Upload Settings
+# Set maximum file upload size to 100MB for large calendar PDFs and images
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
+
+# Set maximum request size to 500MB to handle multiple large files
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Allow many form fields for bulk uploads
+
+# File upload handlers - use temporary files for large uploads
+FILE_UPLOAD_HANDLERS = [
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+    'django.core.files.uploadhandler.MemoryFileUploadHandler',
+]
+
+# Session timeout - extend for large uploads
+SESSION_COOKIE_AGE = 3600  # 1 hour
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
