@@ -8,6 +8,7 @@
         <h1 class="page-title">Your Calendars</h1>
     </div>
     <div class="page-header__actions">
+        <a href="{% url 'calendars:user_preferences' %}" class="btn btn--outline">⚙️ Preferences</a>
         <a href="{% url 'calendars:shared_calendars' %}" class="btn btn--outline">Shared Calendars</a>
         <a href="{% url 'calendars:calendar_create' %}" class="btn btn--primary">Create New Calendar</a>
     </div>

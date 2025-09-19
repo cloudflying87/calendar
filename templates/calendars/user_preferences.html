@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Event Preferences - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Event Preferences</h1>
+        <p class="page-description">Control how events are managed across your calendars</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:calendar_list' %}" class="btn btn--outline">Back to Calendars</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <h3>Master Event List</h3>
+            <p class="form-section-description">
+                The master event list stores your recurring events that can be reused across multiple calendars.
+            </p>
+
+            <div class="form-group">
+                <label>When creating calendar events, automatically add to master list:</label>
+                <div class="radio-list">
+                    <label class="radio-label">
+                        <input type="radio" name="add_to_master_list" value="always"
+                               {% if preferences.add_to_master_list == 'always' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Always</strong> - Automatically add all new events to master list
+                        </span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="add_to_master_list" value="ask"
+                               {% if preferences.add_to_master_list == 'ask' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Ask me</strong> - Prompt me each time (recommended)
+                        </span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="add_to_master_list" value="never"
+                               {% if preferences.add_to_master_list == 'never' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Never</strong> - Only add events manually
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="default_groups">Default Groups</label>
+                <input type="text" id="default_groups" name="default_groups"
+                       value="{{ preferences.default_groups }}" class="form-input"
+                       placeholder="e.g., Personal, Important">
+                <small class="form-help">
+                    Comma-separated list of groups to automatically assign to new master events
+                </small>
+                {% if groups %}
+                    <div class="form-help">
+                        <strong>Your existing groups:</strong>
+                        {% for group in groups %}
+                            <span class="tag">{{ group.name }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Save Preferences</button>
+        </div>
+    </form>
+</div>
+
+<div class="info-panel">
+    <h3>Quick Links</h3>
+    <div class="quick-links">
+        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">📅 Manage Master Events</a>
+        <a href="{% url 'calendars:event_groups' %}" class="btn btn--outline">🏷️ Manage Event Groups</a>
+        <a href="{% url 'calendars:import_master_events' %}" class="btn btn--outline">📥 Import Events</a>
+        <a href="{% url 'calendars:export_master_events' %}?format=csv" class="btn btn--outline">📤 Export Events</a>
+    </div>
+</div>
+
+<div class="help-section">
+    <h3>How Master Events Work</h3>
+    <div class="help-content">
+        <h4>🎂 Birthdays & Anniversaries</h4>
+        <p>Add the person's name and the year they were born or the event occurred. The system will automatically calculate ages and years (e.g., "John's 25th Birthday").</p>
+
+        <h4>🏷️ Groups</h4>
+        <p>Organize events into groups like "Family", "Work", "Holidays". Apply entire groups to new calendars at once.</p>
+
+        <h4>📅 Multiple Calendars</h4>
+        <p>Create different calendar versions for the same year (e.g., "2024 - Family", "2024 - Work") each with different event groups.</p>
+
+        <h4>🔄 Event Reuse</h4>
+        <p>Once events are in your master list, they can be applied to any calendar, with automatic year calculations.</p>
+    </div>
+</div>
+{% endblock %}

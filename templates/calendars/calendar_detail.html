@@ -41,6 +41,12 @@
             <a href="{% url 'calendars:holiday_management' year=calendar.year %}" class="btn btn--secondary">
                 🎉 Manage Holidays
             </a>
+            <a href="{% url 'calendars:apply_master_events' calendar_id=calendar.id %}" class="btn btn--secondary" title="Apply events from your master event list">
+                📅 Apply Master Events
+            </a>
+            <a href="{% url 'calendars:bulk_add_to_master_list' calendar_id=calendar.id %}" class="btn btn--secondary" title="Add calendar events to master list for reuse">
+                📋 Add to Master List
+            </a>
             <a href="{% url 'calendars:header_upload' year=calendar.year %}" class="btn btn--secondary">
                 📄 {% if has_header %}Update Header{% else %}Upload Header{% endif %}
             </a>

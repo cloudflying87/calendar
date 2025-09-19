@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Master Events - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Import Master Events</h1>
+        <p class="page-description">Upload a CSV or JSON file to import your master events</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Back to Events</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" enctype="multipart/form-data" class="form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="import_file">Select File</label>
+            <input type="file" id="import_file" name="import_file" accept=".csv,.json" class="form-input" required>
+            <small class="form-help">Supported formats: CSV, JSON (max 10MB)</small>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Import Events</button>
+            <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="info-panel">
+    <h3>File Format Requirements</h3>
+
+    <div class="format-section">
+        <h4>📊 CSV Format</h4>
+        <p>Your CSV file should have these columns (header row required):</p>
+        <div class="code-block">
+            <pre>Name,Event Type,Month,Day,Year Occurred,Groups,Description
+John Doe,birthday,3,15,1990,"Family, Important",John's birthday
+Wedding Anniversary,anniversary,6,20,2010,"Family, Milestones",Our wedding day
+Christmas,holiday,12,25,,"Holidays",Christmas Day</pre>
+        </div>
+
+        <ul class="format-requirements">
+            <li><strong>Name:</strong> Event or person name (required)</li>
+            <li><strong>Event Type:</strong> birthday, anniversary, holiday, appointment, reminder, custom</li>
+            <li><strong>Month:</strong> 1-12 (required)</li>
+            <li><strong>Day:</strong> 1-31 (required)</li>
+            <li><strong>Year Occurred:</strong> Year event first occurred (optional, for age calculation)</li>
+            <li><strong>Groups:</strong> Comma-separated group names (optional)</li>
+            <li><strong>Description:</strong> Additional details (optional)</li>
+        </ul>
+    </div>
+
+    <div class="format-section">
+        <h4>📄 JSON Format</h4>
+        <p>Your JSON file should be an array of event objects:</p>
+        <div class="code-block">
+            <pre>[
+  {
+    "name": "John Doe",
+    "event_type": "birthday",
+    "month": 3,
+    "day": 15,
+    "year_occurred": 1990,
+    "groups": "Family, Important",
+    "description": "John's birthday"
+  },
+  {
+    "name": "Christmas",
+    "event_type": "holiday",
+    "month": 12,
+    "day": 25,
+    "groups": "Holidays",
+    "description": "Christmas Day"
+  }
+]</pre>
+        </div>
+    </div>
+
+    <div class="format-section">
+        <h4>📝 Import Notes</h4>
+        <ul>
+            <li>Duplicate events (same name, month, day) will be skipped</li>
+            <li>Invalid data rows will be reported but won't stop the import</li>
+            <li>Groups that don't exist will be created automatically</li>
+            <li>All imported events will be associated with your account</li>
+        </ul>
+    </div>
+
+    <div class="format-section">
+        <h4>📤 Need a Template?</h4>
+        <p>Download a sample file to get started:</p>
+        <div class="action-buttons">
+            <a href="{% url 'calendars:export_master_events' %}?format=csv" class="btn btn--outline">Download CSV Template</a>
+            <a href="{% url 'calendars:export_master_events' %}?format=json" class="btn btn--outline">Download JSON Template</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Event Groups - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Event Groups</h1>
+        <p class="page-description">Organize your master events into reusable groups</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">View Events</a>
+        <a href="{% url 'calendars:event_group_create' %}" class="btn btn--primary">➕ Create Group</a>
+    </div>
+</div>
+
+{% if groups %}
+    <div class="groups-grid">
+        {% for group in groups %}
+            <div class="group-card">
+                <div class="group-card__header">
+                    <h3 class="group-card__title">{{ group.name }}</h3>
+                    <span class="group-card__count">{{ group.event_count }} events</span>
+                </div>
+
+                <div class="group-card__content">
+                    {% if group.description %}
+                        <p class="group-card__description">{{ group.description }}</p>
+                    {% else %}
+                        <p class="group-card__description text-muted">No description</p>
+                    {% endif %}
+                </div>
+
+                <div class="group-card__meta">
+                    <small class="text-muted">Created {{ group.created_at|date:"M j, Y" }}</small>
+                </div>
+
+                <div class="group-card__actions">
+                    <a href="{% url 'calendars:master_events' %}?group={{ group.name }}" class="btn btn--small btn--outline">View Events</a>
+                    <a href="{% url 'calendars:event_group_edit' pk=group.pk %}" class="btn btn--small btn--secondary">Edit</a>
+                    <a href="{% url 'calendars:event_group_delete' pk=group.pk %}" class="btn btn--small btn--danger">Delete</a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <h2>No Event Groups Yet</h2>
+        <p>Create groups to organize your master events. For example: "Family Birthdays", "Work Events", "US Holidays".</p>
+        <a href="{% url 'calendars:event_group_create' %}" class="btn btn--primary">➕ Create Your First Group</a>
+    </div>
+{% endif %}
+
+<div class="info-panel">
+    <h3>How Event Groups Work</h3>
+    <div class="help-content">
+        <ul>
+            <li><strong>Organization:</strong> Group related events together (e.g., "Family", "Work", "Holidays")</li>
+            <li><strong>Bulk Application:</strong> Apply entire groups to calendars at once</li>
+            <li><strong>Reusability:</strong> Use the same groups across multiple calendar years</li>
+            <li><strong>Flexibility:</strong> Events can belong to multiple groups</li>
+        </ul>
+
+        <h4>Example Groups:</h4>
+        <div class="example-groups">
+            <span class="tag">Family Birthdays</span>
+            <span class="tag">Work Events</span>
+            <span class="tag">US Holidays</span>
+            <span class="tag">Anniversaries</span>
+            <span class="tag">Important Dates</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

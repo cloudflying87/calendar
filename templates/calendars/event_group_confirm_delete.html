@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Event Group - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Delete Event Group</h1>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:event_groups' %}" class="btn btn--outline">Back to Groups</a>
+    </div>
+</div>
+
+<div class="confirmation-container">
+    <div class="confirmation-panel confirmation-panel--danger">
+        <div class="confirmation-icon">⚠️</div>
+        <h2>Are you sure you want to delete this event group?</h2>
+
+        <div class="group-details">
+            <h3>{{ object.name }}</h3>
+            {% if object.description %}
+                <p class="group-description">{{ object.description }}</p>
+            {% endif %}
+            <div class="group-meta">
+                <span class="meta-item">
+                    <strong>Created:</strong> {{ object.created_at|date:"M j, Y" }}
+                </span>
+            </div>
+        </div>
+
+        <div class="warning-message">
+            <h4>This action will:</h4>
+            <ul>
+                <li>Permanently delete this event group</li>
+                <li>Remove this group from all master events that use it</li>
+                <li>Events themselves will not be deleted, only the group association</li>
+                <li>This action cannot be undone</li>
+            </ul>
+        </div>
+
+        <form method="post" class="confirmation-form">
+            {% csrf_token %}
+            <div class="form-actions form-actions--danger">
+                <button type="submit" class="btn btn--danger">Yes, Delete Group</button>
+                <a href="{% url 'calendars:event_groups' %}" class="btn btn--outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

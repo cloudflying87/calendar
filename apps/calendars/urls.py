@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import views_events
 
 app_name = 'calendars'
 
@@ -33,4 +34,30 @@ urlpatterns = [
     path('<int:year>/unshare/', views.CalendarUnshareView.as_view(), name='calendar_unshare'),
     path('accept/<str:token>/', views.AcceptInvitationView.as_view(), name='accept_invitation'),
     path('shared/', views.SharedCalendarsView.as_view(), name='shared_calendars'),
+
+    # Master Events URLs
+    path('master-events/', views_events.MasterEventListView.as_view(), name='master_events'),
+    path('master-events/create/', views_events.MasterEventCreateView.as_view(), name='master_event_create'),
+    path('master-events/<int:pk>/edit/', views_events.MasterEventUpdateView.as_view(), name='master_event_edit'),
+    path('master-events/<int:pk>/delete/', views_events.MasterEventDeleteView.as_view(), name='master_event_delete'),
+    path('master-events/export/', views_events.ExportMasterEventsView.as_view(), name='export_master_events'),
+    path('master-events/import/', views_events.ImportMasterEventsView.as_view(), name='import_master_events'),
+
+    # Event Groups URLs
+    path('event-groups/', views_events.EventGroupListView.as_view(), name='event_groups'),
+    path('event-groups/create/', views_events.EventGroupCreateView.as_view(), name='event_group_create'),
+    path('event-groups/<int:pk>/edit/', views_events.EventGroupUpdateView.as_view(), name='event_group_edit'),
+    path('event-groups/<int:pk>/delete/', views_events.EventGroupDeleteView.as_view(), name='event_group_delete'),
+
+    # User Preferences
+    path('preferences/', views_events.user_preferences_view, name='user_preferences'),
+
+    # Apply Master Events
+    path('<int:calendar_id>/apply-events/', views_events.ApplyMasterEventsView.as_view(), name='apply_master_events'),
+
+    # Bulk Add to Master List
+    path('<int:calendar_id>/bulk-add-to-master/', views_events.BulkAddToMasterListView.as_view(), name='bulk_add_to_master_list'),
+
+    # API endpoints
+    path('api/master-events/', views_events.get_master_events_json, name='api_master_events'),
 ]

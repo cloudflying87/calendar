@@ -128,6 +128,184 @@ class HolidayCalculator:
         return date(year, month, day)
 
 
+class EventGroup(models.Model):
+    """Model representing a group of events that can be reused across calendars"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='event_groups')
+    name = models.CharField(max_length=100, help_text="Name of the event group")
+    description = models.TextField(blank=True, help_text="Description of this event group")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = ['user', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class EventMaster(models.Model):
+    """Model representing a master event that can be reused across calendars"""
+
+    EVENT_TYPE_CHOICES = [
+        ('birthday', 'Birthday'),
+        ('anniversary', 'Anniversary'),
+        ('holiday', 'Holiday'),
+        ('appointment', 'Appointment'),
+        ('reminder', 'Reminder'),
+        ('custom', 'Custom Event'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='master_events')
+    name = models.CharField(max_length=255, help_text="Name of the event or person")
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_TYPE_CHOICES,
+        default='custom',
+        help_text="Type of event"
+    )
+    month = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        help_text="Month number (1-12)"
+    )
+    day = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(31)],
+        help_text="Day number (1-31)"
+    )
+    year_occurred = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1900), MaxValueValidator(2100)],
+        help_text="Optional: The year this event originally occurred (for birthdays, anniversaries, etc.)"
+    )
+    groups = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Comma-separated list of group names this event belongs to"
+    )
+    description = models.TextField(blank=True, help_text="Additional details about the event")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['month', 'day', 'name']
+
+    def __str__(self):
+        if self.year_occurred:
+            return f"{self.name} ({self.month}/{self.day}) - Year: {self.year_occurred}"
+        return f"{self.name} ({self.month}/{self.day})"
+
+    def get_display_name(self, for_year=None):
+        """Get display name with optional year calculation"""
+        display_name = self.name
+
+        if self.year_occurred and for_year:
+            years_since = for_year - self.year_occurred
+
+            if self.event_type == 'birthday' and years_since >= 0:
+                # Calculate age for birthdays
+                ordinal = self._get_ordinal(years_since)
+                display_name = f"{self.name}'s {ordinal} Birthday"
+            elif self.event_type == 'anniversary' and years_since > 0:
+                # Calculate years for anniversaries
+                ordinal = self._get_ordinal(years_since)
+                display_name = f"{self.name} - {ordinal} Anniversary"
+            elif years_since > 0:
+                # For other events with year_occurred
+                display_name = f"{self.name} ({years_since} years)"
+        elif self.event_type == 'birthday':
+            display_name = f"{self.name}'s Birthday"
+        elif self.event_type == 'anniversary':
+            display_name = f"{self.name} Anniversary"
+
+        return display_name
+
+    def _get_ordinal(self, number):
+        """Convert number to ordinal (1st, 2nd, 3rd, etc.)"""
+        if 10 <= number % 100 <= 20:
+            suffix = 'th'
+        else:
+            suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(number % 10, 'th')
+        return f"{number}{suffix}"
+
+    def get_groups_list(self):
+        """Get list of groups from comma-separated string"""
+        if self.groups:
+            return [g.strip() for g in self.groups.split(',') if g.strip()]
+        return []
+
+    def set_groups_list(self, group_names):
+        """Set groups from a list of group names"""
+        self.groups = ', '.join(group_names)
+
+    def add_to_group(self, group_name):
+        """Add this event to a group"""
+        groups = self.get_groups_list()
+        if group_name not in groups:
+            groups.append(group_name)
+            self.set_groups_list(groups)
+            self.save()
+
+    def remove_from_group(self, group_name):
+        """Remove this event from a group"""
+        groups = self.get_groups_list()
+        if group_name in groups:
+            groups.remove(group_name)
+            self.set_groups_list(groups)
+            self.save()
+
+
+class CalendarYear(models.Model):
+    """Model to support multiple calendars per year"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='calendar_years')
+    year = models.IntegerField(
+        validators=[MinValueValidator(1900), MaxValueValidator(2100)],
+        help_text="The year for calendars"
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Name to identify this calendar version",
+        default="Default"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-year', 'name']
+        unique_together = ['user', 'year', 'name']
+
+    def __str__(self):
+        return f"{self.year} - {self.name}"
+
+
+class UserEventPreferences(models.Model):
+    """Model for storing user preferences for event management"""
+
+    ADD_TO_MASTER_CHOICES = [
+        ('always', 'Always add to master list'),
+        ('ask', 'Ask me each time'),
+        ('never', 'Never add to master list'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='event_preferences')
+    add_to_master_list = models.CharField(
+        max_length=10,
+        choices=ADD_TO_MASTER_CHOICES,
+        default='ask',
+        help_text="When creating calendar events, how to handle master list"
+    )
+    default_groups = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Comma-separated list of default groups for new master events"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Event preferences for {self.user.username}"
+
+
 class Calendar(models.Model):
     """Model representing a calendar for a specific year"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='calendars')
@@ -135,14 +313,24 @@ class Calendar(models.Model):
         validators=[MinValueValidator(1900), MaxValueValidator(2100)],
         help_text="The year for this calendar"
     )
+    calendar_year = models.ForeignKey(
+        CalendarYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='calendars',
+        help_text="Optional: Link to a specific calendar year version"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-year']
-        unique_together = ['user', 'year']
+        unique_together = ['user', 'year', 'calendar_year']
 
     def __str__(self):
+        if self.calendar_year:
+            return f"Calendar {self.year} - {self.calendar_year.name}"
         return f"Calendar {self.year}"
 
     def get_user_permission(self, user):
@@ -216,6 +404,14 @@ class Calendar(models.Model):
 class CalendarEvent(models.Model):
     """Model representing an event/image for a specific day"""
     calendar = models.ForeignKey(Calendar, on_delete=models.CASCADE, related_name='events')
+    master_event = models.ForeignKey(
+        EventMaster,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='calendar_events',
+        help_text="Optional: Link to a master event"
+    )
     month = models.IntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(12)],
         help_text="Month number (1-12)"
@@ -225,6 +421,10 @@ class CalendarEvent(models.Model):
         help_text="Day number (1-31)"
     )
     event_name = models.CharField(max_length=255, help_text="Name of the event")
+    combined_events = models.TextField(
+        blank=True,
+        help_text="Combined event names for dates with multiple events"
+    )
     image = models.ImageField(
         upload_to=calendar_image_upload_path,
         help_text="Image file for this event"
@@ -239,6 +439,30 @@ class CalendarEvent(models.Model):
 
     def __str__(self):
         return f"{self.calendar.year}-{self.month:02d}-{self.day:02d}: {self.event_name}"
+
+    def get_display_name(self):
+        """Get display name considering master event with year calculation"""
+        if self.combined_events:
+            return self.combined_events
+        if self.master_event:
+            return self.master_event.get_display_name(for_year=self.calendar.year)
+        return self.event_name
+
+    def add_additional_event(self, event_master):
+        """Add an additional event to this date"""
+        new_name = event_master.get_display_name(for_year=self.calendar.year)
+        if self.combined_events:
+            # Parse existing events and add new one
+            events = [e.strip() for e in self.combined_events.split(' & ')]
+            events.append(new_name)
+        else:
+            # Start with current event and add new one
+            current = self.get_display_name()
+            events = [current, new_name]
+
+        self.combined_events = ' & '.join(events)
+        self.event_name = f"Multiple Events ({len(events)})"
+        self.save()
 
     @classmethod
     def parse_filename(cls, filename):

@@ -20,6 +20,8 @@
                 {% if user.is_authenticated %}
                     <a href="{% url 'calendars:calendar_list' %}" class="nav-link">Calendars</a>
                     <a href="{% url 'calendars:calendar_create' %}" class="nav-link">New Calendar</a>
+                    <a href="{% url 'calendars:master_events' %}" class="nav-link">Events</a>
+                    <a href="{% url 'calendars:event_groups' %}" class="nav-link">Groups</a>
                     {% if user.is_staff %}
                         <a href="/admin/" class="nav-link">Admin</a>
                     {% endif %}

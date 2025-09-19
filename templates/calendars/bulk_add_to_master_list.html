@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Bulk Add to Master List - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Bulk Add to Master List</h1>
+        <p class="page-description">Add calendar events to your master event list for reuse across calendars</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+    </div>
+</div>
+
+{% if unlinked_events %}
+    <div class="form-container">
+        <form method="post" class="form">
+            {% csrf_token %}
+
+            <div class="form-section">
+                <h3>Default Settings for New Master Events</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="default_event_type">Default Event Type</label>
+                        <select id="default_event_type" name="default_event_type" class="form-select">
+                            <option value="custom">Custom Event</option>
+                            <option value="birthday">Birthday</option>
+                            <option value="anniversary">Anniversary</option>
+                            <option value="holiday">Holiday</option>
+                            <option value="appointment">Appointment</option>
+                            <option value="reminder">Reminder</option>
+                        </select>
+                        <small class="form-help">This will be applied to new master events created from selected calendar events</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="default_groups">Default Groups</label>
+                        <input type="text" id="default_groups" name="default_groups" class="form-input" placeholder="e.g., Personal, Important">
+                        <small class="form-help">Comma-separated list of groups to assign to new master events</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Select Events to Add ({{ unlinked_events.count }} available)</h3>
+                <div class="checkbox-controls">
+                    <button type="button" onclick="selectAll()" class="btn btn--small btn--outline">Select All</button>
+                    <button type="button" onclick="selectNone()" class="btn btn--small btn--outline">Select None</button>
+                </div>
+
+                <div class="events-list">
+                    {% for event in unlinked_events %}
+                        <div class="event-item">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="selected_events" value="{{ event.id }}" class="checkbox event-checkbox">
+                                <div class="event-details">
+                                    <div class="event-main">
+                                        <span class="event-name">{{ event.event_name }}</span>
+                                        <span class="event-date">{{ event.month }}/{{ event.day }}/{{ calendar.year }}</span>
+                                    </div>
+                                    {% if event.image %}
+                                        <div class="event-meta">
+                                            <span class="meta-item">📷 Has Photo</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary">Add Selected Events to Master List</button>
+                <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <h2>All Events Already in Master List</h2>
+        <p>All events in this calendar are already linked to your master event list.</p>
+        <div class="action-buttons">
+            <a href="{% url 'calendars:master_events' %}" class="btn btn--primary">View Master Events</a>
+            <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+        </div>
+    </div>
+{% endif %}
+
+<div class="info-panel">
+    <h3>How This Works</h3>
+    <ul>
+        <li><strong>New Master Events:</strong> Events not already in your master list will be added as new master events</li>
+        <li><strong>Existing Master Events:</strong> If a master event with the same name and date exists, the calendar event will be linked to it</li>
+        <li><strong>Event Types:</strong> Choose the most appropriate default type for events being added</li>
+        <li><strong>Groups:</strong> Organize events by adding them to groups for easy reuse</li>
+        <li><strong>Future Use:</strong> Once in your master list, these events can be applied to other calendars</li>
+    </ul>
+
+    <h4>Benefits of Master Events:</h4>
+    <div class="benefits-list">
+        <span class="tag">Reuse Across Years</span>
+        <span class="tag">Automatic Age Calculation</span>
+        <span class="tag">Group Organization</span>
+        <span class="tag">Bulk Apply to Calendars</span>
+    </div>
+</div>
+
+<script>
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.event-checkbox');
+    checkboxes.forEach(checkbox => checkbox.checked = true);
+}
+
+function selectNone() {
+    const checkboxes = document.querySelectorAll('.event-checkbox');
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+}
+</script>
+{% endblock %}

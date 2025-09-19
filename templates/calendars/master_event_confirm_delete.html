@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Master Event - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Delete Master Event</h1>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Back to Events</a>
+    </div>
+</div>
+
+<div class="confirmation-container">
+    <div class="confirmation-panel confirmation-panel--danger">
+        <div class="confirmation-icon">⚠️</div>
+        <h2>Are you sure you want to delete this master event?</h2>
+
+        <div class="event-details">
+            <h3>{{ object.name }}</h3>
+            <div class="event-meta">
+                <span class="meta-item">
+                    <strong>Type:</strong> {{ object.get_event_type_display }}
+                </span>
+                <span class="meta-item">
+                    <strong>Date:</strong> {{ object.month }}/{{ object.day }}
+                </span>
+                {% if object.year_occurred %}
+                    <span class="meta-item">
+                        <strong>Year:</strong> {{ object.year_occurred }}
+                    </span>
+                {% endif %}
+                {% if object.groups %}
+                    <span class="meta-item">
+                        <strong>Groups:</strong> {{ object.groups }}
+                    </span>
+                {% endif %}
+            </div>
+            {% if object.description %}
+                <p class="event-description">{{ object.description }}</p>
+            {% endif %}
+        </div>
+
+        <div class="warning-message">
+            <h4>This action will:</h4>
+            <ul>
+                <li>Permanently delete this master event</li>
+                <li>Remove links from any calendar events using this master event</li>
+                <li>This action cannot be undone</li>
+            </ul>
+        </div>
+
+        <form method="post" class="confirmation-form">
+            {% csrf_token %}
+            <div class="form-actions form-actions--danger">
+                <button type="submit" class="btn btn--danger">Yes, Delete Event</button>
+                <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

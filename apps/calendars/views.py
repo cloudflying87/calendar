@@ -162,6 +162,10 @@ class ImageUploadView(View):
             created_events = []
             errors = []
 
+            # Get user preferences for master events
+            from .models import UserEventPreferences, EventMaster
+            preferences, created = UserEventPreferences.objects.get_or_create(user=request.user)
+
             # Process all files as bulk upload (no cropping)
             for uploaded_file in uploaded_files:
                 try:
@@ -171,18 +175,43 @@ class ImageUploadView(View):
                     if parsed_data:
                         month, day, event_name = parsed_data
 
+                        # Check if matching master event exists
+                        master_event = EventMaster.objects.filter(
+                            user=request.user,
+                            name__iexact=event_name,
+                            month=month,
+                            day=day
+                        ).first()
+
+                        # Get display name if master event exists
+                        display_name = event_name
+                        if master_event:
+                            display_name = master_event.get_display_name(for_year=calendar.year)
+
                         # Create or update calendar event
                         event, created = CalendarEvent.objects.update_or_create(
                             calendar=calendar,
                             month=month,
                             day=day,
                             defaults={
-                                'event_name': event_name,
+                                'event_name': display_name,
+                                'master_event': master_event,
                                 'image': uploaded_file,
                                 'original_filename': uploaded_file.name
                             }
                         )
                         created_events.append(event)
+
+                        # Handle adding to master list based on preferences
+                        if not master_event and preferences.add_to_master_list == 'always':
+                            # Auto-create master event
+                            EventMaster.objects.create(
+                                user=request.user,
+                                name=event_name,
+                                month=month,
+                                day=day,
+                                groups=preferences.default_groups
+                            )
                     else:
                         errors.append(f"Could not parse filename: {uploaded_file.name}. Use format: MMDD eventname.jpg")
 
@@ -686,41 +715,67 @@ class DownloadAllPhotosView(View):
                 current_month = None
 
                 for event in events_with_images:
-                    # Create month folder if needed
-                    month_name = f"{event.month:02d}-{cal.month_name[event.month]}"
-
                     if event.image and os.path.exists(event.image.path):
-                        # Create safe filename
+                        # Create safe filename (flattened - no folders)
                         event_name_safe = slugify(event.event_name)
                         original_ext = os.path.splitext(event.original_filename)[1] if event.original_filename else '.jpg'
                         filename = f"{event.month:02d}{event.day:02d}_{event_name_safe}{original_ext}"
 
-                        # Add to zip in month folder
-                        zip_path = f"{month_name}/{filename}"
-                        zip_file.write(event.image.path, zip_path)
+                        # Add photo directly to zip root (no folders)
+                        zip_file.write(event.image.path, filename)
 
-                        # Track for manifest
+                        # Track for CSV data
+                        master_event_name = event.master_event.name if event.master_event else ""
+                        event_type = event.master_event.get_event_type_display() if event.master_event else ""
+                        year_occurred = event.master_event.year_occurred if event.master_event else ""
+                        groups = event.master_event.groups if event.master_event else ""
+
                         events_info.append({
                             'date': f"{event.month:02d}/{event.day:02d}/{year}",
                             'event_name': event.event_name,
                             'filename': filename,
-                            'folder': month_name
+                            'master_event': master_event_name,
+                            'event_type': event_type,
+                            'year_occurred': year_occurred or "",
+                            'groups': groups
                         })
 
-                # Create events manifest file
-                manifest_content = f"Calendar {year} Photos Export\n"
-                manifest_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                manifest_content += "Events List:\n"
-                manifest_content += "=" * 50 + "\n"
+                # Create CSV file for events
+                import csv
+                import io
+
+                csv_data = []
+                csv_data.append(['Date', 'Event Name', 'Filename', 'Master Event', 'Event Type', 'Year Occurred', 'Groups'])
 
                 for event_info in events_info:
-                    manifest_content += f"Date: {event_info['date']}\n"
-                    manifest_content += f"Event: {event_info['event_name']}\n"
-                    manifest_content += f"File: {event_info['folder']}/{event_info['filename']}\n"
-                    manifest_content += "-" * 30 + "\n"
+                    csv_data.append([
+                        event_info['date'],
+                        event_info['event_name'],
+                        event_info['filename'],
+                        event_info['master_event'],
+                        event_info['event_type'],
+                        event_info['year_occurred'],
+                        event_info['groups']
+                    ])
+
+                # Create CSV file in memory
+                csv_buffer = io.StringIO()
+                csv_writer = csv.writer(csv_buffer)
+                csv_writer.writerows(csv_data)
+
+                # Add CSV to zip
+                zip_file.writestr(f"Calendar-{year}-Events.csv", csv_buffer.getvalue())
+
+                # Create text manifest for backward compatibility
+                manifest_content = f"Calendar {year} Photos Export\n"
+                manifest_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                manifest_content += f"Total Photos: {len(events_with_images)}\n"
+                manifest_content += "All photos are in the root directory with CSV event list\n\n"
+                manifest_content += "File Format: MMDD_eventname.jpg\n"
+                manifest_content += f"CSV Format: Calendar-{year}-Events.csv contains full event details\n"
 
                 # Add manifest to zip
-                zip_file.writestr("events_list.txt", manifest_content)
+                zip_file.writestr("README.txt", manifest_content)
 
             # Read the zip file
             with open(tmp_zip.name, 'rb') as f:

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Apply Master Events to {{ calendar.year }} - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Apply Master Events</h1>
+        <p class="page-description">Select event groups to apply to your {{ calendar.year }} calendar</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label>Select Event Groups to Apply</label>
+            {% if groups %}
+                <div class="checkbox-list">
+                    {% for group in groups %}
+                        <div class="checkbox-item">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="groups" value="{{ group.name }}" class="checkbox">
+                                <span class="checkbox-text">
+                                    {{ group.name }}
+                                    {% if group.description %}
+                                        <small class="text-muted">- {{ group.description }}</small>
+                                    {% endif %}
+                                </span>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-muted">No event groups available. Create groups first to organize your master events.</p>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" name="combine_events" value="true" checked>
+                <span class="checkbox-text">
+                    Combine multiple events on the same date
+                    <small class="text-muted">When checked, events on the same date will be combined into one entry</small>
+                </span>
+            </label>
+        </div>
+
+        {% if groups %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary">Apply Selected Events</button>
+                <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Cancel</a>
+            </div>
+        {% else %}
+            <div class="form-actions">
+                <a href="{% url 'calendars:event_groups' %}" class="btn btn--primary">Create Event Groups</a>
+                <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">Back to Calendar</a>
+            </div>
+        {% endif %}
+    </form>
+</div>
+
+<div class="info-panel">
+    <h3>How it works:</h3>
+    <ul>
+        <li>Events from selected groups will be added to your calendar</li>
+        <li>Birthday and anniversary ages/years will be automatically calculated</li>
+        <li>Existing events on the same dates can be combined or skipped</li>
+        <li>You can always edit or remove individual events later</li>
+    </ul>
+</div>
+{% endblock %}

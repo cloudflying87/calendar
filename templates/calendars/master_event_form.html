@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">{{ title }}</h1>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Back to Events</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="{{ form.name.id_for_label }}">Event/Person Name</label>
+            {{ form.name }}
+            {% if form.name.help_text %}
+                <small class="form-help">{{ form.name.help_text }}</small>
+            {% endif %}
+            {% if form.name.errors %}
+                <div class="form-errors">{{ form.name.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.event_type.id_for_label }}">Event Type</label>
+            {{ form.event_type }}
+            {% if form.event_type.help_text %}
+                <small class="form-help">{{ form.event_type.help_text }}</small>
+            {% endif %}
+            {% if form.event_type.errors %}
+                <div class="form-errors">{{ form.event_type.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="{{ form.month.id_for_label }}">Month</label>
+                {{ form.month }}
+                {% if form.month.errors %}
+                    <div class="form-errors">{{ form.month.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.day.id_for_label }}">Day</label>
+                {{ form.day }}
+                {% if form.day.errors %}
+                    <div class="form-errors">{{ form.day.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.year_occurred.id_for_label }}">Year (Optional)</label>
+            {{ form.year_occurred }}
+            {% if form.year_occurred.help_text %}
+                <small class="form-help">For birthdays and anniversaries - the year it first occurred</small>
+            {% endif %}
+            {% if form.year_occurred.errors %}
+                <div class="form-errors">{{ form.year_occurred.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.groups.id_for_label }}">Groups</label>
+            {{ form.groups }}
+            {% if form.groups.help_text %}
+                <small class="form-help">Comma-separated list (e.g., "Family, Birthdays, Important")</small>
+            {% endif %}
+            {% if form.groups.errors %}
+                <div class="form-errors">{{ form.groups.errors }}</div>
+            {% endif %}
+            {% if groups %}
+                <div class="form-help">
+                    <strong>Existing groups:</strong>
+                    {% for group in groups %}
+                        <span class="tag">{{ group.name }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.description.id_for_label }}">Description (Optional)</label>
+            {{ form.description }}
+            {% if form.description.errors %}
+                <div class="form-errors">{{ form.description.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Save Event</button>
+            <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Auto-update form based on event type
+document.addEventListener('DOMContentLoaded', function() {
+    const eventTypeField = document.getElementById('id_event_type');
+    const yearField = document.getElementById('id_year_occurred');
+    const nameLabel = document.querySelector('label[for="id_name"]');
+
+    function updateFormBasedOnType() {
+        const eventType = eventTypeField.value;
+
+        if (eventType === 'birthday') {
+            nameLabel.textContent = "Person's Name";
+            yearField.parentElement.style.display = 'block';
+        } else if (eventType === 'anniversary') {
+            nameLabel.textContent = "Anniversary Name";
+            yearField.parentElement.style.display = 'block';
+        } else {
+            nameLabel.textContent = "Event Name";
+            if (eventType === 'holiday' || eventType === 'custom') {
+                yearField.parentElement.style.display = 'none';
+            }
+        }
+    }
+
+    if (eventTypeField) {
+        eventTypeField.addEventListener('change', updateFormBasedOnType);
+        updateFormBasedOnType();
+    }
+});
+</script>
+{% endblock %}

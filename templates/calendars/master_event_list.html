@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+
+{% block title %}Master Events - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Master Events</h1>
+        <p class="page-description">Manage your recurring events that can be reused across calendars</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:import_master_events' %}" class="btn btn--outline">📥 Import</a>
+        <a href="{% url 'calendars:export_master_events' %}?format=csv" class="btn btn--outline">📤 Export CSV</a>
+        <a href="{% url 'calendars:export_master_events' %}?format=json" class="btn btn--outline">📤 Export JSON</a>
+        <a href="{% url 'calendars:master_event_create' %}" class="btn btn--primary">➕ Add Event</a>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="filter-panel">
+    <form method="get" class="filter-form">
+        <div class="form-group form-group--inline">
+            <input type="text" name="search" placeholder="Search events..." value="{{ request.GET.search }}" class="form-input">
+            <select name="group" class="form-select">
+                <option value="">All Groups</option>
+                {% for group in groups %}
+                    <option value="{{ group.name }}" {% if request.GET.group == group.name %}selected{% endif %}>{{ group.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="month" class="form-select">
+                <option value="">All Months</option>
+                {% for month_num, month_name in months %}
+                    <option value="{{ month_num }}" {% if request.GET.month == month_num|stringformat:"s" %}selected{% endif %}>{{ month_name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn--secondary">Filter</button>
+            <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Clear</a>
+        </div>
+    </form>
+</div>
+
+{% if events %}
+    <div class="events-table">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th>Year</th>
+                    <th>Groups</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                    <tr>
+                        <td>{{ event.name }}</td>
+                        <td>
+                            <span class="badge badge--{{ event.event_type }}">{{ event.get_event_type_display }}</span>
+                        </td>
+                        <td>{{ event.month }}/{{ event.day }}</td>
+                        <td>{{ event.year_occurred|default:"-" }}</td>
+                        <td>
+                            {% if event.groups %}
+                                {% for group in event.get_groups_list %}
+                                    <span class="tag">{{ group }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">No groups</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'calendars:master_event_edit' pk=event.pk %}" class="btn btn--small btn--outline">Edit</a>
+                            <a href="{% url 'calendars:master_event_delete' pk=event.pk %}" class="btn btn--small btn--danger">Delete</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1" class="pagination__link">First</a>
+                <a href="?page={{ page_obj.previous_page_number }}" class="pagination__link">Previous</a>
+            {% endif %}
+
+            <span class="pagination__info">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="pagination__link">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}" class="pagination__link">Last</a>
+            {% endif %}
+        </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <h2>No Master Events Yet</h2>
+        <p>Start by adding recurring events that you can reuse across multiple calendars.</p>
+        <a href="{% url 'calendars:master_event_create' %}" class="btn btn--primary">➕ Add Your First Event</a>
+    </div>
+{% endif %}
+{% endblock %}
