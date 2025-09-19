@@ -158,7 +158,6 @@ volumes:
 
 networks:
   app_network:
-    name: ${PROJECT_NAME}_network
     driver: bridge
     ipam:
       config:
