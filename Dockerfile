@@ -48,8 +48,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Create app directory with proper structure
 WORKDIR /app
-RUN mkdir -p /app/{staticfiles,media,persistent_media} && \
-    chown -R app:app /app
+RUN mkdir -p /app/{staticfiles,media,persistent_media}
 
 # Copy application code
 COPY --chown=app:app . /app/
@@ -57,6 +56,9 @@ COPY --chown=app:app . /app/
 # Copy and set permissions for entrypoint
 COPY --chown=app:app ./docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+
+# Set proper ownership for all app directories
+RUN chown -R app:app /app
 
 # Switch to non-root user
 USER app
