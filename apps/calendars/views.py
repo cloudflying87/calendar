@@ -1016,6 +1016,13 @@ class TempImageView(View):
     """Secure view to serve temporary images during photo cropping"""
 
     def get(self, request, token):
+        # Validate token format (should be a UUID)
+        import uuid
+        try:
+            uuid.UUID(token)
+        except ValueError:
+            raise Http404("Invalid token format")
+
         # Get the temp file path from session using the secure token
         temp_tokens = request.session.get('temp_tokens', {})
         temp_path = temp_tokens.get(token)
