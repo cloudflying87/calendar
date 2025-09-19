@@ -501,7 +501,7 @@ if [ "$SOFT_REBUILD" = true ]; then
     echo -e "${GREEN}✓ Image cleanup completed${NC}"
     
     echo -e "${YELLOW}Rebuilding images with --no-cache (this may take several minutes)...${NC}"
-    sudo docker compose build --no-cache
+    DOCKER_BUILDKIT=1 sudo docker compose build --no-cache --progress=plain
     echo -e "${GREEN}✓ Images rebuilt successfully${NC}"
     
     # Start containers
@@ -535,7 +535,7 @@ if [ "$REBUILD" = true ]; then
     echo -e "${GREEN}✓ Image cleanup completed${NC}"
     
     echo -e "${YELLOW}Rebuilding images with --no-cache (this may take several minutes)...${NC}"
-    sudo docker compose build --no-cache
+    DOCKER_BUILDKIT=1 sudo docker compose build --no-cache --progress=plain
     echo -e "${GREEN}✓ Images rebuilt successfully${NC}"
     
     # Start containers
