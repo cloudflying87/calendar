@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-traditional \
     curl \
     gettext \
+    gosu \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -60,8 +61,8 @@ RUN chmod +x /app/docker-entrypoint.sh
 # Set proper ownership for all app directories
 RUN chown -R app:app /app
 
-# Switch to non-root user
-USER app
+# Don't switch to app user yet - entrypoint needs root to fix volume permissions
+# USER app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

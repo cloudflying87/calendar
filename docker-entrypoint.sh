@@ -10,6 +10,10 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🚀 Starting calendar-builder application...${NC}"
 
+# Fix volume permissions (volumes override container ownership)
+echo -e "${YELLOW}🔧 Fixing volume permissions...${NC}"
+chown -R app:app /app/staticfiles /app/media /app/logs 2>/dev/null || true
+
 # Function to wait for a service
 wait_for_service() {
     local host=$1
@@ -86,8 +90,10 @@ echo -e "${GREEN}✅ Django setup complete!${NC}"
 # Production vs Development startup
 if [ "${DJANGO_SETTINGS_MODULE}" = "config.settings.production" ]; then
     echo -e "${BLUE}🏭 Starting production server with Gunicorn...${NC}"
-    exec "$@"
+    # Switch to app user for running the server
+    exec gosu app "$@"
 else
     echo -e "${BLUE}🔧 Starting development server...${NC}"
-    exec python manage.py runserver 0.0.0.0:8000
+    # Switch to app user for running the server
+    exec gosu app python manage.py runserver 0.0.0.0:8000
 fi
