@@ -201,11 +201,20 @@ class EventMaster(models.Model):
             return f"{self.name} ({self.month}/{self.day}) - Year: {self.year_occurred}"
         return f"{self.name} ({self.month}/{self.day})"
 
-    def get_display_name(self, for_year=None):
+    def get_display_name(self, for_year=None, user=None):
         """Get display name with optional year calculation"""
         display_name = self.name
 
-        if self.year_occurred and for_year:
+        # Check user preferences for showing age numbers
+        show_numbers = True
+        if user:
+            try:
+                preferences = user.event_preferences
+                show_numbers = preferences.show_age_numbers
+            except UserEventPreferences.DoesNotExist:
+                show_numbers = True
+
+        if self.year_occurred and for_year and show_numbers:
             years_since = for_year - self.year_occurred
 
             if self.event_type == 'birthday' and years_since >= 0:
@@ -300,6 +309,10 @@ class UserEventPreferences(models.Model):
         default='ask',
         help_text="When creating calendar events, how to handle master list"
     )
+    show_age_numbers = models.BooleanField(
+        default=True,
+        help_text="Show age numbers for birthdays and anniversary years (e.g., '25th Birthday' vs 'Birthday')"
+    )
     default_groups = models.CharField(
         max_length=500,
         blank=True,
@@ -326,6 +339,17 @@ class Calendar(models.Model):
         blank=True,
         related_name='calendars',
         help_text="Optional: Link to a specific calendar year version"
+    )
+    public_share_token = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Token for public sharing - allows viewing without login"
+    )
+    is_publicly_shared = models.BooleanField(
+        default=False,
+        help_text="Whether this calendar is publicly shareable"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -366,6 +390,32 @@ class Calendar(models.Model):
     def get_shared_users(self):
         """Get all users this calendar is shared with"""
         return User.objects.filter(shared_calendars__calendar=self)
+
+    def generate_public_share_token(self):
+        """Generate a unique token for public sharing"""
+        import secrets
+        self.public_share_token = secrets.token_urlsafe(32)
+        self.is_publicly_shared = True
+        self.save()
+        return self.public_share_token
+
+    def get_public_share_url(self, request=None):
+        """Get the public sharing URL for this calendar"""
+        if not self.public_share_token:
+            return None
+
+        from django.urls import reverse
+        if request:
+            return request.build_absolute_uri(
+                reverse('calendars:public_calendar', kwargs={'token': self.public_share_token})
+            )
+        return reverse('calendars:public_calendar', kwargs={'token': self.public_share_token})
+
+    def disable_public_sharing(self):
+        """Disable public sharing for this calendar"""
+        self.public_share_token = None
+        self.is_publicly_shared = False
+        self.save()
 
     def delete(self, *args, **kwargs):
         """Override delete to clean up associated files"""
@@ -457,12 +507,12 @@ class CalendarEvent(models.Model):
         if self.combined_events:
             return self.combined_events
         if self.master_event:
-            return self.master_event.get_display_name(for_year=self.calendar.year)
+            return self.master_event.get_display_name(for_year=self.calendar.year, user=self.calendar.user)
         return self.event_name
 
     def add_additional_event(self, event_master):
         """Add an additional event to this date"""
-        new_name = event_master.get_display_name(for_year=self.calendar.year)
+        new_name = event_master.get_display_name(for_year=self.calendar.year, user=self.calendar.user)
         if self.combined_events:
             # Parse existing events and add new one
             events = [e.strip() for e in self.combined_events.split(' & ')]

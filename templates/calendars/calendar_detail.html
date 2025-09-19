@@ -2,6 +2,15 @@
 
 {% block title %}Calendar {{ calendar.year }} - Calendar Builder{% endblock %}
 
+{% block description %}My {{ calendar.year }} calendar with {{ calendar.events.count }} events. Create and customize your own beautiful calendars with Calendar Builder.{% endblock %}
+
+{% block og_title %}{{ calendar.year }} Calendar{% endblock %}
+{% block og_description %}My {{ calendar.year }} calendar with {{ calendar.events.count }} events. Create and customize your own beautiful calendars with Calendar Builder.{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block twitter_title %}{{ calendar.year }} Calendar{% endblock %}
+{% block twitter_description %}My {{ calendar.year }} calendar with {{ calendar.events.count }} events. Create and customize your own beautiful calendars with Calendar Builder.{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <div class="page-header__main">
@@ -38,7 +47,7 @@
                 📥 Download All Photos
             </a>
             {% endif %}
-            <a href="{% url 'calendars:holiday_management' year=calendar.year %}" class="btn btn--secondary">
+            <a href="{% url 'calendars:holiday_management' calendar_id=calendar.id %}" class="btn btn--secondary">
                 🎉 Manage Holidays
             </a>
             <a href="{% url 'calendars:apply_master_events' calendar_id=calendar.id %}" class="btn btn--secondary" title="Apply events from your master event list">
@@ -136,6 +145,44 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Public Sharing Panel -->
+    <div class="sharing-panel">
+        <h4>🌐 Public Sharing</h4>
+        {% if calendar.is_publicly_shared %}
+            <div class="public-share-active">
+                <div class="share-status">
+                    <span class="status status--success">✅ Publicly Shared</span>
+                    <p>Anyone with the link can view this calendar</p>
+                </div>
+                <div class="public-share-url">
+                    <label for="public-url">Public URL:</label>
+                    <div class="url-copy-container">
+                        <input type="text" id="public-url" readonly value="{{ public_share_url }}" class="url-input">
+                        <button onclick="copyPublicUrl()" class="btn btn--small btn--outline">Copy</button>
+                    </div>
+                </div>
+                <div class="public-share-actions">
+                    <form method="post" action="{% url 'calendars:disable_public_share' calendar_id=calendar.id %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--small btn--danger" onclick="return confirm('Disable public sharing? The current link will stop working.')">
+                            Disable Public Sharing
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% else %}
+            <div class="public-share-inactive">
+                <p>Make your calendar publicly viewable by anyone with the link</p>
+                <form method="post" action="{% url 'calendars:enable_public_share' calendar_id=calendar.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--primary">
+                        🌐 Enable Public Sharing
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
 </div>
 {% endif %}
 
@@ -165,8 +212,28 @@
     </div>
 {% endif %}
 
+<!-- Social Sharing Section -->
+{% if calendar.is_publicly_shared %}
+    {% include 'components/social_share.html' with page_title=calendar.year|stringformat:"s Calendar" share_url=public_share_url %}
+{% else %}
+    <div class="social-share-disabled">
+        <h4>📤 Share Your Calendar</h4>
+        <p>Enable public sharing above to get social media sharing buttons and allow others to view your calendar.</p>
+    </div>
+{% endif %}
+
 <div class="calendar-overview">
-    <h3>Events by Month</h3>
+    <div class="calendar-overview__header">
+        <h3>Events by Month</h3>
+        <div class="bulk-actions">
+            <form method="post" action="{% url 'calendars:bulk_delete_events' calendar_id=calendar.id %}" id="bulk-delete-form" onsubmit="return confirmBulkDelete();" style="display: none;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--danger">Delete Selected Events</button>
+                <button type="button" class="btn btn--outline" onclick="cancelBulkMode()">Cancel</button>
+            </form>
+            <button type="button" class="btn btn--outline" onclick="toggleBulkMode()">Bulk Delete</button>
+        </div>
+    </div>
     <div class="months-grid">
         {% for month, events in events_by_month.items %}
             <div class="month-card">
@@ -181,6 +248,9 @@
                     <div class="month-card__events">
                         {% for event in events %}
                             <div class="event-item" id="event-{{ event.id }}">
+                                <div class="event-item__checkbox bulk-mode-hidden">
+                                    <input type="checkbox" name="selected_events" value="{{ event.id }}" form="bulk-delete-form" class="event-checkbox">
+                                </div>
                                 <div class="event-item__day">{{ event.day }}</div>
                                 <div class="event-item__info">
                                     <div class="event-item__name">{{ event.event_name }}</div>
@@ -190,7 +260,7 @@
                                         </div>
                                     {% endif %}
                                 </div>
-                                <div class="event-item__actions">
+                                <div class="event-item__actions normal-mode-only">
                                     <a href="{% url 'calendars:edit_event' event_id=event.id %}" class="btn btn--small btn--outline" title="Edit event">
                                         Edit
                                     </a>
@@ -213,4 +283,244 @@
         {% endfor %}
     </div>
 </div>
+
+<style>
+.calendar-overview__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.bulk-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.event-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.event-item__checkbox {
+    flex-shrink: 0;
+}
+
+.bulk-mode-hidden {
+    display: none;
+}
+
+.bulk-mode .bulk-mode-hidden {
+    display: block;
+}
+
+.bulk-mode .normal-mode-only {
+    display: none;
+}
+</style>
+
+<script>
+function toggleBulkMode() {
+    const calendarOverview = document.querySelector('.calendar-overview');
+    const bulkForm = document.getElementById('bulk-delete-form');
+    const bulkButton = document.querySelector('button[onclick="toggleBulkMode()"]');
+
+    calendarOverview.classList.add('bulk-mode');
+    bulkForm.style.display = 'block';
+    bulkButton.style.display = 'none';
+}
+
+function cancelBulkMode() {
+    const calendarOverview = document.querySelector('.calendar-overview');
+    const bulkForm = document.getElementById('bulk-delete-form');
+    const bulkButton = document.querySelector('button[onclick="toggleBulkMode()"]');
+    const checkboxes = document.querySelectorAll('.event-checkbox');
+
+    calendarOverview.classList.remove('bulk-mode');
+    bulkForm.style.display = 'none';
+    bulkButton.style.display = 'block';
+
+    // Uncheck all checkboxes
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+}
+
+function confirmBulkDelete() {
+    const selectedCheckboxes = document.querySelectorAll('.event-checkbox:checked');
+
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select at least one event to delete.');
+        return false;
+    }
+
+    return confirm(`Are you sure you want to delete ${selectedCheckboxes.length} selected event(s)? This action cannot be undone.`);
+}
+
+function copyPublicUrl() {
+    const urlInput = document.getElementById('public-url');
+    const url = urlInput.value;
+    const button = event.target;
+    const originalText = button.textContent;
+
+    // Try multiple copy methods for better browser compatibility
+    let copySuccess = false;
+
+    // Method 1: Modern clipboard API (works in HTTPS and secure contexts)
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(function() {
+            showCopySuccess(button, originalText);
+            copySuccess = true;
+        }).catch(function(err) {
+            console.log('Clipboard API failed, trying fallback:', err);
+            tryFallbackCopy();
+        });
+    } else {
+        tryFallbackCopy();
+    }
+
+    function tryFallbackCopy() {
+        // Method 2: Select and copy (works in most browsers)
+        try {
+            urlInput.select();
+            urlInput.setSelectionRange(0, 99999); // For mobile devices
+
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showCopySuccess(button, originalText);
+                copySuccess = true;
+            } else {
+                showCopyFallback(url);
+            }
+        } catch (err) {
+            console.log('execCommand failed:', err);
+            showCopyFallback(url);
+        }
+    }
+
+    function showCopySuccess(button, originalText) {
+        button.textContent = 'Copied!';
+        button.style.background = 'var(--color-success)';
+        button.style.color = 'white';
+
+        setTimeout(function() {
+            button.textContent = originalText;
+            button.style.background = '';
+            button.style.color = '';
+        }, 2000);
+    }
+
+    function showCopyFallback(url) {
+        // Create a temporary modal for manual copy
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        `;
+
+        const content = document.createElement('div');
+        content.style.cssText = `
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        `;
+
+        content.innerHTML = `
+            <h3>Copy Link</h3>
+            <p>Please copy this link manually:</p>
+            <textarea readonly style="width: 100%; height: 80px; margin: 1rem 0; padding: 0.5rem; font-family: monospace; font-size: 14px; border: 1px solid #ddd; border-radius: 4px;">${url}</textarea>
+            <button onclick="this.parentElement.parentElement.remove()" style="background: #2563eb; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Close</button>
+        `;
+
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+
+        // Select the text in the textarea
+        const textarea = content.querySelector('textarea');
+        textarea.select();
+        textarea.focus();
+    }
+}
+</script>
+
+<style>
+.url-copy-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.url-input {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    font-family: monospace;
+    font-size: 0.875rem;
+    background: var(--color-background-light);
+}
+
+.public-share-active {
+    padding: 1rem;
+    border: 1px solid var(--color-success);
+    border-radius: var(--border-radius-sm);
+    background: rgba(var(--color-success-rgb), 0.05);
+}
+
+.public-share-inactive {
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    background: var(--color-background-light);
+    text-align: center;
+}
+
+.public-share-actions {
+    margin-top: 1rem;
+}
+
+.share-status p {
+    margin: 0.5rem 0 0 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.public-share-url label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    color: var(--color-text-primary);
+}
+
+.social-share-disabled {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+
+.social-share-disabled h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-secondary);
+}
+
+.social-share-disabled p {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+</style>
 {% endblock %}

@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ calendar.year }} Calendar by {{ calendar_owner.username }} - Calendar Builder{% endblock %}
+
+{% block description %}Public calendar for {{ calendar.year }} created by {{ calendar_owner.username }} with {{ calendar.events.count }} events.{% endblock %}
+
+{% block og_title %}{{ calendar.year }} Calendar by {{ calendar_owner.username }}{% endblock %}
+{% block og_description %}Check out this {{ calendar.year }} calendar with {{ calendar.events.count }} events created with Calendar Builder.{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block twitter_title %}{{ calendar.year }} Calendar by {{ calendar_owner.username }}{% endblock %}
+{% block twitter_description %}Check out this {{ calendar.year }} calendar with {{ calendar.events.count }} events created with Calendar Builder.{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">{{ calendar.year }} Calendar</h1>
+        <div class="page-meta">
+            <span class="meta-item">📅 {{ calendar.events.count }} events</span>
+            <span class="meta-item">👤 Created by {{ calendar_owner.username }}</span>
+            <span class="meta-item">🌐 Public Calendar</span>
+        </div>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'accounts:register' %}" class="btn btn--primary">Create Your Own Calendar</a>
+        <a href="{% url 'accounts:login' %}" class="btn btn--outline">Login</a>
+    </div>
+</div>
+
+<div class="public-calendar-notice">
+    <div class="notice-content">
+        <h3>🌟 Like this calendar?</h3>
+        <p>Create your own beautiful calendars with photos and events using Calendar Builder. It's easy and free to get started!</p>
+        <div class="notice-actions">
+            <a href="{% url 'accounts:register' %}" class="btn btn--primary">Get Started Free</a>
+            <a href="{% url 'accounts:login' %}" class="btn btn--secondary">Already have an account?</a>
+        </div>
+    </div>
+</div>
+
+<div class="calendar-overview">
+    <h3>Events by Month</h3>
+    <div class="months-grid">
+        {% for month, events in events_by_month.items %}
+            <div class="month-card">
+                <div class="month-card__header">
+                    <h4 class="month-card__title">
+                        {% if month == 1 %}January{% elif month == 2 %}February{% elif month == 3 %}March{% elif month == 4 %}April{% elif month == 5 %}May{% elif month == 6 %}June{% elif month == 7 %}July{% elif month == 8 %}August{% elif month == 9 %}September{% elif month == 10 %}October{% elif month == 11 %}November{% elif month == 12 %}December{% endif %}
+                    </h4>
+                    <span class="month-card__count">{{ events.count }} events</span>
+                </div>
+
+                {% if events %}
+                    <div class="month-card__events">
+                        {% for event in events %}
+                            <div class="event-item public-event-item">
+                                <div class="event-item__day">{{ event.day }}</div>
+                                <div class="event-item__info">
+                                    <div class="event-item__name">{{ event.event_name }}</div>
+                                    {% if event.image %}
+                                        <div class="event-item__image">
+                                            <img src="{{ event.image.url }}" alt="{{ event.event_name }}" class="event-thumbnail">
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="month-card__empty">
+                        <span class="empty-text">No events</span>
+                    </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Include social sharing component -->
+{% include 'components/social_share.html' with page_title=calendar.year|stringformat:"s Calendar by "|add:calendar_owner.username %}
+
+<div class="public-footer-cta">
+    <div class="cta-content">
+        <h3>Ready to create your own calendar?</h3>
+        <p>Join thousands of users creating beautiful custom calendars with Calendar Builder.</p>
+        <div class="cta-features">
+            <div class="feature">
+                <span class="feature-icon">📸</span>
+                <span class="feature-text">Upload your photos</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">📅</span>
+                <span class="feature-text">Add events & holidays</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🎨</span>
+                <span class="feature-text">Customize designs</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">📄</span>
+                <span class="feature-text">Generate PDFs</span>
+            </div>
+        </div>
+        <a href="{% url 'accounts:register' %}" class="btn btn--primary btn--large">Start Creating Now</a>
+    </div>
+</div>
+
+<style>
+.public-calendar-notice {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.notice-content h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+}
+
+.notice-content p {
+    margin: 0 0 1.5rem 0;
+    opacity: 0.9;
+}
+
+.notice-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.notice-actions .btn {
+    min-width: 150px;
+}
+
+.public-event-item {
+    opacity: 0.95;
+}
+
+.public-event-item:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
+.public-footer-cta {
+    background: var(--color-background-light);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--border-radius);
+    padding: 3rem 2rem;
+    margin: 3rem 0;
+    text-align: center;
+}
+
+.cta-content h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-primary);
+    font-size: 1.75rem;
+}
+
+.cta-content > p {
+    margin: 0 0 2rem 0;
+    color: var(--color-text-secondary);
+    font-size: 1.1rem;
+}
+
+.cta-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.feature {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: white;
+    border-radius: var(--border-radius-sm);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    font-size: 1.5rem;
+}
+
+.feature-text {
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.btn--large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.page-meta .meta-item {
+    background: var(--color-background-light);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.875rem;
+    border: 1px solid var(--color-border);
+}
+
+@media (max-width: 768px) {
+    .notice-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .cta-features {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .page-header__actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+</style>
+{% endblock %}

@@ -105,7 +105,7 @@ class MasterEventDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class MasterEventImageUploadView(LoginRequiredMixin, View):
-    """View to handle inline image upload for master events"""
+    """View to handle inline image upload for master events - redirects to crop workflow"""
 
     def post(self, request, pk):
         event = get_object_or_404(EventMaster, pk=pk, user=request.user)
@@ -113,14 +113,71 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
         if 'image' not in request.FILES:
             return JsonResponse({'success': False, 'error': 'No image provided'})
 
-        # Save the uploaded image
-        event.image = request.FILES['image']
-        event.save()
+        # Store the uploaded image temporarily
+        from django.core.files.storage import default_storage
+        import uuid
+        import os
+
+        uploaded_file = request.FILES['image']
+
+        # Create a unique filename for temporary storage
+        file_extension = os.path.splitext(uploaded_file.name)[1]
+        temp_filename = f"temp_master_event_{uuid.uuid4()}{file_extension}"
+        temp_path = default_storage.save(f"temp/{temp_filename}", uploaded_file)
+
+        # Return the crop URL instead of saving directly
+        crop_url = f"/calendars/master-events/{pk}/crop-photo/?temp_image={temp_filename}"
 
         return JsonResponse({
             'success': True,
-            'image_url': event.image.url
+            'redirect_to_crop': True,
+            'crop_url': crop_url
         })
+
+
+class DeleteAllMasterEventsView(LoginRequiredMixin, View):
+    """View to delete all master events for a user"""
+
+    def get(self, request):
+        # Get count of master events for confirmation
+        event_count = EventMaster.objects.filter(user=request.user).count()
+
+        # Get count of linked calendar events that would be affected
+        linked_events_count = CalendarEvent.objects.filter(
+            master_event__user=request.user,
+            master_event__isnull=False
+        ).count()
+
+        context = {
+            'event_count': event_count,
+            'linked_events_count': linked_events_count
+        }
+        return render(request, 'calendars/delete_all_master_events.html', context)
+
+    def post(self, request):
+        confirmation = request.POST.get('confirmation')
+
+        if confirmation != 'DELETE ALL MASTER EVENTS':
+            messages.error(request, 'You must type "DELETE ALL MASTER EVENTS" exactly to confirm.')
+            return redirect('calendars:delete_all_master_events')
+
+        # Get counts before deletion
+        event_count = EventMaster.objects.filter(user=request.user).count()
+
+        # First, unlink all calendar events from master events
+        CalendarEvent.objects.filter(
+            master_event__user=request.user,
+            master_event__isnull=False
+        ).update(master_event=None)
+
+        # Then delete all master events
+        EventMaster.objects.filter(user=request.user).delete()
+
+        messages.success(
+            request,
+            f'Successfully deleted {event_count} master events. Calendar events have been unlinked but preserved.'
+        )
+        return redirect('calendars:master_events')
 
 
 class EventGroupListView(LoginRequiredMixin, ListView):
@@ -215,9 +272,11 @@ def user_preferences_view(request):
     if request.method == 'POST':
         add_to_master = request.POST.get('add_to_master_list')
         default_groups = request.POST.get('default_groups', '')
+        show_age_numbers = request.POST.get('show_age_numbers') == 'true'
 
         preferences.add_to_master_list = add_to_master
         preferences.default_groups = default_groups
+        preferences.show_age_numbers = show_age_numbers
         preferences.save()
 
         messages.success(request, 'Preferences updated successfully!')
@@ -273,7 +332,7 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
                         master_event=event,
                         month=event.month,
                         day=event.day,
-                        event_name=event.get_display_name(for_year=calendar.year)
+                        event_name=event.get_display_name(for_year=calendar.year, user=request.user)
                     )
 
                     # Copy image from master event if it has one
@@ -312,7 +371,7 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
             message += f' Skipped {skipped_count} dates with existing events.'
 
         messages.success(request, message)
-        return redirect('calendars:calendar_detail', pk=calendar.id)
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
 
 
 @login_required
@@ -344,7 +403,7 @@ def get_master_events_json(request):
         events_data.append({
             'id': event.id,
             'name': event.name,
-            'display_name': event.get_display_name(for_year=calendar_year) if calendar_year else event.name,
+            'display_name': event.get_display_name(for_year=calendar_year, user=request.user) if calendar_year else event.name,
             'month': event.month,
             'day': event.day,
             'year_occurred': event.year_occurred,
@@ -522,8 +581,37 @@ class BulkAddToMasterListView(LoginRequiredMixin, View):
         }
         return render(request, 'calendars/bulk_add_to_master_list.html', context)
 
+    def _guess_event_type(self, event_name):
+        """Guess event type based on event name"""
+        event_name_lower = event_name.lower()
+
+        # Birthday keywords
+        if any(keyword in event_name_lower for keyword in ['birthday', 'bday', 'born', 'birth']):
+            return 'birthday'
+
+        # Anniversary keywords
+        if any(keyword in event_name_lower for keyword in ['anniversary', 'wedding', 'married']):
+            return 'anniversary'
+
+        # Holiday keywords
+        if any(keyword in event_name_lower for keyword in ['christmas', 'thanksgiving', 'easter', 'halloween', 'new year', 'holiday', 'valentine']):
+            return 'holiday'
+
+        # Appointment keywords
+        if any(keyword in event_name_lower for keyword in ['appointment', 'meeting', 'doctor', 'dentist', 'visit']):
+            return 'appointment'
+
+        # Reminder keywords
+        if any(keyword in event_name_lower for keyword in ['reminder', 'remember', 'deadline', 'due']):
+            return 'reminder'
+
+        return 'custom'
+
     def post(self, request, calendar_id):
         from .models import Calendar, EventMaster
+        from django.core.files.base import ContentFile
+        import os
+
         calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
 
         selected_event_ids = request.POST.getlist('selected_events')
@@ -546,15 +634,35 @@ class BulkAddToMasterListView(LoginRequiredMixin, View):
                 ).first()
 
                 if not existing_master:
+                    # Guess event type if default is custom
+                    event_type = default_event_type
+                    if default_event_type == 'custom':
+                        event_type = self._guess_event_type(event.event_name)
+
                     # Create new master event
                     master_event = EventMaster.objects.create(
                         user=request.user,
                         name=event.event_name,
-                        event_type=default_event_type,
+                        event_type=event_type,
                         month=event.month,
                         day=event.day,
                         groups=default_groups
                     )
+
+                    # Copy image from calendar event to master event if it exists
+                    if event.image:
+                        try:
+                            # Copy the image file
+                            image_content = event.image.read()
+                            image_name = os.path.basename(event.image.name)
+                            master_event.image.save(
+                                image_name,
+                                ContentFile(image_content),
+                                save=True
+                            )
+                        except Exception as img_error:
+                            # Continue even if image copy fails
+                            pass
 
                     # Link calendar event to master event
                     event.master_event = master_event
@@ -575,7 +683,7 @@ class BulkAddToMasterListView(LoginRequiredMixin, View):
             message += f' Skipped {skipped_count} events due to errors.'
 
         messages.success(request, message)
-        return redirect('calendars:calendar_detail', pk=calendar.id)
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
 
 
 class AddEventToMasterListView(LoginRequiredMixin, View):

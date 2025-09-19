@@ -195,6 +195,10 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
         context['user_can_edit'] = self.object.can_edit(self.request.user)
         context['user_permission'] = self.object.get_user_permission(self.request.user)
 
+        # Add public sharing URL
+        if self.object.is_publicly_shared:
+            context['public_share_url'] = self.object.get_public_share_url(self.request)
+
         return context
 
     def get_events_by_month(self):
@@ -223,6 +227,11 @@ class CalendarDetailByIdView(LoginRequiredMixin, DetailView):
         context['generated_calendars'] = self.object.generated_pdfs.all()
         context['user_can_share'] = self.object.can_share(self.request.user)
         context['shared_with'] = self.object.shares.all() if self.object.can_share(self.request.user) else None
+
+        # Add public sharing URL
+        if self.object.is_publicly_shared:
+            context['public_share_url'] = self.object.get_public_share_url(self.request)
+
         return context
 
     def get_events_by_month(self):
@@ -275,7 +284,7 @@ class ImageUploadView(View):
                         # Get display name if master event exists
                         display_name = event_name
                         if master_event:
-                            display_name = master_event.get_display_name(for_year=calendar.year)
+                            display_name = master_event.get_display_name(for_year=calendar.year, user=request.user)
 
                         # Create or update calendar event
                         event, created = CalendarEvent.objects.update_or_create(
@@ -476,14 +485,15 @@ class DeleteEventView(View):
 
 @method_decorator(login_required, name='dispatch')
 class HolidayManagementView(View):
-    def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+    def get(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
         form = HolidayManagementForm(calendar=calendar)
 
         # Calculate actual dates for each holiday
         holiday_dates = {}
         for holiday_code, holiday_name in Holiday.HOLIDAY_CHOICES:
-            calculated_date = HolidayCalculator.get_holiday_date(holiday_code, year)
+            calculated_date = HolidayCalculator.get_holiday_date(holiday_code, calendar.year)
             if calculated_date:
                 holiday_dates[holiday_code] = calculated_date.strftime('%B %d, %Y')
             else:
@@ -495,19 +505,20 @@ class HolidayManagementView(View):
             'holiday_dates': holiday_dates
         })
 
-    def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
         form = HolidayManagementForm(request.POST, request.FILES, calendar=calendar)
 
         if form.is_valid():
             form.save(calendar)
             messages.success(request, "Holiday selections updated successfully.")
-            return redirect('calendars:calendar_detail', year=year)
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
 
         # Calculate actual dates for template on form errors
         holiday_dates = {}
         for holiday_code, holiday_name in Holiday.HOLIDAY_CHOICES:
-            calculated_date = HolidayCalculator.get_holiday_date(holiday_code, year)
+            calculated_date = HolidayCalculator.get_holiday_date(holiday_code, calendar.year)
             if calculated_date:
                 holiday_dates[holiday_code] = calculated_date.strftime('%B %d, %Y')
             else:
@@ -811,6 +822,92 @@ class DeleteGeneratedPDFView(View):
 
 
 @method_decorator(login_required, name='dispatch')
+class BulkDeleteEventsView(View):
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+        selected_event_ids = request.POST.getlist('selected_events')
+
+        if not selected_event_ids:
+            messages.warning(request, "No events were selected for deletion.")
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+        deleted_count = 0
+        for event_id in selected_event_ids:
+            try:
+                event = calendar.events.get(id=event_id)
+                event.delete()
+                deleted_count += 1
+            except CalendarEvent.DoesNotExist:
+                continue
+
+        if deleted_count > 0:
+            messages.success(request, f"Successfully deleted {deleted_count} event(s).")
+        else:
+            messages.warning(request, "No events were deleted.")
+
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+
+class PublicCalendarView(DetailView):
+    """Public view for calendars shared via token - no login required"""
+    model = Calendar
+    template_name = 'calendars/public_calendar_detail.html'
+    context_object_name = 'calendar'
+    slug_field = 'public_share_token'
+    slug_url_kwarg = 'token'
+
+    def get_queryset(self):
+        # Only show publicly shared calendars
+        return Calendar.objects.filter(is_publicly_shared=True, public_share_token__isnull=False)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        calendar = self.object
+
+        # Get events organized by month (similar to private view but simplified)
+        events_by_month = {}
+        for month in range(1, 13):
+            events_by_month[month] = calendar.events.filter(month=month).order_by('day')
+
+        context['events_by_month'] = events_by_month
+        context['is_public_view'] = True
+        context['calendar_owner'] = calendar.user
+        return context
+
+
+@method_decorator(login_required, name='dispatch')
+class EnablePublicShareView(View):
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+        if not calendar.can_share(request.user):
+            messages.error(request, "You don't have permission to share this calendar.")
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+        calendar.generate_public_share_token()
+        messages.success(request, "Public sharing enabled! Anyone with the link can now view your calendar.")
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+
+@method_decorator(login_required, name='dispatch')
+class DisablePublicShareView(View):
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+        if not calendar.can_share(request.user):
+            messages.error(request, "You don't have permission to manage sharing for this calendar.")
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+        calendar.disable_public_sharing()
+        messages.success(request, "Public sharing disabled. The previous link will no longer work.")
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+
+@method_decorator(login_required, name='dispatch')
 class DownloadAllPhotosView(View):
     def get(self, request, year):
         calendar = get_object_or_404(Calendar, year=year, user=request.user)
@@ -906,6 +1003,124 @@ class DownloadAllPhotosView(View):
             response = HttpResponse(zip_content, content_type='application/zip')
             response['Content-Disposition'] = f'attachment; filename="Calendar-{year}-Photos.zip"'
             return response
+
+
+@method_decorator(login_required, name='dispatch')
+class MasterEventPhotoCropView(View):
+    """View for cropping master event photos"""
+
+    def get(self, request, pk):
+        from .models import EventMaster
+        event = get_object_or_404(EventMaster, pk=pk, user=request.user)
+
+        temp_image = request.GET.get('temp_image')
+        if not temp_image:
+            messages.error(request, "No temporary image found for cropping.")
+            return redirect('calendars:master_events')
+
+        # Generate a temporary token for secure image access
+        import uuid
+        temp_token = str(uuid.uuid4())
+
+        # Store the crop data in session
+        request.session['master_event_crop_data'] = {
+            'event_id': event.id,
+            'temp_image': temp_image,
+            'temp_token': temp_token
+        }
+
+        # Store token mapping
+        if 'master_event_temp_tokens' not in request.session:
+            request.session['master_event_temp_tokens'] = {}
+        request.session['master_event_temp_tokens'][temp_token] = temp_image
+        request.session.modified = True
+
+        context = {
+            'event': event,
+            'temp_token': temp_token
+        }
+        return render(request, 'calendars/master_event_crop_photo.html', context)
+
+
+@method_decorator(login_required, name='dispatch')
+class MasterEventProcessCropView(View):
+    """Process the cropped master event photo"""
+
+    def post(self, request, pk):
+        from .models import EventMaster
+        import base64
+        import tempfile
+        import os
+        from PIL import Image
+        import io
+
+        event = get_object_or_404(EventMaster, pk=pk, user=request.user)
+
+        # Get crop data from request
+        crop_data = request.POST.get('crop_data')
+        if not crop_data:
+            messages.error(request, "No crop data provided")
+            return redirect('calendars:master_events')
+
+        try:
+            # Get session data
+            session_data = request.session.get('master_event_crop_data', {})
+            temp_image = session_data.get('temp_image')
+
+            if not temp_image:
+                messages.error(request, "Session data not found")
+                return redirect('calendars:master_events')
+
+            # Decode the base64 image
+            image_data = crop_data.split(',')[1]  # Remove data:image/jpeg;base64, prefix
+            image_binary = base64.b64decode(image_data)
+
+            # Create PIL image from binary data
+            image = Image.open(io.BytesIO(image_binary))
+
+            # Ensure it's RGB
+            if image.mode in ('RGBA', 'LA', 'P'):
+                image = image.convert('RGB')
+
+            # Save cropped image to a temporary file with higher quality
+            temp_cropped = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
+            temp_cropped.close()
+
+            # Create Django file from temporary file
+            with open(temp_cropped.name, 'rb') as f:
+                from django.core.files.base import ContentFile
+                import os
+                original_filename = f"master_event_{event.id}_{temp_image}"
+                django_file = ContentFile(f.read(), name=original_filename)
+
+            # Save the image to the master event
+            event.image = django_file
+            event.save()
+
+            # Clean up temporary files
+            try:
+                from django.core.files.storage import default_storage
+                temp_image_path = f"temp/{temp_image}"
+                if default_storage.exists(temp_image_path):
+                    default_storage.delete(temp_image_path)
+                if os.path.exists(temp_cropped.name):
+                    os.unlink(temp_cropped.name)
+            except (OSError, Exception):
+                pass
+
+            # Clear session data
+            if 'master_event_crop_data' in request.session:
+                del request.session['master_event_crop_data']
+            if 'master_event_temp_tokens' in request.session:
+                del request.session['master_event_temp_tokens']
+
+            messages.success(request, f"Photo updated successfully for {event.name}!")
+            return redirect('calendars:master_events')
+
+        except Exception as e:
+            messages.error(request, f"Error processing cropped image: {str(e)}")
+            return redirect('calendars:master_events')
 
 
 @method_decorator(login_required, name='dispatch')
@@ -1198,7 +1413,16 @@ class TempImageView(View):
 
         # Get the temp file path from session using the secure token
         temp_tokens = request.session.get('temp_tokens', {})
+        master_event_tokens = request.session.get('master_event_temp_tokens', {})
+
         temp_path = temp_tokens.get(token)
+
+        # If not found in regular tokens, check master event tokens
+        if not temp_path:
+            temp_filename = master_event_tokens.get(token)
+            if temp_filename:
+                from django.core.files.storage import default_storage
+                temp_path = default_storage.path(f"temp/{temp_filename}")
 
         if not temp_path or not os.path.exists(temp_path):
             raise Http404("Temporary image not found")

@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.CalendarListView.as_view(), name='calendar_list'),
     path('create/', views.CalendarCreateView.as_view(), name='calendar_create'),
     path('id/<int:calendar_id>/', views.CalendarDetailByIdView.as_view(), name='calendar_detail_by_id'),
+    path('<int:calendar_id>/apply-events/', views_events.ApplyMasterEventsView.as_view(), name='apply_master_events'),
     path('<int:year>/upload/', views.ImageUploadView.as_view(), name='image_upload'),
     path('<int:year>/upload-edit/', views.PhotoEditorUploadView.as_view(), name='photo_editor_upload'),
     path('<int:year>/crop/', views.PhotoCropView.as_view(), name='photo_crop'),
@@ -15,7 +16,7 @@ urlpatterns = [
     path('<int:year>/process-crop/', views.ProcessCropView.as_view(), name='process_crop'),
     path('<int:year>/process-multi-crop/', views.ProcessMultiCropView.as_view(), name='process_multi_crop'),
     path('<int:year>/header/', views.HeaderUploadView.as_view(), name='header_upload'),
-    path('<int:year>/holidays/', views.HolidayManagementView.as_view(), name='holiday_management'),
+    path('id/<int:calendar_id>/holidays/', views.HolidayManagementView.as_view(), name='holiday_management'),
     path('<int:year>/generate/', views.GenerateCalendarView.as_view(), name='generate_calendar'),
     path('<int:year>/download/<str:generation_type>/', views.DownloadCalendarView.as_view(), name='download_calendar'),
     path('<int:year>/download-photos/', views.DownloadAllPhotosView.as_view(), name='download_all_photos'),
@@ -26,6 +27,7 @@ urlpatterns = [
     path('event/<int:event_id>/edit-photo/', views.EditEventPhotoView.as_view(), name='edit_event_photo'),
     path('event/<int:event_id>/remove-photo/', views.RemoveEventPhotoView.as_view(), name='remove_event_photo'),
     path('event/<int:event_id>/delete/', views.DeleteEventView.as_view(), name='delete_event'),
+    path('id/<int:calendar_id>/bulk-delete-events/', views.BulkDeleteEventsView.as_view(), name='bulk_delete_events'),
     path('pdf/<int:pdf_id>/delete/', views.DeleteGeneratedPDFView.as_view(), name='delete_generated_pdf'),
 
     # Temporary image serving for photo cropping
@@ -37,14 +39,24 @@ urlpatterns = [
     path('accept/<str:token>/', views.AcceptInvitationView.as_view(), name='accept_invitation'),
     path('shared/', views.SharedCalendarsView.as_view(), name='shared_calendars'),
 
+    # Public Calendar View (no login required)
+    path('public/<str:token>/', views.PublicCalendarView.as_view(), name='public_calendar'),
+
+    # Public sharing management
+    path('id/<int:calendar_id>/enable-public-share/', views.EnablePublicShareView.as_view(), name='enable_public_share'),
+    path('id/<int:calendar_id>/disable-public-share/', views.DisablePublicShareView.as_view(), name='disable_public_share'),
+
     # Master Events URLs
     path('master-events/', views_events.MasterEventListView.as_view(), name='master_events'),
     path('master-events/create/', views_events.MasterEventCreateView.as_view(), name='master_event_create'),
     path('master-events/<int:pk>/edit/', views_events.MasterEventUpdateView.as_view(), name='master_event_edit'),
     path('master-events/<int:pk>/delete/', views_events.MasterEventDeleteView.as_view(), name='master_event_delete'),
     path('master-events/<int:pk>/upload-image/', views_events.MasterEventImageUploadView.as_view(), name='master_event_upload_image'),
+    path('master-events/<int:pk>/crop-photo/', views.MasterEventPhotoCropView.as_view(), name='master_event_crop_photo'),
+    path('master-events/<int:pk>/process-crop/', views.MasterEventProcessCropView.as_view(), name='master_event_process_crop'),
     path('master-events/export/', views_events.ExportMasterEventsView.as_view(), name='export_master_events'),
     path('master-events/import/', views_events.ImportMasterEventsView.as_view(), name='import_master_events'),
+    path('master-events/delete-all/', views_events.DeleteAllMasterEventsView.as_view(), name='delete_all_master_events'),
 
     # Event Groups URLs
     path('event-groups/', views_events.EventGroupListView.as_view(), name='event_groups'),
@@ -57,9 +69,6 @@ urlpatterns = [
 
     # User Preferences
     path('preferences/', views_events.user_preferences_view, name='user_preferences'),
-
-    # Apply Master Events
-    path('<int:calendar_id>/apply-events/', views_events.ApplyMasterEventsView.as_view(), name='apply_master_events'),
 
     # Bulk Add to Master List
     path('<int:calendar_id>/bulk-add-to-master/', views_events.BulkAddToMasterListView.as_view(), name='bulk_add_to_master_list'),

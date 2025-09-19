@@ -12,6 +12,9 @@
         <a href="{% url 'calendars:import_master_events' %}" class="btn btn--outline">📥 Import</a>
         <a href="{% url 'calendars:export_master_events' %}?format=csv" class="btn btn--outline">📤 Export CSV</a>
         <a href="{% url 'calendars:export_master_events' %}?format=json" class="btn btn--outline">📤 Export JSON</a>
+        {% if events %}
+            <a href="{% url 'calendars:delete_all_master_events' %}" class="btn btn--danger">🗑️ Delete All</a>
+        {% endif %}
         <a href="{% url 'calendars:master_event_create' %}" class="btn btn--primary">➕ Add Event</a>
     </div>
 </div>
@@ -187,7 +190,10 @@
 }
 
 .hidden-file-input {
-    display: none;
+    position: absolute;
+    left: -9999px;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .event-card__content {
@@ -197,7 +203,9 @@
 .event-card__name {
     margin: 0 0 0.75rem 0;
     font-size: 1.25rem;
+    font-weight: 600;
     color: #111827;
+    line-height: 1.3;
 }
 
 .event-card__meta {
@@ -268,8 +276,13 @@ function uploadEventImage(eventId, input) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Reload the page to show the new image
-            location.reload();
+            if (data.redirect_to_crop) {
+                // Redirect to crop page
+                window.location.href = data.crop_url;
+            } else {
+                // Direct upload success (shouldn't happen with new workflow)
+                location.reload();
+            }
         } else {
             alert('Failed to upload image: ' + (data.error || 'Unknown error'));
         }

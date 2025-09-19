@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crop Photo - {{ event.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cropper.min.css' %}">
+<style>
+.crop-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.crop-stage {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.crop-preview {
+    background: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.cropper-container {
+    max-width: 100%;
+    max-height: 400px;
+    margin: 1rem 0;
+}
+
+.crop-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+@media (max-width: 768px) {
+    .preview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .crop-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+.preview-container {
+    text-align: center;
+}
+
+.preview-title {
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--color-text-primary);
+}
+
+.calendar-preview {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    display: inline-block;
+    position: relative;
+}
+
+.calendar-day {
+    width: 200px;
+    height: 200px;
+    border: 1px solid #d1d5db;
+    position: relative;
+    background: #f9fafb;
+}
+
+.day-header {
+    background: #2563eb;
+    color: white;
+    padding: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.day-content {
+    height: calc(100% - 2rem);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.event-image {
+    flex: 1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.event-text {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 0.25rem;
+    font-size: 0.625rem;
+    text-align: center;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-top: 1px solid #e5e7eb;
+}
+
+.loading-spinner {
+    display: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="crop-container">
+    <div class="page-header">
+        <div class="page-header__main">
+            <h1 class="page-title">Crop Photo for {{ event.name }}</h1>
+            <p class="page-description">Adjust the crop area to fit your master event image perfectly</p>
+        </div>
+        <div class="page-header__actions">
+            <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </div>
+
+    <div class="crop-stage">
+        <div class="preview-grid">
+            <div>
+                <h3>Original Image</h3>
+                <img id="crop-image" src="{% url 'calendars:temp_image' token=temp_token %}" style="max-width: 100%; display: block;">
+            </div>
+
+            <div class="preview-container">
+                <h3 class="preview-title">Master Event Preview</h3>
+                <div class="calendar-preview">
+                    <div class="calendar-day">
+                        <div class="day-header">{{ event.month }}/{{ event.day }}</div>
+                        <div class="day-content">
+                            <div id="preview-image" class="event-image"></div>
+                            <div class="event-text">{{ event.name }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="crop-controls">
+            <button type="button" class="btn btn--outline" onclick="cropper.reset()">Reset</button>
+            <button type="button" class="btn btn--outline" onclick="cropper.rotate(-90)">↻ Rotate Left</button>
+            <button type="button" class="btn btn--outline" onclick="cropper.rotate(90)">↺ Rotate Right</button>
+            <button type="button" class="btn btn--outline" onclick="cropper.scaleX(-cropper.getData().scaleX || -1)">↔ Flip Horizontal</button>
+            <button type="button" class="btn btn--outline" onclick="cropper.scaleY(-cropper.getData().scaleY || -1)">↕ Flip Vertical</button>
+        </div>
+
+        <div style="text-align: center; margin-top: 2rem;">
+            <button type="button" id="save-crop" class="btn btn--primary" style="padding: 0.75rem 2rem;">
+                <span class="loading-spinner" id="save-spinner"></span>
+                Save Cropped Photo
+            </button>
+        </div>
+    </div>
+</div>
+
+<form id="crop-form" method="post" action="{% url 'calendars:master_event_process_crop' pk=event.id %}" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="crop_data" id="crop-data">
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/cropper.min.js' %}"></script>
+<script>
+let cropper;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const image = document.getElementById('crop-image');
+    const previewImage = document.getElementById('preview-image');
+
+    cropper = new Cropper(image, {
+        aspectRatio: 1,
+        viewMode: 1,
+        autoCropArea: 0.8,
+        responsive: true,
+        crop: function(event) {
+            // Update preview
+            const canvas = cropper.getCroppedCanvas({
+                width: 200,
+                height: 200,
+                imageSmoothingQuality: 'high'
+            });
+
+            if (canvas) {
+                const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                previewImage.style.backgroundImage = `url(${dataURL})`;
+            }
+        }
+    });
+
+    // Save crop button
+    document.getElementById('save-crop').addEventListener('click', function() {
+        const button = this;
+        const spinner = document.getElementById('save-spinner');
+
+        button.disabled = true;
+        spinner.style.display = 'inline-block';
+        button.innerHTML = '<span class="loading-spinner" style="display: inline-block;"></span> Saving...';
+
+        const canvas = cropper.getCroppedCanvas({
+            width: 800,
+            height: 800,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (canvas) {
+            const croppedImageData = canvas.toDataURL('image/jpeg', 0.95);
+            document.getElementById('crop-data').value = croppedImageData;
+            document.getElementById('crop-form').submit();
+        } else {
+            button.disabled = false;
+            spinner.style.display = 'none';
+            button.innerHTML = 'Save Cropped Photo';
+            alert('Error generating cropped image. Please try again.');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -4,7 +4,48 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Calendar Builder{% endblock %}</title>
+
     {% load static %}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/favicon-16x16.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="48x48" href="{% static 'img/favicon-48x48.png' %}">
+    <link rel="icon" type="image/png" sizes="96x96" href="{% static 'img/favicon-96x96.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/favicon-180x180.png' %}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'img/favicon-192x192.png' %}">
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="{% block description %}Create beautiful custom calendars with your photos. Upload images, add events, and generate professional calendars for print or digital use.{% endblock %}">
+    <meta name="keywords" content="{% block keywords %}calendar builder, custom calendar, photo calendar, calendar maker, personal calendar, calendar app{% endblock %}">
+    <meta name="author" content="Calendar Builder">
+
+    <!-- Open Graph Meta Tags (Facebook, LinkedIn, etc.) -->
+    <meta property="og:title" content="{% block og_title %}Calendar Builder{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Create beautiful custom calendars with your photos. Upload images, add events, and generate professional calendars for print or digital use.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{{ request.build_absolute_uri }}{% static 'img/social-share.png' %}{% endblock %}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="{% block og_url %}{{ request.build_absolute_uri }}{% endblock %}">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:site_name" content="Calendar Builder">
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}Calendar Builder{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Create beautiful custom calendars with your photos. Upload images, add events, and generate professional calendars for print or digital use.{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ request.build_absolute_uri }}{% static 'img/social-share.png' %}{% endblock %}">
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#2563eb">
+    <meta name="application-name" content="Calendar Builder">
+    <meta name="apple-mobile-web-app-title" content="Calendar Builder">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+
+    <!-- CSS -->
     <link rel="stylesheet" href="{% static 'css/base.css' %}">
     <link rel="stylesheet" href="{% static 'css/components/calendar.css' %}">
     <link rel="stylesheet" href="{% static 'css/components/upload-progress.css' %}">
