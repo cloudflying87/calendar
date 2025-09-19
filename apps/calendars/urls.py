@@ -25,6 +25,9 @@ urlpatterns = [
     path('event/<int:event_id>/delete/', views.DeleteEventView.as_view(), name='delete_event'),
     path('pdf/<int:pdf_id>/delete/', views.DeleteGeneratedPDFView.as_view(), name='delete_generated_pdf'),
 
+    # Temporary image serving for photo cropping
+    path('temp-image/<uuid:token>/', views.TempImageView.as_view(), name='temp_image'),
+
     # Calendar sharing URLs
     path('<int:year>/share/', views.CalendarShareView.as_view(), name='calendar_share'),
     path('<int:year>/unshare/', views.CalendarUnshareView.as_view(), name='calendar_unshare'),

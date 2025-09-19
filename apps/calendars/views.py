@@ -492,16 +492,18 @@ class PhotoCropView(View):
             messages.error(request, "Temporary image file not found. Please upload again.")
             return redirect('calendars:image_upload', year=year)
 
-        # Create a URL for the temporary image by copying to media/temp
-        import shutil
-        temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
-        os.makedirs(temp_dir, exist_ok=True)
+        # Create a secure URL for the temporary image
+        import uuid
+        temp_token = str(uuid.uuid4())
 
-        temp_filename = f"crop_{os.path.basename(crop_data['temp_path'])}"
-        temp_media_path = os.path.join(temp_dir, temp_filename)
-        shutil.copy2(crop_data['temp_path'], temp_media_path)
+        # Store the temp file path in session with a secure token
+        if 'temp_tokens' not in request.session:
+            request.session['temp_tokens'] = {}
+        request.session['temp_tokens'][temp_token] = crop_data['temp_path']
+        request.session.modified = True
 
-        temp_image_url = f"{settings.MEDIA_URL}temp/{temp_filename}"
+        # Create URL that will be served by our secure view
+        temp_image_url = f"/calendars/temp-image/{temp_token}/"
 
         # Check if we have edit event data or crop data
         edit_event_data = request.session.get('edit_event_data')
@@ -596,12 +598,6 @@ class ProcessCropView(View):
                     os.unlink(temp_image_path)
                 if os.path.exists(temp_cropped.name):
                     os.unlink(temp_cropped.name)
-                # Clean up temp media file
-                temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
-                temp_filename = f"crop_{os.path.basename(temp_image_path)}"
-                temp_media_path = os.path.join(temp_dir, temp_filename)
-                if os.path.exists(temp_media_path):
-                    os.unlink(temp_media_path)
             except OSError:
                 pass
 
@@ -611,6 +607,8 @@ class ProcessCropView(View):
                 del request.session['crop_data']
             if 'edit_event_data' in request.session:
                 del request.session['edit_event_data']
+            if 'temp_tokens' in request.session:
+                del request.session['temp_tokens']
 
             action = "created" if created else "updated"
             messages.success(request, f"Event '{event_name}' {action} successfully with cropped photo.")
@@ -804,16 +802,18 @@ class MultiPhotoCropView(View):
             messages.error(request, "Temporary image file not found. Please upload again.")
             return redirect('calendars:photo_editor_upload', year=year)
 
-        # Create a URL for the temporary image by copying to media/temp
-        import shutil
-        temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
-        os.makedirs(temp_dir, exist_ok=True)
+        # Create a secure URL for the temporary image
+        import uuid
+        temp_token = str(uuid.uuid4())
 
-        temp_filename = f"multi_crop_{current_index}_{os.path.basename(current_temp_path)}"
-        temp_media_path = os.path.join(temp_dir, temp_filename)
-        shutil.copy2(current_temp_path, temp_media_path)
+        # Store the temp file path in session with a secure token
+        if 'temp_tokens' not in request.session:
+            request.session['temp_tokens'] = {}
+        request.session['temp_tokens'][temp_token] = current_temp_path
+        request.session.modified = True
 
-        temp_image_url = f"{settings.MEDIA_URL}temp/{temp_filename}"
+        # Create URL that will be served by our secure view
+        temp_image_url = f"/calendars/temp-image/{temp_token}/"
 
         return render(request, 'calendars/multi_photo_crop.html', {
             'calendar': calendar,
@@ -1009,6 +1009,38 @@ class ProcessMultiCropView(View):
                 combined.paste(images[2], (160, 100))
 
         return combined
+
+
+@method_decorator(login_required, name='dispatch')
+class TempImageView(View):
+    """Secure view to serve temporary images during photo cropping"""
+
+    def get(self, request, token):
+        # Get the temp file path from session using the secure token
+        temp_tokens = request.session.get('temp_tokens', {})
+        temp_path = temp_tokens.get(token)
+
+        if not temp_path or not os.path.exists(temp_path):
+            raise Http404("Temporary image not found")
+
+        try:
+            # Open and serve the image file
+            with open(temp_path, 'rb') as f:
+                image_data = f.read()
+
+            # Determine content type based on file extension
+            import mimetypes
+            content_type, _ = mimetypes.guess_type(temp_path)
+            if not content_type or not content_type.startswith('image/'):
+                content_type = 'image/jpeg'  # Default fallback
+
+            response = HttpResponse(image_data, content_type=content_type)
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response['Expires'] = '0'
+            return response
+
+        except Exception as e:
+            raise Http404("Error serving temporary image")
 
 
 # Calendar Sharing Views
