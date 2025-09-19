@@ -30,6 +30,9 @@ CSRF_COOKIE_HTTPONLY = True
 # Static files served by WhiteNoise in production
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Media files - use persistent storage that survives rebuilds
+MEDIA_ROOT = BASE_DIR / 'persistent_media'
+
 # Cache settings for production
 CACHES = {
     'default': {
