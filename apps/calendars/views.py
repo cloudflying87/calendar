@@ -59,7 +59,21 @@ class CalendarCreateView(LoginRequiredMixin, CreateView):
         return kwargs
 
     def form_valid(self, form):
+        from .models import CalendarYear
+
         form.instance.user = self.request.user
+
+        # Create or get CalendarYear
+        calendar_name = form.cleaned_data.get('calendar_name') or 'Default'
+        calendar_year, created = CalendarYear.objects.get_or_create(
+            user=self.request.user,
+            year=form.instance.year,
+            name=calendar_name
+        )
+
+        # Link the calendar to the CalendarYear
+        form.instance.calendar_year = calendar_year
+
         response = super().form_valid(form)
 
         # Handle copying from another calendar if selected

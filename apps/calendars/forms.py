@@ -1,6 +1,6 @@
 from django import forms
 from django.core.validators import FileExtensionValidator
-from .models import Calendar, CalendarHeader, CalendarEvent, Holiday
+from .models import Calendar, CalendarHeader, CalendarEvent, Holiday, CalendarYear
 from datetime import datetime
 
 
@@ -23,6 +23,16 @@ class MultipleFileField(forms.FileField):
 
 
 class CalendarForm(forms.ModelForm):
+    calendar_name = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Optional: Name for this calendar version (e.g., Family, Work, etc.)'
+        }),
+        help_text="Give this calendar a name to distinguish it from others for the same year"
+    )
+
     copy_from_calendar = forms.ModelChoiceField(
         queryset=Calendar.objects.none(),
         required=False,
@@ -53,11 +63,26 @@ class CalendarForm(forms.ModelForm):
                 user=self.user
             ).order_by('-year')
 
-    def clean_year(self):
-        year = self.cleaned_data['year']
-        if self.user and Calendar.objects.filter(year=year, user=self.user).exists():
-            raise forms.ValidationError(f"You already have a calendar for {year}.")
-        return year
+    def clean(self):
+        cleaned_data = super().clean()
+        year = cleaned_data.get('year')
+        calendar_name = cleaned_data.get('calendar_name') or 'Default'
+
+        if self.user and year:
+            # Check if this specific combination already exists
+            existing_calendar_year = CalendarYear.objects.filter(
+                user=self.user,
+                year=year,
+                name=calendar_name
+            ).first()
+
+            if existing_calendar_year:
+                raise forms.ValidationError(
+                    f"You already have a calendar named '{calendar_name}' for {year}. "
+                    f"Please choose a different name."
+                )
+
+        return cleaned_data
 
 
 class ImageUploadForm(forms.Form):
