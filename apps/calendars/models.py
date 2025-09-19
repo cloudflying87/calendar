@@ -184,6 +184,12 @@ class EventMaster(models.Model):
         help_text="Comma-separated list of group names this event belongs to"
     )
     description = models.TextField(blank=True, help_text="Additional details about the event")
+    image = models.ImageField(
+        upload_to='master_events/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text="Default image for this event (will be copied to calendar events)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

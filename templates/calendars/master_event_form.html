@@ -13,7 +13,7 @@
 </div>
 
 <div class="form-container">
-    <form method="post" class="form">
+    <form method="post" enctype="multipart/form-data" class="form">
         {% csrf_token %}
 
         <div class="form-group">
@@ -91,6 +91,23 @@
             {{ form.description }}
             {% if form.description.errors %}
                 <div class="form-errors">{{ form.description.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.image.id_for_label }}">Default Image (Optional)</label>
+            {% if form.instance.image %}
+                <div class="form-image-preview" style="margin-bottom: 1rem;">
+                    <img src="{{ form.instance.image.url }}" alt="Current image" style="max-width: 200px; border-radius: 8px; border: 2px solid #e5e7eb;">
+                    <p class="form-help">Current image - select a new one to replace it</p>
+                </div>
+            {% endif %}
+            {{ form.image }}
+            {% if form.image.help_text %}
+                <small class="form-help">This image will be used as the default for all calendar events created from this master event</small>
+            {% endif %}
+            {% if form.image.errors %}
+                <div class="form-errors">{{ form.image.errors }}</div>
             {% endif %}
         </div>
 

@@ -763,18 +763,28 @@ class ProcessCropView(View):
 
 @method_decorator(login_required, name='dispatch')
 class DeleteCalendarView(View):
-    def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+    def get(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
         return render(request, 'calendars/delete_calendar.html', {
             'calendar': calendar
         })
 
-    def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+        calendar_year_obj = calendar.calendar_year
         calendar_year = calendar.year
 
         # Delete all associated files and the calendar
         calendar.delete()
+
+        # Clean up orphaned CalendarYear if no other calendars use it
+        if calendar_year_obj:
+            # Check if any other calendars reference this CalendarYear
+            other_calendars = Calendar.objects.filter(calendar_year=calendar_year_obj)
+            if not other_calendars.exists():
+                calendar_year_obj.delete()
 
         messages.success(request, f"Calendar {calendar_year} and all associated files deleted successfully.")
         return redirect('calendars:calendar_list')

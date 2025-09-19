@@ -56,7 +56,7 @@ class MasterEventListView(LoginRequiredMixin, ListView):
 class MasterEventCreateView(LoginRequiredMixin, CreateView):
     model = EventMaster
     template_name = 'calendars/master_event_form.html'
-    fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description']
+    fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description', 'image']
     success_url = reverse_lazy('calendars:master_events')
 
     def form_valid(self, form):
@@ -74,7 +74,7 @@ class MasterEventCreateView(LoginRequiredMixin, CreateView):
 class MasterEventUpdateView(LoginRequiredMixin, UpdateView):
     model = EventMaster
     template_name = 'calendars/master_event_form.html'
-    fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description']
+    fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description', 'image']
     success_url = reverse_lazy('calendars:master_events')
 
     def get_queryset(self):
@@ -102,6 +102,25 @@ class MasterEventDeleteView(LoginRequiredMixin, DeleteView):
     def delete(self, request, *args, **kwargs):
         messages.success(request, 'Master event deleted successfully!')
         return super().delete(request, *args, **kwargs)
+
+
+class MasterEventImageUploadView(LoginRequiredMixin, View):
+    """View to handle inline image upload for master events"""
+
+    def post(self, request, pk):
+        event = get_object_or_404(EventMaster, pk=pk, user=request.user)
+
+        if 'image' not in request.FILES:
+            return JsonResponse({'success': False, 'error': 'No image provided'})
+
+        # Save the uploaded image
+        event.image = request.FILES['image']
+        event.save()
+
+        return JsonResponse({
+            'success': True,
+            'image_url': event.image.url
+        })
 
 
 class EventGroupListView(LoginRequiredMixin, ListView):
@@ -249,13 +268,35 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
 
                 if not existing:
                     # Create calendar event linked to master event
-                    CalendarEvent.objects.create(
+                    calendar_event = CalendarEvent.objects.create(
                         calendar=calendar,
                         master_event=event,
                         month=event.month,
                         day=event.day,
                         event_name=event.get_display_name(for_year=calendar.year)
                     )
+
+                    # Copy image from master event if it has one
+                    if event.image:
+                        from django.core.files.base import ContentFile
+                        import os
+
+                        # Read the original image
+                        with event.image.open('rb') as f:
+                            image_content = f.read()
+
+                        # Create a new file with a unique name
+                        original_name = os.path.basename(event.image.name)
+                        name, ext = os.path.splitext(original_name)
+                        new_name = f"{name}_{calendar.year}_{calendar_event.id}{ext}"
+
+                        # Save the image to the calendar event
+                        calendar_event.image.save(
+                            new_name,
+                            ContentFile(image_content),
+                            save=True
+                        )
+
                     applied_count += 1
                 elif combine_events and not existing.image:
                     # Add to existing event if combining is enabled and no image yet
@@ -615,6 +656,27 @@ class AddEventToMasterListView(LoginRequiredMixin, View):
                     year_occurred=final_year_occurred,
                     groups=groups_str
                 )
+
+                # Copy image from calendar event to master event if it has one
+                if event.image:
+                    from django.core.files.base import ContentFile
+                    import os
+
+                    # Read the original image
+                    with event.image.open('rb') as f:
+                        image_content = f.read()
+
+                    # Create a new file with a unique name
+                    original_name = os.path.basename(event.image.name)
+                    name, ext = os.path.splitext(original_name)
+                    new_name = f"master_{name}_{master_event.id}{ext}"
+
+                    # Save the image to the master event
+                    master_event.image.save(
+                        new_name,
+                        ContentFile(image_content),
+                        save=True
+                    )
 
                 # Link calendar event to new master event
                 event.master_event = master_event

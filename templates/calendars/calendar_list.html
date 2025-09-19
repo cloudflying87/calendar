@@ -52,7 +52,7 @@
                         <a href="{% url 'calendars:calendar_detail' year=calendar.year %}" class="btn btn--outline">View</a>
                     {% endif %}
                     <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--secondary">Upload Images</a>
-                    <a href="{% url 'calendars:delete_calendar' year=calendar.year %}" class="btn btn--danger">🗑️ Delete</a>
+                    <a href="{% url 'calendars:delete_calendar' calendar_id=calendar.id %}" class="btn btn--danger">🗑️ Delete</a>
                 </div>
             </div>
         {% endfor %}
