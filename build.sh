@@ -8,7 +8,7 @@
 # ============================================================================
 
 # PROJECT CONFIGURATION - CHANGE THESE
-PROJECT_NAME="calendar-builder"                    # ← CHANGE THIS
+PROJECT_NAME="calendar"                    # ← CHANGE THIS
 REMOTE_SERVER="your-user@your-server-ip"           # ← CHANGE THIS (optional)
 REMOTE_BACKUP_DIR="/path/to/backups"               # ← CHANGE THIS (optional)
 
