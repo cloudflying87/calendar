@@ -380,9 +380,10 @@ class CalendarPDFGenerator:
             available_height = 1.3*inch
 
         # Adjust row heights based on content - images with overlay take full space
-        if len(cell_data) == 2 and event and event.image:  # Image with overlay + Text
+        if len(cell_data) == 3:  # Day + Image placeholder/error + Text
+            row_heights = [0.15*inch, (available_height - 0.6*inch), 0.45*inch]  # Day, image placeholder, text
+        elif len(cell_data) == 2 and event and event.image:  # Image with overlay + Text
             row_heights = [available_height - 0.45*inch, 0.45*inch]  # Image takes most space, very small text gap
-            # row_heights = [available_height]  # Image takes most space, very small text gap
         elif len(cell_data) == 2:  # Day + Text (no image) or Day + Image (no text)
             if event and event.image:
                 row_heights = [available_height]  # Image with overlay takes full space
