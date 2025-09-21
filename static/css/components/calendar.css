@@ -308,6 +308,12 @@
     }
 }
 
+@media (min-width: 992px) {
+    .action-panel {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
 .action-panel__section h3 {
     margin-bottom: var(--spacing-md);
     color: var(--text-primary);

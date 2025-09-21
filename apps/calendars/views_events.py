@@ -11,6 +11,7 @@ from django.views import View
 import calendar as cal
 import csv
 import json
+import os
 from datetime import datetime
 
 
@@ -133,6 +134,27 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
             'redirect_to_crop': True,
             'crop_url': crop_url
         })
+
+
+class MasterEventRemoveImageView(LoginRequiredMixin, View):
+    """Remove image from a master event"""
+    def post(self, request, pk):
+        event = get_object_or_404(EventMaster, pk=pk, user=request.user)
+
+        # Delete the image file
+        if event.image:
+            try:
+                if os.path.exists(event.image.path):
+                    os.remove(event.image.path)
+            except OSError:
+                pass
+
+        # Clear the image field
+        event.image = None
+        event.save()
+
+        messages.success(request, 'Photo removed successfully!')
+        return redirect('calendars:master_event_edit', pk=event.pk)
 
 
 class DeleteAllMasterEventsView(LoginRequiredMixin, View):
@@ -273,10 +295,12 @@ def user_preferences_view(request):
         add_to_master = request.POST.get('add_to_master_list')
         default_groups = request.POST.get('default_groups', '')
         show_age_numbers = request.POST.get('show_age_numbers') == 'true'
+        image_combination_layout = request.POST.get('image_combination_layout', 'auto')
 
         preferences.add_to_master_list = add_to_master
         preferences.default_groups = default_groups
         preferences.show_age_numbers = show_age_numbers
+        preferences.image_combination_layout = image_combination_layout
         preferences.save()
 
         messages.success(request, 'Preferences updated successfully!')
@@ -819,3 +843,144 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         })
 
         return context
+
+
+class ManageDuplicateEventsView(LoginRequiredMixin, TemplateView):
+    """View to manage duplicate events on the same dates"""
+    template_name = 'calendars/manage_duplicate_events.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get all calendars for the user
+        calendars = Calendar.objects.filter(user=self.request.user)
+
+        # Find duplicate events (events with combined_events or multiple events on same date)
+        duplicate_groups = []
+
+        for calendar in calendars:
+            # Get events with combined_events
+            combined_events = CalendarEvent.objects.filter(
+                calendar=calendar,
+                combined_events__isnull=False
+            ).exclude(combined_events='')
+
+            # Also check for multiple events on same date that aren't combined yet
+            from django.db.models import Count
+            date_counts = CalendarEvent.objects.filter(
+                calendar=calendar
+            ).values('month', 'day').annotate(
+                count=Count('id')
+            ).filter(count__gt=1)
+
+            for combined in combined_events:
+                events_list = [e.strip() for e in combined.combined_events.split(' & ')]
+                duplicate_groups.append({
+                    'calendar': calendar,
+                    'date': f"{calendar.year}-{combined.month:02d}-{combined.day:02d}",
+                    'month': combined.month,
+                    'day': combined.day,
+                    'events': events_list,
+                    'primary_event': combined,
+                    'is_combined': True,
+                    'image': combined.image
+                })
+
+            # Add uncombined duplicates
+            for date_info in date_counts:
+                events_on_date = CalendarEvent.objects.filter(
+                    calendar=calendar,
+                    month=date_info['month'],
+                    day=date_info['day'],
+                    combined_events__isnull=True
+                ) | CalendarEvent.objects.filter(
+                    calendar=calendar,
+                    month=date_info['month'],
+                    day=date_info['day'],
+                    combined_events=''
+                )
+
+                if events_on_date.count() > 1:
+                    events_list = [event.get_display_name() for event in events_on_date]
+                    duplicate_groups.append({
+                        'calendar': calendar,
+                        'date': f"{calendar.year}-{date_info['month']:02d}-{date_info['day']:02d}",
+                        'month': date_info['month'],
+                        'day': date_info['day'],
+                        'events': events_list,
+                        'primary_event': events_on_date.first(),
+                        'all_events': list(events_on_date),
+                        'is_combined': False,
+                        'image': events_on_date.first().image if events_on_date.first().image else None
+                    })
+
+        context['duplicate_groups'] = duplicate_groups
+        context['calendars'] = calendars
+        return context
+
+    def post(self, request):
+        """Handle duplicate event management actions"""
+        action = request.POST.get('action')
+        calendar_id = request.POST.get('calendar_id')
+        month = request.POST.get('month')
+        day = request.POST.get('day')
+
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
+
+        if action == 'combine':
+            # Combine events on this date
+            events = CalendarEvent.objects.filter(
+                calendar=calendar,
+                month=month,
+                day=day
+            )
+
+            if events.count() > 1:
+                primary_event = events.first()
+                event_names = [event.get_display_name() for event in events]
+
+                # Keep the first event and delete the others
+                for event in events[1:]:
+                    event.delete()
+
+                # Set combined events on the primary event
+                primary_event.combined_events = ' & '.join(event_names)
+                primary_event.save()
+
+                messages.success(request, f'Combined {len(event_names)} events on {calendar.year}-{month}-{day}')
+
+        elif action == 'separate':
+            # Separate combined events back to individual events
+            event = CalendarEvent.objects.filter(
+                calendar=calendar,
+                month=month,
+                day=day
+            ).first()
+
+            if event and event.combined_events:
+                event_names = [e.strip() for e in event.combined_events.split(' & ')]
+
+                # Keep the first event name and clear combined_events
+                event.event_name = event_names[0]
+                event.combined_events = ''
+                event.save()
+
+                # Create new events for the other names
+                for name in event_names[1:]:
+                    CalendarEvent.objects.create(
+                        calendar=calendar,
+                        month=month,
+                        day=day,
+                        event_name=name
+                    )
+
+                messages.success(request, f'Separated events on {calendar.year}-{month}-{day}')
+
+        elif action == 'delete_duplicate':
+            # Delete a specific duplicate event
+            event_id = request.POST.get('event_id')
+            event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
+            event.delete()
+            messages.success(request, f'Deleted duplicate event: {event.event_name}')
+
+        return redirect('calendars:manage_duplicates')

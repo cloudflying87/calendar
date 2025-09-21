@@ -45,8 +45,8 @@ class CalendarEventAdmin(admin.ModelAdmin):
         (None, {
             'fields': ('calendar', 'month', 'day', 'event_name')
         }),
-        ('Image', {
-            'fields': ('image', 'image_preview', 'original_filename')
+        ('Images', {
+            'fields': ('image', 'full_image', 'image_preview', 'original_filename')
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),

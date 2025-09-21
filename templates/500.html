@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}Server Error - Calendar Builder{% endblock %}
+
+{% block description %}We're experiencing technical difficulties. Our team has been notified and is working to resolve the issue.{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <div class="error-content">
+        <div class="error-icon">
+            <span class="error-number">500</span>
+            <div class="error-illustration">🔧💥</div>
+        </div>
+
+        <div class="error-text">
+            <h1 class="error-title">Something Went Wrong</h1>
+            <p class="error-description">
+                We're experiencing some technical difficulties on our end. Our team has been automatically notified
+                and is working hard to fix this issue. Please try again in a few minutes.
+            </p>
+        </div>
+
+        <div class="error-actions">
+            <a href="{% url 'calendars:calendar_list' %}" class="btn btn--primary btn--large">
+                🏠 Go Home
+            </a>
+            <a href="javascript:location.reload()" class="btn btn--outline btn--large">
+                🔄 Try Again
+            </a>
+        </div>
+
+        <div class="error-details">
+            <div class="status-card">
+                <div class="status-icon">⚡</div>
+                <div class="status-content">
+                    <h3>What happened?</h3>
+                    <p>Our servers encountered an unexpected error while processing your request. This is likely a temporary issue.</p>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-icon">🛠️</div>
+                <div class="status-content">
+                    <h3>What we're doing</h3>
+                    <p>Our development team has been automatically notified and is investigating the issue to prevent future occurrences.</p>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-icon">⏰</div>
+                <div class="status-content">
+                    <h3>What you can do</h3>
+                    <p>Try refreshing the page in a few minutes, or return to your calendars to continue where you left off.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="error-contact">
+            <h3>Still having issues?</h3>
+            <p>If this problem persists, please contact our support team and include the timestamp below:</p>
+            <div class="timestamp">
+                <strong>Error Time:</strong> <span id="error-timestamp"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding: 2rem;
+}
+
+.error-content {
+    text-align: center;
+    max-width: 700px;
+    width: 100%;
+}
+
+.error-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.error-number {
+    font-size: 6rem;
+    font-weight: 900;
+    color: #dc2626;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.error-illustration {
+    font-size: 3rem;
+    opacity: 0.8;
+}
+
+.error-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0 0 1rem 0;
+}
+
+.error-description {
+    font-size: 1.125rem;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0 0 2.5rem 0;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+}
+
+.btn--large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    min-width: 180px;
+}
+
+.error-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+    text-align: left;
+}
+
+.status-card {
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.status-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    margin-top: 0.25rem;
+}
+
+.status-content h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.status-content p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+.error-contact {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.error-contact h3 {
+    margin: 0 0 0.5rem 0;
+    color: #92400e;
+    font-size: 1.125rem;
+}
+
+.error-contact p {
+    margin: 0 0 1rem 0;
+    color: #92400e;
+    font-size: 0.875rem;
+}
+
+.timestamp {
+    background: rgba(251, 191, 36, 0.3);
+    border-radius: var(--border-radius-sm);
+    padding: 0.5rem 1rem;
+    font-family: monospace;
+    font-size: 0.875rem;
+    color: #92400e;
+    display: inline-block;
+}
+
+@media (max-width: 768px) {
+    .error-number {
+        font-size: 4rem;
+    }
+
+    .error-title {
+        font-size: 2rem;
+    }
+
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .btn--large {
+        min-width: 200px;
+    }
+
+    .error-details {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+
+    .status-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .status-icon {
+        margin-top: 0;
+    }
+}
+</style>
+
+<script>
+// Display current timestamp for error reporting
+document.addEventListener('DOMContentLoaded', function() {
+    const timestampElement = document.getElementById('error-timestamp');
+    if (timestampElement) {
+        const now = new Date();
+        timestampElement.textContent = now.toISOString();
+    }
+});
+</script>
+{% endblock %}

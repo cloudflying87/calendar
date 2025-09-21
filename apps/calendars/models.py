@@ -318,6 +318,22 @@ class UserEventPreferences(models.Model):
         blank=True,
         help_text="Comma-separated list of default groups for new master events"
     )
+
+    # Image combination preferences
+    IMAGE_LAYOUT_CHOICES = [
+        ('auto', 'Automatic - System chooses best layout'),
+        ('side_by_side', 'Side by side - Images placed horizontally'),
+        ('top_bottom', 'Top/Bottom - Images stacked vertically'),
+        ('grid', 'Grid - Always use 2x2 grid layout'),
+    ]
+
+    image_combination_layout = models.CharField(
+        max_length=15,
+        choices=IMAGE_LAYOUT_CHOICES,
+        default='auto',
+        help_text="Default layout for combining multiple event images"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -365,6 +381,10 @@ class Calendar(models.Model):
 
     def get_user_permission(self, user):
         """Get the permission level for a user on this calendar"""
+        # Handle anonymous users
+        if not user.is_authenticated:
+            return None
+
         if self.user == user:
             return 'owner'
 
@@ -483,15 +503,20 @@ class CalendarEvent(models.Model):
     )
     image = models.ImageField(
         upload_to=calendar_image_upload_path,
-        help_text="Image file for this event"
+        help_text="Cropped image file for this event (used in PDF generation)"
+    )
+    full_image = models.ImageField(
+        upload_to=calendar_image_upload_path,
+        blank=True,
+        null=True,
+        help_text="Full-sized original image for digital calendar viewing"
     )
     original_filename = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['calendar', 'month', 'day']
-        ordering = ['calendar', 'month', 'day']
+        ordering = ['calendar', 'month', 'day', 'created_at']
 
     def __str__(self):
         return f"{self.calendar.year}-{self.month:02d}-{self.day:02d}: {self.event_name}"
@@ -509,6 +534,169 @@ class CalendarEvent(models.Model):
         if self.master_event:
             return self.master_event.get_display_name(for_year=self.calendar.year, user=self.calendar.user)
         return self.event_name
+
+    @classmethod
+    def get_events_for_date(cls, calendar, month, day):
+        """Get all events for a specific date"""
+        return cls.objects.filter(calendar=calendar, month=month, day=day)
+
+    @classmethod
+    def has_multiple_events(cls, calendar, month, day):
+        """Check if there are multiple events for a date"""
+        return cls.get_events_for_date(calendar, month, day).count() > 1
+
+    @classmethod
+    def get_combined_display_name(cls, calendar, month, day):
+        """Get combined display name for all events on a date"""
+        events = cls.get_events_for_date(calendar, month, day)
+        if events.count() <= 1:
+            return events.first().get_display_name() if events.exists() else ""
+
+        names = [event.get_display_name() for event in events]
+        return " & ".join(names)
+
+    @classmethod
+    def get_combined_images(cls, calendar, month, day):
+        """Get all images for events on a date"""
+        events = cls.get_events_for_date(calendar, month, day)
+        images = []
+        full_images = []
+
+        for event in events:
+            if event.image:
+                images.append(event.image)
+            if event.full_image:
+                full_images.append(event.full_image)
+
+        return images, full_images
+
+    @classmethod
+    def create_combined_image(cls, calendar, month, day, target_width=320, target_height=200, layout_preference='auto'):
+        """Create a combined image for multiple events on the same date
+
+        layout_preference options:
+        - 'auto': System chooses best layout (default)
+        - 'side_by_side': Always use side-by-side for 2 images
+        - 'top_bottom': Always use top/bottom for 2 images
+        - 'grid': Always use grid layout
+        """
+        events = cls.get_events_for_date(calendar, month, day)
+        if events.count() <= 1:
+            return None
+
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import os
+            from django.conf import settings
+            from django.core.files.base import ContentFile
+            import tempfile
+
+            # Create a new image with the target dimensions
+            combined_img = Image.new('RGB', (target_width, target_height), (255, 255, 255))
+
+            event_list = list(events)
+            num_events = len(event_list)
+
+            if num_events == 2:
+                # Handle layout preference for 2 images
+                if layout_preference == 'top_bottom':
+                    # Split horizontally (top/bottom)
+                    for i, event in enumerate(event_list):
+                        if event.image:
+                            try:
+                                with Image.open(event.image.path) as img:
+                                    half_height = target_height // 2
+                                    img_resized = img.resize((target_width, half_height), Image.Resampling.LANCZOS)
+                                    y_pos = i * half_height
+                                    combined_img.paste(img_resized, (0, y_pos))
+                            except:
+                                continue
+                else:  # 'auto' or 'side_by_side'
+                    # Split vertically (side by side) - default behavior
+                    for i, event in enumerate(event_list):
+                        if event.image:
+                            try:
+                                with Image.open(event.image.path) as img:
+                                    half_width = target_width // 2
+                                    img_resized = img.resize((half_width, target_height), Image.Resampling.LANCZOS)
+                                    x_pos = i * half_width
+                                    combined_img.paste(img_resized, (x_pos, 0))
+                            except:
+                                continue
+            elif num_events == 3:
+                # Top half for first image, bottom half split for other two
+                for i, event in enumerate(event_list):
+                    if event.image:
+                        try:
+                            with Image.open(event.image.path) as img:
+                                if i == 0:
+                                    # Top half
+                                    half_height = target_height // 2
+                                    img_resized = img.resize((target_width, half_height), Image.Resampling.LANCZOS)
+                                    combined_img.paste(img_resized, (0, 0))
+                                else:
+                                    # Bottom half split
+                                    quarter_height = target_height // 2
+                                    half_width = target_width // 2
+                                    img_resized = img.resize((half_width, quarter_height), Image.Resampling.LANCZOS)
+                                    x_pos = (i - 1) * half_width
+                                    combined_img.paste(img_resized, (x_pos, target_height // 2))
+                        except:
+                            continue
+            elif num_events >= 4:
+                # 2x2 grid
+                for i, event in enumerate(event_list[:4]):  # Limit to 4 images
+                    if event.image:
+                        try:
+                            with Image.open(event.image.path) as img:
+                                half_width = target_width // 2
+                                half_height = target_height // 2
+                                img_resized = img.resize((half_width, half_height), Image.Resampling.LANCZOS)
+                                x_pos = (i % 2) * half_width
+                                y_pos = (i // 2) * half_height
+                                combined_img.paste(img_resized, (x_pos, y_pos))
+                        except:
+                            continue
+
+            # Add text overlay indicating number of events
+            draw = ImageDraw.Draw(combined_img)
+            text = f"{num_events} Events"
+
+            try:
+                # Try to use a bold font
+                font = ImageFont.truetype("arial.ttf", 16)
+            except:
+                try:
+                    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 16)
+                except:
+                    font = ImageFont.load_default()
+
+            # Get text bounding box
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+
+            # Position text in top-right corner with background
+            text_x = target_width - text_width - 5
+            text_y = 5
+
+            # Draw background rectangle
+            draw.rectangle([text_x - 3, text_y - 2, text_x + text_width + 3, text_y + text_height + 2],
+                         fill=(0, 0, 0, 128))
+
+            # Draw text
+            draw.text((text_x, text_y), text, fill=(255, 255, 255), font=font)
+
+            # Save combined image
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            combined_img.save(temp_file.name, 'JPEG', quality=95)
+            temp_file.close()
+
+            return temp_file.name
+
+        except Exception as e:
+            print(f"Error creating combined image: {str(e)}")
+            return None
 
     def add_additional_event(self, event_master):
         """Add an additional event to this date"""
@@ -623,6 +811,7 @@ class GeneratedCalendar(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        unique_together = [['calendar', 'generation_type']]
 
     def __str__(self):
         return f"{self.calendar.year} - {self.get_generation_type_display()}"
@@ -787,3 +976,75 @@ class CalendarInvitation(models.Model):
         self.save()
 
         return share
+
+
+def calendar_header_upload_path(instance, filename):
+    """Generate upload path for calendar header images"""
+    return f'calendar_headers/{instance.calendar.user.id}/{instance.calendar.year}/{instance.month:02d}_{filename}'
+
+
+class CalendarHeaderImage(models.Model):
+    """Model for individual header images for each month of a calendar"""
+
+    MONTH_CHOICES = [
+        (0, 'Cover/Title Page'),
+        (1, 'January'),
+        (2, 'February'),
+        (3, 'March'),
+        (4, 'April'),
+        (5, 'May'),
+        (6, 'June'),
+        (7, 'July'),
+        (8, 'August'),
+        (9, 'September'),
+        (10, 'October'),
+        (11, 'November'),
+        (12, 'December'),
+        (13, 'Back Cover'),
+    ]
+
+    calendar = models.ForeignKey(Calendar, on_delete=models.CASCADE, related_name='header_images')
+    month = models.IntegerField(
+        choices=MONTH_CHOICES,
+        help_text="Month (0=Cover page, 1=January, etc.)"
+    )
+    image = models.ImageField(
+        upload_to=calendar_header_upload_path,
+        help_text="Header image for this month"
+    )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional title/caption for this header"
+    )
+    original_filename = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['calendar', 'month']
+        ordering = ['month']
+
+    def __str__(self):
+        month_name = self.get_month_display()
+        return f"{self.calendar.year} {month_name} Header"
+
+    @property
+    def is_cover_page(self):
+        """Check if this is the cover/title page"""
+        return self.month == 0
+
+    def get_month_name(self):
+        """Get the full month name"""
+        if self.month == 0:
+            return "Cover"
+        elif self.month == 13:
+            return "Back Cover"
+        import calendar
+        return calendar.month_name[self.month] if 1 <= self.month <= 12 else "Unknown"
+
+    def save(self, *args, **kwargs):
+        """Override save to store original filename"""
+        if self.image and hasattr(self.image, 'name'):
+            self.original_filename = self.image.name
+        super().save(*args, **kwargs)

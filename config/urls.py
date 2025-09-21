@@ -45,3 +45,23 @@ if settings.DEBUG:
         ] + urlpatterns
     except ImportError:
         pass
+
+    # Add error page testing URLs in development
+    from django.views.generic import TemplateView
+    from django.http import Http404
+    from django.core.exceptions import PermissionDenied
+
+    def test_404(request):
+        raise Http404("This is a test 404 error")
+
+    def test_500(request):
+        raise Exception("This is a test 500 error")
+
+    def test_403(request):
+        raise PermissionDenied("This is a test 403 error")
+
+    urlpatterns += [
+        path('test-404/', test_404, name='test_404'),
+        path('test-500/', test_500, name='test_500'),
+        path('test-403/', test_403, name='test_403'),
+    ]

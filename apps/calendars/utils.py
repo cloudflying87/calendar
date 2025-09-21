@@ -105,7 +105,11 @@ class CalendarPDFGenerator:
 
         # Get events for this month
         events = self.calendar.events.filter(month=month_num)
-        events_dict = {event.day: event for event in events}
+        # Group events by day to handle multiple events
+        from collections import defaultdict
+        events_dict = defaultdict(list)
+        for event in events:
+            events_dict[event.day].append(event)
 
         # Create calendar grid starting with Sunday
         cal.setfirstweekday(6)  # 6 = Sunday as first day
@@ -196,11 +200,13 @@ class CalendarPDFGenerator:
             else:
                 return 8
 
-    def create_day_cell(self, day, event):
-        """Create content for a day cell"""
+    def create_day_cell(self, day, events_list):
+        """Create content for a day cell - now handles multiple events"""
         from reportlab.platypus import Table as CellTable
+        from .models import CalendarEvent
 
-        if not event:
+        # Handle empty days
+        if not events_list or len(events_list) == 0:
             # Simple day number in top left with modern styling
             day_style_left = ParagraphStyle(
                 'DayStyleLeft',
@@ -214,11 +220,44 @@ class CalendarPDFGenerator:
 
         # Create a mini table for the cell content with overlapping layout
         cell_data = []
+        combined_img_path = None  # Track for cleanup
+        is_combined = False
+
+        # Handle multiple events
+        if len(events_list) > 1:
+            # Get user's image combination preference
+            from .models import UserEventPreferences
+            try:
+                preferences = UserEventPreferences.objects.get(user=self.calendar.user)
+                layout_preference = preferences.image_combination_layout
+            except UserEventPreferences.DoesNotExist:
+                layout_preference = 'auto'
+
+            # Create combined image for multiple events
+            combined_img_path = CalendarEvent.create_combined_image(
+                self.calendar, events_list[0].month, day, layout_preference=layout_preference
+            )
+
+            # Use combined image if created, otherwise use first event's image
+            if combined_img_path:
+                event = events_list[0]  # For metadata
+                event_image_path = combined_img_path
+                is_combined = True
+            else:
+                # Fall back to first event with image
+                event = next((e for e in events_list if e.image), events_list[0])
+                event_image_path = event.image.path if event.image else None
+                is_combined = False
+        else:
+            # Single event
+            event = events_list[0]
+            event_image_path = event.image.path if event.image else None
+            is_combined = False
 
         # Add image first (as background)
-        if event.image:
+        if event_image_path:
             try:
-                img_path = event.image.path
+                img_path = event_image_path
                 if os.path.exists(img_path):
                     # Process image for PDF
                     with Image.open(img_path) as img:
@@ -290,6 +329,10 @@ class CalendarPDFGenerator:
                         if not hasattr(self, '_temp_files'):
                             self._temp_files = []
                         self._temp_files.append(temp_img_file.name)
+
+                        # Also store combined image temp file if it exists
+                        if is_combined and combined_img_path:
+                            self._temp_files.append(combined_img_path)
                 else:
                     # Image not found, add day number normally then placeholder
                     day_style = ParagraphStyle(
@@ -341,9 +384,15 @@ class CalendarPDFGenerator:
             cell_data.append([Paragraph(str(day), day_style)])
 
         # Add event name with wrapping and dynamic sizing
-        if event and event.event_name:
-            # Calculate optimal font size
-            optimal_font_size = self.get_optimal_font_size(event.event_name, 15)
+        if events_list:
+            # Get combined display name for multiple events
+            if len(events_list) > 1:
+                display_name = CalendarEvent.get_combined_display_name(
+                    self.calendar, events_list[0].month, day
+                )
+            else:
+                display_name = event.get_display_name()
+            optimal_font_size = self.get_optimal_font_size(display_name, 15)
 
             # Make font smaller for 6-week months
             num_weeks = getattr(self, 'current_month_weeks', 5)
@@ -365,7 +414,7 @@ class CalendarPDFGenerator:
                 wordWrap='LTR'  # Enable word wrapping
             )
             # No truncation - let it wrap
-            cell_data.append([Paragraph(event.event_name, event_style)])
+            cell_data.append([Paragraph(display_name, event_style)])
 
         # Create mini table for this cell - larger to fill space
         mini_table = CellTable(cell_data, colWidths=[1.4*inch])
@@ -382,10 +431,10 @@ class CalendarPDFGenerator:
         # Adjust row heights based on content - images with overlay take full space
         if len(cell_data) == 3:  # Day + Image placeholder/error + Text
             row_heights = [0.15*inch, (available_height - 0.6*inch), 0.45*inch]  # Day, image placeholder, text
-        elif len(cell_data) == 2 and event and event.image:  # Image with overlay + Text
+        elif len(cell_data) == 2 and event_image_path:  # Image with overlay + Text
             row_heights = [available_height - 0.45*inch, 0.45*inch]  # Image takes most space, very small text gap
         elif len(cell_data) == 2:  # Day + Text (no image) or Day + Image (no text)
-            if event and event.image:
+            if event_image_path:
                 row_heights = [available_height]  # Image with overlay takes full space
             else:
                 row_heights = [0.15*inch, available_height - 0.15*inch]  # Normal day + text layout

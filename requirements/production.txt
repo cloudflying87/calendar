@@ -1,1 +1,7 @@
 -r base.txt
+
+# System dependencies required:
+# - poppler-utils (for PDF to image conversion)
+#   Ubuntu/Debian: apt-get install poppler-utils
+#   CentOS/RHEL: yum install poppler-utils
+#   macOS: brew install poppler

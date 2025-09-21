@@ -34,7 +34,7 @@
 
 <div class="action-panel">
     <div class="action-panel__section">
-        <h3>Manage Content</h3>
+        <h3>📸 Photos & Events</h3>
         <div class="action-buttons">
             <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--primary" title="Upload and edit a single photo with custom date and event name">
                 ✏️ Upload & Edit Photo
@@ -47,6 +47,12 @@
                 📥 Download All Photos
             </a>
             {% endif %}
+        </div>
+    </div>
+
+    <div class="action-panel__section">
+        <h3>🎉 Holidays & Master Events</h3>
+        <div class="action-buttons">
             <a href="{% url 'calendars:holiday_management' calendar_id=calendar.id %}" class="btn btn--secondary">
                 🎉 Manage Holidays
             </a>
@@ -56,19 +62,33 @@
             <a href="{% url 'calendars:bulk_add_to_master_list' calendar_id=calendar.id %}" class="btn btn--secondary" title="Add calendar events to master list for reuse">
                 📋 Add to Master List
             </a>
+        </div>
+    </div>
+
+    <div class="action-panel__section">
+        <h3>🖼️ Headers & Design</h3>
+        <div class="action-buttons">
             <a href="{% url 'calendars:header_upload' year=calendar.year %}" class="btn btn--secondary">
                 📄 {% if has_header %}Update Header{% else %}Upload Header{% endif %}
+            </a>
+            <a href="{% url 'calendars:header_images' calendar_id=calendar.id %}" class="btn btn--secondary" title="Manage header images for digital calendar">
+                🖼️ Header Images
             </a>
         </div>
     </div>
 
     <div class="action-panel__section">
-        <h3>Generate Calendar</h3>
-        <form method="post" action="{% url 'calendars:generate_calendar' year=calendar.year %}" class="inline-form">
+        <h3>📱 View & Generate</h3>
+        <div class="action-buttons">
+            <a href="{% url 'calendars:digital_calendar' calendar_id=calendar.id %}" class="btn btn--primary" title="View digital calendar with headers">
+                📱 Digital Calendar
+            </a>
+        </div>
+        <form method="post" action="{% url 'calendars:generate_calendar' year=calendar.year %}" class="inline-form" style="margin-top: 1rem;">
             {% csrf_token %}
             <div class="form-group form-group--inline">
                 <select name="generation_type" class="form-select" required>
-                    <option value="">Select format...</option>
+                    <option value="">Select PDF format...</option>
                     <option value="calendar_only">Calendar Only</option>
                     {% if has_header %}
                         <option value="with_headers">With Headers</option>
@@ -81,107 +101,22 @@
     </div>
 </div>
 
-<!-- Calendar Sharing Section -->
+<!-- Quick Sharing Access -->
 {% if user_can_share %}
-<div class="sharing-panel">
-    <h3>Share Calendar</h3>
-
-    <!-- Share Form -->
-    <form method="post" action="{% url 'calendars:calendar_share' year=calendar.year %}" class="share-form">
-        {% csrf_token %}
-        <div class="form-group form-group--inline">
-            <input type="email" name="email" placeholder="Enter email address" class="form-input" required>
-            <select name="permission_level" class="form-select">
-                <option value="viewer">Viewer</option>
-                <option value="editor">Editor</option>
-            </select>
-            <button type="submit" class="btn btn--primary">Share</button>
-        </div>
-    </form>
-
-    <!-- Current Shares -->
-    {% if calendar.shares.exists %}
-    <div class="current-shares">
-        <h4>Shared With</h4>
-        <div class="shares-list">
-            {% for share in calendar.shares.all %}
-            <div class="share-item">
-                <div class="share-item__info">
-                    <strong>{{ share.shared_with.username }}</strong>
-                    <span class="share-item__email">({{ share.shared_with.email }})</span>
-                    <span class="share-item__permission">{{ share.get_permission_level_display }}</span>
-                </div>
-                <form method="post" action="{% url 'calendars:calendar_unshare' year=calendar.year %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="share_id" value="{{ share.id }}">
-                    <button type="submit" class="btn btn--small btn--danger" title="Remove access"
-                            onclick="return confirm('Remove {{ share.shared_with.username }} from this calendar?')">
-                        Remove
-                    </button>
-                </form>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Pending Invitations -->
-    {% if calendar.invitations.exists %}
-    <div class="pending-invitations">
-        <h4>Pending Invitations</h4>
-        <div class="invitations-list">
-            {% for invitation in calendar.invitations.all %}
-            {% if not invitation.accepted and not invitation.is_expired %}
-            <div class="invitation-item">
-                <div class="invitation-item__info">
-                    <strong>{{ invitation.email }}</strong>
-                    <span class="invitation-item__permission">{{ invitation.get_permission_level_display }}</span>
-                    <span class="invitation-item__date">Sent {{ invitation.created_at|date:"M j" }}</span>
-                </div>
-                <span class="status status--warning">Pending</span>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Public Sharing Panel -->
-    <div class="sharing-panel">
-        <h4>🌐 Public Sharing</h4>
+<div class="sharing-access-panel">
+    <div class="sharing-access__content">
+        <h3>📤 Share Your Calendar</h3>
+        <p>Share your calendar with others or make it publicly viewable</p>
         {% if calendar.is_publicly_shared %}
-            <div class="public-share-active">
-                <div class="share-status">
-                    <span class="status status--success">✅ Publicly Shared</span>
-                    <p>Anyone with the link can view this calendar</p>
-                </div>
-                <div class="public-share-url">
-                    <label for="public-url">Public URL:</label>
-                    <div class="url-copy-container">
-                        <input type="text" id="public-url" readonly value="{{ public_share_url }}" class="url-input">
-                        <button onclick="copyPublicUrl()" class="btn btn--small btn--outline">Copy</button>
-                    </div>
-                </div>
-                <div class="public-share-actions">
-                    <form method="post" action="{% url 'calendars:disable_public_share' calendar_id=calendar.id %}" style="display: inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn--small btn--danger" onclick="return confirm('Disable public sharing? The current link will stop working.')">
-                            Disable Public Sharing
-                        </button>
-                    </form>
-                </div>
-            </div>
-        {% else %}
-            <div class="public-share-inactive">
-                <p>Make your calendar publicly viewable by anyone with the link</p>
-                <form method="post" action="{% url 'calendars:enable_public_share' calendar_id=calendar.id %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn--primary">
-                        🌐 Enable Public Sharing
-                    </button>
-                </form>
+            <div class="sharing-status">
+                <span class="status status--success">✅ Public sharing enabled</span>
             </div>
         {% endif %}
+    </div>
+    <div class="sharing-access__actions">
+        <a href="{% url 'calendars:calendar_sharing' calendar_id=calendar.id %}" class="btn btn--primary">
+            🌐 Manage Sharing
+        </a>
     </div>
 </div>
 {% endif %}
@@ -197,8 +132,10 @@
                         <span class="download-item__date">{{ generated.created_at|date:"M j, Y g:i A" }}</span>
                     </div>
                     <div class="download-item__actions">
+                        <a href="{% url 'calendars:view_pdf' calendar_id=calendar.id generation_type=generated.generation_type %}"
+                           class="btn btn--small btn--primary">👁️ View PDF</a>
                         <a href="{% url 'calendars:download_calendar' year=calendar.year generation_type=generated.generation_type %}"
-                           class="btn btn--small btn--outline">Download PDF</a>
+                           class="btn btn--small btn--outline">📄 Download</a>
                         <form method="post" action="{% url 'calendars:delete_generated_pdf' pdf_id=generated.id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this generated PDF?');">
                             {% csrf_token %}
                             <button type="submit" class="btn btn--small btn--danger" title="Delete PDF">
@@ -209,16 +146,6 @@
                 </div>
             {% endfor %}
         </div>
-    </div>
-{% endif %}
-
-<!-- Social Sharing Section -->
-{% if calendar.is_publicly_shared %}
-    {% include 'components/social_share.html' with page_title=calendar.year|stringformat:"s Calendar" share_url=public_share_url %}
-{% else %}
-    <div class="social-share-disabled">
-        <h4>📤 Share Your Calendar</h4>
-        <p>Enable public sharing above to get social media sharing buttons and allow others to view your calendar.</p>
     </div>
 {% endif %}
 
@@ -318,6 +245,55 @@
 
 .bulk-mode .normal-mode-only {
     display: none;
+}
+
+/* Sharing Access Panel */
+.sharing-access-panel {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.sharing-access__content h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+}
+
+.sharing-access__content p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.sharing-status {
+    margin-top: 0.75rem;
+}
+
+.status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status--success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+@media (max-width: 768px) {
+    .sharing-access-panel {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
 }
 </style>
 

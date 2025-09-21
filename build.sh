@@ -22,9 +22,11 @@ CLOUDFLARED_CONTAINER="${PROJECT_NAME}-cloudflared-1"  # Optional
 BACKUP_all=false
 BACKUP_data=false
 BACKUP_local=false
+BACKUP_FILES=false
 REBUILD=false
 SOFT_REBUILD=false
 RESTORE=false
+RESTORE_FILES=false
 ALL=false
 MIGRATE=false
 DOWNLOAD=false
@@ -52,20 +54,24 @@ show_help() {
     echo "  -h, --help        Show this help message"
     echo "  -d, --date DATE   Date for database filenames (required for backup/restore operations)"
     echo "  -b, --backup      Backup database (all 3 formats: data, full, clean)"
+    echo "  -B, --backup-all  Backup database AND media files"
     echo "  -l, --local       Local backup (all formats without Docker)"
     echo "  -r, --rebuild     Full rebuild (stop, remove, prune, migrate & restore)"
     echo "  -s, --soft        Soft rebuild (preserves database, git pull & migrate only)"
     echo "  -o, --restore     Restore database from backup"
+    echo "  -O, --restore-all Restore database AND media files from backup"
     echo "  -m, --migrate     Run Django migrations"
     echo "  -w, --download    Download backup from remote server"
     echo "  -f, --fixmigration Enable migration fixes for restore (use with -o or -r)"
     echo ""
     echo -e "${GREEN}Examples:${NC}"
-    echo "  $0 -b -d 2024-01-15       # Backup with date 2024-01-15"
+    echo "  $0 -b -d 2024-01-15       # Backup database only"
+    echo "  $0 -B -d 2024-01-15       # Backup database AND media files"
     echo "  $0 -l -d 2024-01-15       # Local backup with date 2024-01-15"
     echo "  $0 -r -d 2024-01-15       # Full rebuild with restore"
     echo "  $0 -s                     # Soft rebuild (no date needed)"
     echo "  $0 -w -d 2024-01-15       # Download backup from remote"
+    echo "  $0 -O -d 2024-01-15       # Restore database AND media files"
     echo "  $0 -r -d 2024-01-15 -f    # Full rebuild with migration fixes"
     echo ""
     echo -e "${YELLOW}Project Configuration:${NC}"
@@ -177,6 +183,104 @@ backup_database() {
     fi
 }
 
+# Function to backup media files
+backup_media_files() {
+    local backup_date=$1
+    local is_local=$2
+
+    echo -e "${BLUE}Backing up media files: $backup_date${NC}"
+
+    ensure_backup_dir
+
+    if [ "$is_local" = true ]; then
+        # Local backup - directly tar the persistent_media directory
+        if [ -d "./persistent_media" ]; then
+            echo -e "${YELLOW}Creating local media backup...${NC}"
+            tar -czf ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz -C . persistent_media
+            echo -e "${GREEN}✓ Local media backup completed${NC}"
+
+            # List backup size
+            ls -lh ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz
+
+            # Copy to remote if configured
+            if [ -n "$REMOTE_SERVER" ] && [ "$REMOTE_SERVER" != "your-user@your-server-ip" ]; then
+                echo -e "${YELLOW}Copying media backup to remote server...${NC}"
+                scp ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz $REMOTE_SERVER:$REMOTE_BACKUP_DIR/
+            fi
+        else
+            echo -e "${YELLOW}⚠ Warning: No persistent_media directory found for local backup${NC}"
+        fi
+    else
+        # Docker backup - copy from container volume to host
+        echo -e "${YELLOW}Creating Docker media backup...${NC}"
+
+        # Check if web container is running
+        if sudo docker ps --format "table {{.Names}}" | grep -q "$WEB_CONTAINER"; then
+            # Create tar inside container and copy out
+            sudo docker exec $WEB_CONTAINER tar -czf /tmp/${PROJECT_NAME}_media_${backup_date}.tar.gz -C /app persistent_media
+            sudo docker cp $WEB_CONTAINER:/tmp/${PROJECT_NAME}_media_${backup_date}.tar.gz ./backups/
+            sudo docker exec $WEB_CONTAINER rm /tmp/${PROJECT_NAME}_media_${backup_date}.tar.gz
+
+            echo -e "${GREEN}✓ Docker media backup completed${NC}"
+
+            # List backup size
+            ls -lh ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz
+
+            # Copy to remote if configured
+            if [ -n "$REMOTE_SERVER" ] && [ "$REMOTE_SERVER" != "your-user@your-server-ip" ]; then
+                echo -e "${YELLOW}Copying media backup to remote server...${NC}"
+                scp ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz $REMOTE_SERVER:$REMOTE_BACKUP_DIR/
+            fi
+        else
+            echo -e "${RED}✗ ERROR: Web container is not running. Cannot backup media files.${NC}"
+            return 1
+        fi
+    fi
+}
+
+# Function to restore media files
+restore_media_files() {
+    local backup_date=$1
+
+    echo -e "${BLUE}Restoring media files from backup: $backup_date${NC}"
+
+    # Check if backup file exists
+    if [ ! -f "./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz" ]; then
+        echo -e "${RED}✗ ERROR: No media backup file found for date: ${backup_date}${NC}"
+        echo -e "${RED}Looked for: ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz${NC}"
+        return 1
+    fi
+
+    # Check if web container is running
+    if ! sudo docker ps --format "table {{.Names}}" | grep -q "$WEB_CONTAINER"; then
+        echo -e "${RED}✗ ERROR: Web container is not running. Cannot restore media files.${NC}"
+        return 1
+    fi
+
+    # Backup current media files before restoring (safety measure)
+    echo -e "${YELLOW}Creating safety backup of current media files...${NC}"
+    current_date=$(date +%Y%m%d_%H%M%S)
+    sudo docker exec $WEB_CONTAINER tar -czf /tmp/${PROJECT_NAME}_media_safety_${current_date}.tar.gz -C /app persistent_media 2>/dev/null || true
+    sudo docker cp $WEB_CONTAINER:/tmp/${PROJECT_NAME}_media_safety_${current_date}.tar.gz ./backups/ 2>/dev/null || true
+    sudo docker exec $WEB_CONTAINER rm -f /tmp/${PROJECT_NAME}_media_safety_${current_date}.tar.gz 2>/dev/null || true
+
+    # Copy backup file to container
+    sudo docker cp ./backups/${PROJECT_NAME}_media_${backup_date}.tar.gz $WEB_CONTAINER:/tmp/
+
+    # Extract the backup in container
+    echo -e "${YELLOW}Extracting media files...${NC}"
+    sudo docker exec $WEB_CONTAINER bash -c "cd /app && tar -xzf /tmp/${PROJECT_NAME}_media_${backup_date}.tar.gz"
+
+    # Fix permissions
+    echo -e "${YELLOW}Fixing media file permissions...${NC}"
+    sudo docker exec $WEB_CONTAINER chown -R app:app /app/persistent_media
+
+    # Clean up temp file
+    sudo docker exec $WEB_CONTAINER rm /tmp/${PROJECT_NAME}_media_${backup_date}.tar.gz
+
+    echo -e "${GREEN}✓ Media files restored successfully${NC}"
+}
+
 # Function to download backup from remote
 download_backup() {
     local backup_date=$1
@@ -189,7 +293,7 @@ download_backup() {
     echo -e "${BLUE}Downloading backup from remote server: $backup_date${NC}"
     ensure_backup_dir
     
-    # Download all backup formats
+    # Download all database backup formats
     for suffix in "_data.sql" ".sql" "_clean.sql"; do
         local filename="${PROJECT_NAME}_backup_${backup_date}${suffix}"
         if scp $REMOTE_SERVER:$REMOTE_BACKUP_DIR/$filename ./backups/ 2>/dev/null; then
@@ -198,9 +302,17 @@ download_backup() {
             echo -e "${YELLOW}⚠ Warning: Could not download $filename${NC}"
         fi
     done
-    
+
+    # Download media backup if it exists
+    local media_filename="${PROJECT_NAME}_media_${backup_date}.tar.gz"
+    if scp $REMOTE_SERVER:$REMOTE_BACKUP_DIR/$media_filename ./backups/ 2>/dev/null; then
+        echo -e "${GREEN}✓ Downloaded media backup: $media_filename${NC}"
+    else
+        echo -e "${YELLOW}⚠ Warning: No media backup found for date: $backup_date${NC}"
+    fi
+
     # List downloaded files
-    ls -la ./backups/${PROJECT_NAME}_backup_${backup_date}* 2>/dev/null || echo -e "${RED}✗ No backup files found for date: $backup_date${NC}"
+    ls -la ./backups/*${backup_date}* 2>/dev/null || echo -e "${RED}✗ No backup files found for date: $backup_date${NC}"
 }
 
 # Function to apply migration-specific fixes for restore compatibility
@@ -402,6 +514,11 @@ while [[ $# -gt 0 ]]; do
             BACKUP_all=true
             shift
             ;;
+        -B|--backup-all)
+            BACKUP_all=true
+            BACKUP_FILES=true
+            shift
+            ;;
         -l|--local)
             BACKUP_local=true
             shift
@@ -416,6 +533,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -o|--restore)
             RESTORE=true
+            shift
+            ;;
+        -O|--restore-all)
+            RESTORE=true
+            RESTORE_FILES=true
             shift
             ;;
         -m|--migrate)
@@ -454,11 +576,13 @@ fi
 echo -e "${BLUE}=== ${PROJECT_NAME} Build Script ===${NC}"
 echo -e "${YELLOW}Running build with the following options:${NC}"
 echo "Date: $USER_DATE"
-echo "Backup: $BACKUP_all"
+echo "Backup Database: $BACKUP_all"
+echo "Backup Files: $BACKUP_FILES"
 echo "Local Backup: $BACKUP_local"
 echo "Rebuild: $REBUILD"
 echo "Soft Rebuild: $SOFT_REBUILD"
-echo "Restore: $RESTORE"
+echo "Restore Database: $RESTORE"
+echo "Restore Files: $RESTORE_FILES"
 echo "Migrate: $MIGRATE"
 echo "Download: $DOWNLOAD"
 echo "Migration Fix: $MIGRATION_FIX"
@@ -474,10 +598,16 @@ fi
 # Backup operations
 if [ "$BACKUP_all" = true ]; then
     backup_database $USER_DATE false
+    if [ "$BACKUP_FILES" = true ]; then
+        backup_media_files $USER_DATE false
+    fi
 fi
 
 if [ "$BACKUP_local" = true ]; then
     backup_database $USER_DATE true
+    if [ "$BACKUP_FILES" = true ]; then
+        backup_media_files $USER_DATE true
+    fi
 fi
 
 # Soft rebuild
@@ -501,7 +631,7 @@ if [ "$SOFT_REBUILD" = true ]; then
     echo -e "${GREEN}✓ Image cleanup completed${NC}"
     
     echo -e "${YELLOW}Rebuilding images with --no-cache (this may take several minutes)...${NC}"
-    DOCKER_BUILDKIT=1 sudo docker compose build --no-cache --progress=plain
+    DOCKER_BUILDKIT=1 BUILDKIT_PROVENANCE_MODE=disabled sudo -E docker compose build --no-cache --progress=plain
     echo -e "${GREEN}✓ Images rebuilt successfully${NC}"
     
     # Start containers
@@ -535,7 +665,7 @@ if [ "$REBUILD" = true ]; then
     echo -e "${GREEN}✓ Image cleanup completed${NC}"
     
     echo -e "${YELLOW}Rebuilding images with --no-cache (this may take several minutes)...${NC}"
-    DOCKER_BUILDKIT=1 sudo docker compose build --no-cache --progress=plain
+    DOCKER_BUILDKIT=1 BUILDKIT_PROVENANCE_MODE=disabled sudo -E docker compose build --no-cache --progress=plain
     echo -e "${GREEN}✓ Images rebuilt successfully${NC}"
     
     # Start containers
@@ -551,6 +681,10 @@ if [ "$REBUILD" = true ]; then
         echo -e "${GREEN}Full backup found - restoring database first, then running migrations${NC}"
         if restore_database $USER_DATE; then
             run_migrations
+            # Restore media files if requested
+            if [ "$RESTORE_FILES" = true ]; then
+                restore_media_files $USER_DATE
+            fi
             echo -e "${GREEN}🎉 Full rebuild completed successfully!${NC}"
         else
             echo -e "${RED}✗ Full rebuild FAILED - database restore failed${NC}"
@@ -560,6 +694,10 @@ if [ "$REBUILD" = true ]; then
         echo -e "${YELLOW}No full backup found - running migrations first, then restoring data${NC}"
         run_migrations
         if restore_database $USER_DATE; then
+            # Restore media files if requested
+            if [ "$RESTORE_FILES" = true ]; then
+                restore_media_files $USER_DATE
+            fi
             echo -e "${GREEN}🎉 Full rebuild completed successfully!${NC}"
         else
             echo -e "${RED}✗ Full rebuild FAILED - database restore failed${NC}"
@@ -570,7 +708,27 @@ fi
 
 # Standalone restore
 if [ "$RESTORE" = true ] && [ "$REBUILD" = false ]; then
+    restore_success=true
+
+    # Restore database
     if restore_database $USER_DATE; then
+        echo -e "${GREEN}✓ Database restore completed${NC}"
+    else
+        echo -e "${RED}✗ Database restore FAILED${NC}"
+        restore_success=false
+    fi
+
+    # Restore media files if requested
+    if [ "$RESTORE_FILES" = true ]; then
+        if restore_media_files $USER_DATE; then
+            echo -e "${GREEN}✓ Media files restore completed${NC}"
+        else
+            echo -e "${RED}✗ Media files restore FAILED${NC}"
+            restore_success=false
+        fi
+    fi
+
+    if [ "$restore_success" = true ]; then
         echo -e "${GREEN}🎉 Standalone restore completed successfully!${NC}"
     else
         echo -e "${RED}✗ Standalone restore FAILED${NC}"

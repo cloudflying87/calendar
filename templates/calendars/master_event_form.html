@@ -95,20 +95,40 @@
         </div>
 
         <div class="form-group">
-            <label for="{{ form.image.id_for_label }}">Default Image (Optional)</label>
-            {% if form.instance.image %}
-                <div class="form-image-preview" style="margin-bottom: 1rem;">
-                    <img src="{{ form.instance.image.url }}" alt="Current image" style="max-width: 200px; border-radius: 8px; border: 2px solid #e5e7eb;">
-                    <p class="form-help">Current image - select a new one to replace it</p>
-                </div>
-            {% endif %}
-            {{ form.image }}
-            {% if form.image.help_text %}
-                <small class="form-help">This image will be used as the default for all calendar events created from this master event</small>
-            {% endif %}
-            {% if form.image.errors %}
-                <div class="form-errors">{{ form.image.errors }}</div>
-            {% endif %}
+            <label for="master-event-image">Default Image (Optional)</label>
+            <div class="master-event-photo-section">
+                {% if form.instance.image %}
+                    <div class="current-photo">
+                        <img src="{{ form.instance.image.url }}" alt="{{ form.instance.name }}" class="master-event-photo">
+                        <div class="photo-actions">
+                            <a href="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" class="btn btn--secondary btn--small">
+                                ✏️ Change Photo
+                            </a>
+                            <form method="post" action="{% url 'calendars:master_event_remove_image' pk=form.instance.pk %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn--outline btn--small">
+                                    ❌ Remove Photo
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="no-photo">
+                        <div class="no-photo-placeholder">
+                            <span class="no-photo-icon">📷</span>
+                            <span class="no-photo-text">No photo</span>
+                        </div>
+                        {% if form.instance.pk %}
+                            <a href="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" class="btn btn--primary btn--small">
+                                ✏️ Add Photo
+                            </a>
+                        {% else %}
+                            <p class="form-help">Save the event first to add a photo</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            <small class="form-help">This image will be used as the default for all calendar events created from this master event</small>
         </div>
 
         <div class="form-actions">

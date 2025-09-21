@@ -1,0 +1,295 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Duplicate Events - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Manage Duplicate Events</h1>
+        <p class="page-subtitle">Review and manage events that occur on the same date</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:settings' %}" class="btn btn--outline">Back to Settings</a>
+    </div>
+</div>
+
+<div class="content-container">
+    {% if duplicate_groups %}
+        <div class="duplicates-list">
+            {% for group in duplicate_groups %}
+                <div class="duplicate-card">
+                    <div class="duplicate-card__header">
+                        <div class="duplicate-card__info">
+                            <h3 class="duplicate-card__date">
+                                📅 {{ group.date }}
+                                <span class="duplicate-card__calendar">{{ group.calendar.year }} {{ group.calendar.name|default:"Calendar" }}</span>
+                            </h3>
+                            <div class="duplicate-card__status">
+                                {% if group.is_combined %}
+                                    <span class="status-badge status-badge--combined">✅ Combined</span>
+                                {% else %}
+                                    <span class="status-badge status-badge--separate">⚠️ Separate Events</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if group.image %}
+                            <div class="duplicate-card__image">
+                                <img src="{{ group.image.url }}" alt="Event image" class="duplicate-card__photo">
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="duplicate-card__events">
+                        <h4>Events on this date:</h4>
+                        <ul class="events-list">
+                            {% for event_name in group.events %}
+                                <li class="events-list__item">{{ event_name }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="duplicate-card__actions">
+                        {% if group.is_combined %}
+                            <!-- Combined events - offer to separate -->
+                            <form method="post" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="separate">
+                                <input type="hidden" name="calendar_id" value="{{ group.calendar.id }}">
+                                <input type="hidden" name="month" value="{{ group.month }}">
+                                <input type="hidden" name="day" value="{{ group.day }}">
+                                <button type="submit" class="btn btn--secondary btn--small">
+                                    🔄 Separate Events
+                                </button>
+                            </form>
+                        {% else %}
+                            <!-- Separate events - offer to combine -->
+                            <form method="post" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="combine">
+                                <input type="hidden" name="calendar_id" value="{{ group.calendar.id }}">
+                                <input type="hidden" name="month" value="{{ group.month }}">
+                                <input type="hidden" name="day" value="{{ group.day }}">
+                                <button type="submit" class="btn btn--primary btn--small">
+                                    🔗 Combine Events
+                                </button>
+                            </form>
+
+                            <!-- Individual delete buttons for each event -->
+                            {% if group.all_events %}
+                                <div class="individual-actions">
+                                    <span class="individual-actions__label">Or delete individual events:</span>
+                                    {% for event in group.all_events %}
+                                        <form method="post" class="inline-form" onsubmit="return confirm('Delete event: {{ event.event_name }}?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete_duplicate">
+                                            <input type="hidden" name="event_id" value="{{ event.id }}">
+                                            <button type="submit" class="btn btn--outline btn--small btn--danger">
+                                                ❌ Delete "{{ event.event_name }}"
+                                            </button>
+                                        </form>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state__icon">🎉</div>
+            <h2 class="empty-state__title">No Duplicate Events Found</h2>
+            <p class="empty-state__message">
+                All your events are properly organized! You currently have no duplicate events on the same dates.
+            </p>
+            <a href="{% url 'calendars:calendar_list' %}" class="btn btn--primary">
+                📅 View Calendars
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.duplicates-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.duplicate-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    border: 2px solid var(--color-border);
+}
+
+.duplicate-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.duplicate-card__info {
+    flex: 1;
+}
+
+.duplicate-card__date {
+    font-size: 1.25rem;
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+}
+
+.duplicate-card__calendar {
+    font-size: 0.875rem;
+    font-weight: normal;
+    color: var(--color-text-secondary);
+    background: var(--color-background-light);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
+}
+
+.duplicate-card__status {
+    margin-bottom: 0.5rem;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status-badge--combined {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge--separate {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.duplicate-card__image {
+    width: 80px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.duplicate-card__photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.duplicate-card__events {
+    margin-bottom: 1.5rem;
+}
+
+.duplicate-card__events h4 {
+    font-size: 1rem;
+    margin: 0 0 0.75rem 0;
+    color: var(--color-text-primary);
+}
+
+.events-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.events-list__item {
+    background: var(--color-background-light);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border-left: 4px solid var(--color-primary);
+    font-weight: 500;
+}
+
+.duplicate-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.individual-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.individual-actions__label {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.inline-form {
+    display: inline-block;
+}
+
+.btn--danger {
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+.btn--danger:hover {
+    background: #dc2626;
+    color: white;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.empty-state__icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.empty-state__title {
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+}
+
+.empty-state__message {
+    color: var(--color-text-secondary);
+    margin: 0 0 2rem 0;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .duplicate-card__header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .duplicate-card__image {
+        align-self: flex-start;
+    }
+
+    .duplicate-card__actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .individual-actions {
+        gap: 0.25rem;
+    }
+}
+</style>
+{% endblock %}

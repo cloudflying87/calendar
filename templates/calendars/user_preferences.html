@@ -88,6 +88,43 @@
                     When unchecked: "John's Birthday", "Wedding Anniversary"
                 </small>
             </div>
+
+            <div class="form-group">
+                <label>When multiple events have images on the same day:</label>
+                <div class="radio-list">
+                    <label class="radio-label">
+                        <input type="radio" name="image_combination_layout" value="auto"
+                               {% if preferences.image_combination_layout == 'auto' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Automatic</strong> - System chooses best layout (recommended)
+                        </span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="image_combination_layout" value="side_by_side"
+                               {% if preferences.image_combination_layout == 'side_by_side' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Side by side</strong> - Images placed horizontally
+                        </span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="image_combination_layout" value="top_bottom"
+                               {% if preferences.image_combination_layout == 'top_bottom' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Top/Bottom</strong> - Images stacked vertically
+                        </span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="image_combination_layout" value="grid"
+                               {% if preferences.image_combination_layout == 'grid' %}checked{% endif %}>
+                        <span class="radio-text">
+                            <strong>Grid</strong> - Always use 2x2 grid layout
+                        </span>
+                    </label>
+                </div>
+                <small class="form-help">
+                    Controls how images are combined in PDF calendars when multiple events occur on the same day.
+                </small>
+            </div>
         </div>
 
         <div class="form-actions">

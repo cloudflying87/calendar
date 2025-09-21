@@ -69,6 +69,11 @@
                         <span class="event-card__date">{{ event.month }}/{{ event.day }}</span>
                         {% if event.year_occurred %}
                             <span class="event-card__year">Year: {{ event.year_occurred }}</span>
+                            {% load calendar_extras %}
+                            {% calculate_current_age event.year_occurred event.event_type as current_age %}
+                            {% if current_age %}
+                                <span class="event-card__current-age">Current: {{ current_age }}</span>
+                            {% endif %}
                         {% endif %}
                     </div>
                     {% if event.groups %}
@@ -216,9 +221,18 @@
 }
 
 .event-card__date,
-.event-card__year {
+.event-card__year,
+.event-card__current-age {
     color: #6b7280;
     font-size: 0.875rem;
+}
+
+.event-card__current-age {
+    background: #f0f9ff;
+    color: #0369a1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 500;
 }
 
 .event-card__groups {

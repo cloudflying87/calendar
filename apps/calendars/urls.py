@@ -16,9 +16,11 @@ urlpatterns = [
     path('<int:year>/process-crop/', views.ProcessCropView.as_view(), name='process_crop'),
     path('<int:year>/process-multi-crop/', views.ProcessMultiCropView.as_view(), name='process_multi_crop'),
     path('<int:year>/header/', views.HeaderUploadView.as_view(), name='header_upload'),
+    path('id/<int:calendar_id>/header-images/', views.CalendarHeaderImagesView.as_view(), name='header_images'),
     path('id/<int:calendar_id>/holidays/', views.HolidayManagementView.as_view(), name='holiday_management'),
     path('<int:year>/generate/', views.GenerateCalendarView.as_view(), name='generate_calendar'),
     path('<int:year>/download/<str:generation_type>/', views.DownloadCalendarView.as_view(), name='download_calendar'),
+    path('id/<int:calendar_id>/view-pdf/<str:generation_type>/', views.CalendarPDFViewerView.as_view(), name='view_pdf'),
     path('<int:year>/download-photos/', views.DownloadAllPhotosView.as_view(), name='download_all_photos'),
     path('id/<int:calendar_id>/delete/', views.DeleteCalendarView.as_view(), name='delete_calendar'),
     path('<int:year>/<str:calendar_name>/', views.CalendarDetailView.as_view(), name='calendar_detail_named'),
@@ -34,6 +36,7 @@ urlpatterns = [
     path('temp-image/<str:token>/', views.TempImageView.as_view(), name='temp_image'),
 
     # Calendar sharing URLs
+    path('id/<int:calendar_id>/sharing/', views.CalendarSharingView.as_view(), name='calendar_sharing'),
     path('<int:year>/share/', views.CalendarShareView.as_view(), name='calendar_share'),
     path('<int:year>/unshare/', views.CalendarUnshareView.as_view(), name='calendar_unshare'),
     path('accept/<str:token>/', views.AcceptInvitationView.as_view(), name='accept_invitation'),
@@ -41,6 +44,9 @@ urlpatterns = [
 
     # Public Calendar View (no login required)
     path('public/<str:token>/', views.PublicCalendarView.as_view(), name='public_calendar'),
+
+    # Digital Calendar View
+    path('id/<int:calendar_id>/digital/', views.DigitalCalendarView.as_view(), name='digital_calendar'),
 
     # Public sharing management
     path('id/<int:calendar_id>/enable-public-share/', views.EnablePublicShareView.as_view(), name='enable_public_share'),
@@ -52,6 +58,7 @@ urlpatterns = [
     path('master-events/<int:pk>/edit/', views_events.MasterEventUpdateView.as_view(), name='master_event_edit'),
     path('master-events/<int:pk>/delete/', views_events.MasterEventDeleteView.as_view(), name='master_event_delete'),
     path('master-events/<int:pk>/upload-image/', views_events.MasterEventImageUploadView.as_view(), name='master_event_upload_image'),
+    path('master-events/<int:pk>/remove-image/', views_events.MasterEventRemoveImageView.as_view(), name='master_event_remove_image'),
     path('master-events/<int:pk>/crop-photo/', views.MasterEventPhotoCropView.as_view(), name='master_event_crop_photo'),
     path('master-events/<int:pk>/process-crop/', views.MasterEventProcessCropView.as_view(), name='master_event_process_crop'),
     path('master-events/export/', views_events.ExportMasterEventsView.as_view(), name='export_master_events'),
@@ -66,6 +73,9 @@ urlpatterns = [
 
     # Settings page (central hub)
     path('settings/', views_events.SettingsView.as_view(), name='settings'),
+
+    # Duplicate Events Management
+    path('manage-duplicates/', views_events.ManageDuplicateEventsView.as_view(), name='manage_duplicates'),
 
     # User Preferences
     path('preferences/', views_events.user_preferences_view, name='user_preferences'),

@@ -205,14 +205,16 @@ class UploadProgressHandler {
                             window.location.href = xhr.responseURL;
                         } else {
                             // No redirect detected, try form action or reload current page
-                            window.location.href = form.action || window.location.href;
+                            const formAction = form.getAttribute('action') || window.location.href;
+                            window.location.href = formAction;
                         }
                     } catch (e) {
                         // Fallback: try responseURL first, then form action
                         if (xhr.responseURL && xhr.responseURL !== window.location.href) {
                             window.location.href = xhr.responseURL;
                         } else {
-                            window.location.href = form.action || window.location.href;
+                            const formAction = form.getAttribute('action') || window.location.href;
+                            window.location.href = formAction;
                         }
                     }
                 }, 1000);
@@ -230,8 +232,9 @@ class UploadProgressHandler {
             this.hideProgressModal();
         });
 
-        // Send request
-        xhr.open('POST', form.action || window.location.href);
+        // Send request - use getAttribute to avoid conflict with form elements named "action"
+        const formAction = form.getAttribute('action') || window.location.href;
+        xhr.open('POST', formAction);
         xhr.send(formData);
     }
 

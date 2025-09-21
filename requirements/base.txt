@@ -9,3 +9,4 @@ reportlab>=3.6.12
 pypdf>=4.0.0
 django-redis>=5.4.0
 gevent>=23.0.0
+pdf2image>=1.16.0

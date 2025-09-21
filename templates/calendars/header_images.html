@@ -1,0 +1,465 @@
+{% extends 'base.html' %}
+
+{% block title %}Header Images - {{ calendar.year }} Calendar - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Header Images</h1>
+        <p class="page-subtitle">{{ calendar.year }} {{ calendar.name|default:"Calendar" }} • {{ total_headers }}/{{ max_headers }} images</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:calendar_detail_by_id' calendar_id=calendar.id %}" class="btn btn--outline">Back to Calendar</a>
+        <a href="{% url 'calendars:header_upload' year=calendar.year %}" class="btn btn--secondary">Upload PDF Headers</a>
+    </div>
+</div>
+
+<div class="content-container">
+    <div class="header-info-panel">
+        <div class="info-content">
+            <h3>📸 Digital Calendar Headers</h3>
+            <p>Upload beautiful header images for your digital calendar. Each month can have its own unique header image that will appear above the calendar grid.</p>
+            <div class="features-list">
+                <div class="feature-item">✨ <strong>Cover Page:</strong> Create a beautiful title page for your calendar</div>
+                <div class="feature-item">🗓️ <strong>Monthly Headers:</strong> Unique image for each month</div>
+                <div class="feature-item">📱 <strong>Responsive:</strong> Optimized for all devices</div>
+                <div class="feature-item">🌐 <strong>Digital Sharing:</strong> Perfect for online viewing</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pdf-upload-panel">
+        <h3>📄 Convert PDF to Headers</h3>
+        <p>Upload a PDF file to automatically convert each page into header images. First page becomes the cover, remaining pages become monthly headers.</p>
+        <form method="post" enctype="multipart/form-data" class="pdf-upload-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_pdf">
+            <div class="pdf-upload-area">
+                <div class="form-group">
+                    <label for="pdf-file" class="form-label">Select PDF File</label>
+                    <input type="file" name="pdf_file" id="pdf-file" class="form-input" accept=".pdf" required>
+                </div>
+                <button type="submit" class="btn btn--primary">
+                    🔄 Convert PDF to Headers
+                </button>
+            </div>
+            <div class="pdf-upload-note">
+                <strong>Note:</strong> This will replace existing header images. Maximum 14 pages (1 cover + 12 months + 1 back cover).
+            </div>
+        </form>
+    </div>
+
+    <div class="headers-grid">
+        {% for month_data in months_data %}
+            <div class="header-card {% if month_data.has_image %}header-card--has-image{% endif %}">
+                <div class="header-card__header">
+                    <h3 class="header-card__title">
+                        {% if month_data.month == 0 %}
+                            📄 {{ month_data.name }}
+                        {% else %}
+                            📅 {{ month_data.display }}
+                        {% endif %}
+                    </h3>
+                    {% if month_data.has_image %}
+                        <span class="status-badge status-badge--success">✅ Uploaded</span>
+                    {% else %}
+                        <span class="status-badge status-badge--pending">⏳ Missing</span>
+                    {% endif %}
+                </div>
+
+                {% if month_data.has_image %}
+                    <div class="header-card__preview">
+                        <img src="{{ month_data.header_image.image.url }}" alt="{{ month_data.name }} header" class="header-preview">
+                        {% if month_data.header_image.title %}
+                            <div class="header-title">{{ month_data.header_image.title }}</div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="header-card__placeholder">
+                        <div class="placeholder-icon">📷</div>
+                        <div class="placeholder-text">No header image</div>
+                    </div>
+                {% endif %}
+
+                <div class="header-card__actions">
+                    <!-- Upload/Replace Form -->
+                    <form method="post" enctype="multipart/form-data" class="upload-form" id="form-{{ month_data.month }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="upload">
+                        <input type="hidden" name="month" value="{{ month_data.month }}">
+
+                        <div class="form-group">
+                            <label for="title-{{ month_data.month }}" class="form-label">Title (Optional)</label>
+                            <input type="text" name="title" id="title-{{ month_data.month }}"
+                                   class="form-input" placeholder="Header title..."
+                                   value="{% if month_data.has_image %}{{ month_data.header_image.title }}{% endif %}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="image-{{ month_data.month }}" class="form-label">Image File</label>
+                            <input type="file" name="image" id="image-{{ month_data.month }}"
+                                   class="form-input" accept="image/*" required>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn--primary btn--small">
+                                {% if month_data.has_image %}
+                                    🔄 Replace Image
+                                {% else %}
+                                    📤 Upload Image
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Delete Form -->
+                    {% if month_data.has_image %}
+                        <form method="post" class="delete-form" onsubmit="return confirm('Remove header image for {{ month_data.name }}?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="month" value="{{ month_data.month }}">
+                            <button type="submit" class="btn btn--danger btn--small">
+                                🗑️ Remove
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if total_headers > 0 %}
+        <div class="preview-panel">
+            <h3>📱 Digital Calendar Preview</h3>
+            <p>Once you have header images, you can preview your digital calendar:</p>
+            <div class="preview-actions">
+                <a href="{% url 'calendars:digital_calendar' calendar_id=calendar.id %}" class="btn btn--primary">
+                    👁️ Preview Digital Calendar
+                </a>
+                <a href="{% url 'calendars:calendar_sharing' calendar_id=calendar.id %}" class="btn btn--secondary">
+                    🌐 Share Digital Calendar
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.content-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.header-info-panel {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+}
+
+.info-content h3 {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+}
+
+.info-content p {
+    margin: 0 0 1.5rem 0;
+    color: var(--color-text-secondary);
+}
+
+.features-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 0.75rem;
+}
+
+.feature-item {
+    background: var(--color-background-light);
+    padding: 0.75rem;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.875rem;
+}
+
+.pdf-upload-panel {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    border: 2px dashed var(--color-primary);
+}
+
+.pdf-upload-panel h3 {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+}
+
+.pdf-upload-panel p {
+    margin: 0 0 1.5rem 0;
+    color: var(--color-text-secondary);
+}
+
+.pdf-upload-area {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+
+.pdf-upload-area .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.pdf-upload-note {
+    background: var(--color-background-light);
+    padding: 0.75rem;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.headers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.header-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.header-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.header-card--has-image {
+    border: 2px solid var(--color-success);
+}
+
+.header-card__header {
+    padding: 1rem 1.5rem;
+    background: var(--color-background-light);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-card__title {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--color-text-primary);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge--success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge--pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.header-card__preview {
+    position: relative;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+}
+
+.header-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.header-title {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    color: white;
+    padding: 1rem;
+    font-weight: 600;
+}
+
+.header-card__placeholder {
+    aspect-ratio: 16/9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-background-light);
+    color: var(--color-text-secondary);
+}
+
+.placeholder-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.placeholder-text {
+    font-size: 0.875rem;
+}
+
+.header-card__actions {
+    padding: 1.5rem;
+}
+
+.upload-form {
+    margin-bottom: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.875rem;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.delete-form {
+    display: inline-block;
+}
+
+.preview-panel {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    text-align: center;
+}
+
+.preview-panel h3 {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+}
+
+.preview-panel p {
+    margin: 0 0 1.5rem 0;
+    color: var(--color-text-secondary);
+}
+
+.preview-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .headers-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .features-list {
+        grid-template-columns: 1fr;
+    }
+
+    .preview-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .header-card__header {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-start;
+    }
+
+    .pdf-upload-area {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pdf-upload-area .form-group {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<script>
+// Add preview functionality for file inputs
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+
+    fileInputs.forEach(input => {
+        input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Handle PDF files - no preview needed
+                if (file.type === 'application/pdf') {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Find the corresponding preview container for image uploads only
+                    const form = input.closest('.upload-form');
+                    if (form) {
+                        const card = form.closest('.header-card');
+                        if (card) {
+                            const preview = card.querySelector('.header-preview');
+                            const placeholder = card.querySelector('.header-card__placeholder');
+
+                            if (preview) {
+                                preview.src = e.target.result;
+                            } else if (placeholder) {
+                                // Create preview element
+                                const previewContainer = document.createElement('div');
+                                previewContainer.className = 'header-card__preview';
+                                previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview" class="header-preview">`;
+                                placeholder.parentNode.replaceChild(previewContainer, placeholder);
+                            }
+                        }
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

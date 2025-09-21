@@ -5,10 +5,11 @@ from django.http import JsonResponse, HttpResponse, FileResponse, Http404
 from django.contrib import messages
 from django.urls import reverse_lazy, reverse
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils.decorators import method_decorator
-from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday, HolidayCalculator
+from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday, HolidayCalculator, CalendarHeaderImage
 from .forms import CalendarForm, ImageUploadForm, HeaderUploadForm, EventEditForm, HolidayManagementForm
 from .utils import CalendarPDFGenerator
 import os
@@ -21,6 +22,14 @@ import shutil
 from django.utils.text import slugify
 from datetime import datetime
 import calendar as cal
+
+
+def get_calendar_or_404(year, user):
+    """Helper function to get calendar by year and user, handling multiple objects"""
+    try:
+        return Calendar.objects.filter(year=year, user=user).latest('created_at')
+    except Calendar.DoesNotExist:
+        raise Http404("Calendar not found")
 
 
 class CalendarListView(LoginRequiredMixin, ListView):
@@ -244,7 +253,7 @@ class CalendarDetailByIdView(LoginRequiredMixin, DetailView):
 @method_decorator(login_required, name='dispatch')
 class ImageUploadView(View):
     def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
         form = ImageUploadForm()
         return render(request, 'calendars/image_upload.html', {
             'calendar': calendar,
@@ -252,13 +261,14 @@ class ImageUploadView(View):
         })
 
     def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
         form = ImageUploadForm(request.POST, request.FILES)
 
         if form.is_valid():
             uploaded_files = request.FILES.getlist('images')
             created_events = []
             errors = []
+            duplicate_dates = []
 
             # Get user preferences for master events
             from .models import UserEventPreferences, EventMaster
@@ -286,18 +296,36 @@ class ImageUploadView(View):
                         if master_event:
                             display_name = master_event.get_display_name(for_year=calendar.year, user=request.user)
 
-                        # Create or update calendar event
-                        event, created = CalendarEvent.objects.update_or_create(
-                            calendar=calendar,
-                            month=month,
-                            day=day,
-                            defaults={
-                                'event_name': display_name,
-                                'master_event': master_event,
-                                'image': uploaded_file,
-                                'original_filename': uploaded_file.name
-                            }
-                        )
+                        # Check if events already exist for this date
+                        existing_events = CalendarEvent.get_events_for_date(calendar, month, day)
+
+                        if existing_events.exists():
+                            # Create a new event (allow multiple events on same day)
+                            event = CalendarEvent.objects.create(
+                                calendar=calendar,
+                                month=month,
+                                day=day,
+                                event_name=display_name,
+                                master_event=master_event,
+                                image=uploaded_file,
+                                full_image=uploaded_file,  # For bulk uploads, the same image is used for both
+                                original_filename=uploaded_file.name
+                            )
+                            created = True
+                            duplicate_dates.append(f"{calendar.year}-{month:02d}-{day:02d}")
+                        else:
+                            # Create new event
+                            event = CalendarEvent.objects.create(
+                                calendar=calendar,
+                                month=month,
+                                day=day,
+                                event_name=display_name,
+                                master_event=master_event,
+                                image=uploaded_file,
+                                full_image=uploaded_file,  # For bulk uploads, the same image is used for both
+                                original_filename=uploaded_file.name
+                            )
+                            created = True
                         created_events.append(event)
 
                         # Handle adding to master list based on preferences
@@ -319,6 +347,9 @@ class ImageUploadView(View):
             if created_events:
                 messages.success(request, f"Successfully uploaded {len(created_events)} images.")
 
+            if duplicate_dates:
+                messages.warning(request, f"Multiple events added to these dates: {', '.join(set(duplicate_dates))}")
+
             if errors:
                 for error in errors:
                     messages.error(request, error)
@@ -334,7 +365,7 @@ class ImageUploadView(View):
 @method_decorator(login_required, name='dispatch')
 class HeaderUploadView(View):
     def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
         form = HeaderUploadForm()
         return render(request, 'calendars/header_upload.html', {
             'calendar': calendar,
@@ -342,7 +373,7 @@ class HeaderUploadView(View):
         })
 
     def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
         form = HeaderUploadForm(request.POST, request.FILES)
 
         if form.is_valid():
@@ -367,7 +398,7 @@ class HeaderUploadView(View):
 @method_decorator(login_required, name='dispatch')
 class GenerateCalendarView(View):
     def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
         generation_type = request.POST.get('generation_type', 'calendar_only')
 
         try:
@@ -535,7 +566,7 @@ class HolidayManagementView(View):
 class PhotoEditorUploadView(View):
     """New upload view specifically for the photo editor - accepts any filename"""
     def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Check if we're editing an existing event
         edit_event_data = request.session.get('edit_event_data')
@@ -547,7 +578,7 @@ class PhotoEditorUploadView(View):
         return render(request, 'calendars/photo_editor_upload.html', context)
 
     def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Get form data
         photo_mode = request.POST.get('photo_mode', 'single')
@@ -627,7 +658,7 @@ class PhotoEditorUploadView(View):
 @method_decorator(login_required, name='dispatch')
 class PhotoCropView(View):
     def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Get crop data from session
         crop_data = request.session.get('crop_data')
@@ -692,7 +723,7 @@ class PhotoCropView(View):
 @method_decorator(login_required, name='dispatch')
 class ProcessCropView(View):
     def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Get form data
         temp_image_path = request.POST.get('temp_image_path')
@@ -723,22 +754,59 @@ class ProcessCropView(View):
             image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
             temp_cropped.close()
 
-            # Create Django file from temporary file
+            # Create Django file from cropped image
             with open(temp_cropped.name, 'rb') as f:
                 from django.core.files.base import ContentFile
-                django_file = ContentFile(f.read(), name=original_filename)
+                cropped_django_file = ContentFile(f.read(), name=f"cropped_{original_filename}")
 
-            # Create or update calendar event
-            event, created = CalendarEvent.objects.update_or_create(
-                calendar=calendar,
-                month=month,
-                day=day,
-                defaults={
-                    'event_name': event_name,
-                    'image': django_file,
-                    'original_filename': original_filename
-                }
-            )
+            # Create Django file from full original image
+            full_django_file = None
+            if temp_image_path and os.path.exists(temp_image_path):
+                with open(temp_image_path, 'rb') as f:
+                    full_django_file = ContentFile(f.read(), name=f"full_{original_filename}")
+
+            # Check if events already exist for this date
+            existing_events = CalendarEvent.get_events_for_date(calendar, month, day)
+
+            if existing_events.exists():
+                # Check if we're updating an existing event (coming from edit mode)
+                edit_event_data = request.session.get('edit_event_data')
+                if edit_event_data and edit_event_data.get('event_id'):
+                    # Update the specific event
+                    event = CalendarEvent.objects.get(id=edit_event_data['event_id'])
+                    event.event_name = event_name
+                    event.image = cropped_django_file
+                    event.full_image = full_django_file
+                    event.original_filename = original_filename
+                    event.save()
+                    created = False
+                else:
+                    # Create a new event (allow multiple events on same day)
+                    event = CalendarEvent.objects.create(
+                        calendar=calendar,
+                        month=month,
+                        day=day,
+                        event_name=event_name,
+                        image=cropped_django_file,
+                        full_image=full_django_file,
+                        original_filename=original_filename
+                    )
+                    created = True
+
+                    # Notify user about multiple events
+                    messages.warning(request, f"Added '{event_name}' to {calendar.year}-{month:02d}-{day:02d}. This date now has {existing_events.count() + 1} events.")
+            else:
+                # Create new event
+                event = CalendarEvent.objects.create(
+                    calendar=calendar,
+                    month=month,
+                    day=day,
+                    event_name=event_name,
+                    image=cropped_django_file,
+                    full_image=full_django_file,
+                    original_filename=original_filename
+                )
+                created = True
 
             # Clean up temporary files
             try:
@@ -910,7 +978,7 @@ class DisablePublicShareView(View):
 @method_decorator(login_required, name='dispatch')
 class DownloadAllPhotosView(View):
     def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Get all events with images
         events_with_images = calendar.events.filter(image__isnull=False).order_by('month', 'day')
@@ -1168,7 +1236,7 @@ class RemoveEventPhotoView(View):
 class MultiPhotoCropView(View):
     """Crop multiple photos sequentially for combination"""
     def get(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Get multi-crop data from session
         multi_crop_data = request.session.get('multi_crop_data')
@@ -1218,7 +1286,7 @@ class MultiPhotoCropView(View):
 class ProcessMultiCropView(View):
     """Process cropped photos and combine them"""
     def post(self, request, year):
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         # Get multi-crop data from session
         multi_crop_data = request.session.get('multi_crop_data')
@@ -1459,7 +1527,7 @@ class CalendarShareView(LoginRequiredMixin, View):
         from datetime import timedelta
 
         # Get the calendar that belongs to the user (they can only share their own calendars)
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         email = request.POST.get('email', '').strip()
         permission_level = request.POST.get('permission_level', 'viewer')
@@ -1535,7 +1603,7 @@ class CalendarUnshareView(LoginRequiredMixin, View):
         from .models import CalendarShare
 
         # Get the calendar that belongs to the user (they can only unshare their own calendars)
-        calendar = get_object_or_404(Calendar, year=year, user=request.user)
+        calendar = get_calendar_or_404(year, request.user)
 
         share_id = request.POST.get('share_id')
         if not share_id:
@@ -1610,3 +1678,382 @@ class SharedCalendarsView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         from .models import CalendarShare
         return CalendarShare.objects.filter(shared_with=self.request.user)
+
+
+class CalendarSharingView(LoginRequiredMixin, TemplateView):
+    """Dedicated page for calendar sharing management"""
+    template_name = 'calendars/calendar_sharing.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        calendar_id = kwargs.get('calendar_id')
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=self.request.user)
+
+        # Get public share URL if enabled
+        public_share_url = None
+        if calendar.is_publicly_shared and calendar.public_share_token:
+            public_share_url = self.request.build_absolute_uri(
+                reverse('calendars:public_calendar', kwargs={'token': calendar.public_share_token})
+            )
+
+        context.update({
+            'calendar': calendar,
+            'public_share_url': public_share_url,
+            'user_can_share': True,  # Only owner can access this page
+        })
+        return context
+
+
+class CalendarPDFViewerView(LoginRequiredMixin, TemplateView):
+    """View to display generated PDF calendars in a web viewer"""
+    template_name = 'calendars/pdf_viewer.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        calendar_id = kwargs.get('calendar_id')
+        generation_type = kwargs.get('generation_type', 'calendar_only')
+
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=self.request.user)
+
+        # Get the generated PDF
+        from .models import GeneratedCalendar
+        try:
+            generated_pdf = GeneratedCalendar.objects.filter(
+                calendar=calendar,
+                generation_type=generation_type
+            ).latest('created_at')
+        except GeneratedCalendar.DoesNotExist:
+            # If PDF doesn't exist, show error in context
+            context.update({
+                'calendar': calendar,
+                'error_message': 'PDF not found. Generate a calendar first.',
+                'generation_type': generation_type,
+            })
+            return context
+
+        # Create the PDF URL for the viewer
+        pdf_url = self.request.build_absolute_uri(
+            reverse('calendars:download_calendar', kwargs={
+                'year': calendar.year,
+                'generation_type': generation_type
+            })
+        )
+
+        context.update({
+            'calendar': calendar,
+            'generated_pdf': generated_pdf,
+            'pdf_url': pdf_url,
+            'generation_type': generation_type,
+        })
+        return context
+
+
+class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
+    """View to manage header images for each month"""
+    template_name = 'calendars/header_images.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        calendar_id = kwargs.get('calendar_id')
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=self.request.user)
+
+        # Get existing header images
+        header_images = CalendarHeaderImage.objects.filter(calendar=calendar)
+        headers_dict = {img.month: img for img in header_images}
+
+        # Create list of all months (0=Cover, 1-12=Months, 13=Back Cover)
+        months_data = []
+        for month in range(0, 14):
+            if month == 0:
+                month_name = "Cover Page"
+                month_display = "Cover"
+            elif month == 13:
+                month_name = "Back Cover"
+                month_display = "Back Cover"
+            else:
+                import calendar as cal
+                month_name = cal.month_name[month]
+                month_display = month_name
+
+            months_data.append({
+                'month': month,
+                'name': month_name,
+                'display': month_display,
+                'header_image': headers_dict.get(month),
+                'has_image': month in headers_dict,
+            })
+
+        context.update({
+            'calendar': calendar,
+            'months_data': months_data,
+            'total_headers': len(header_images),
+            'max_headers': 14,  # Cover + 12 months + Back Cover
+        })
+        return context
+
+    def post(self, request, calendar_id):
+        """Handle header image uploads"""
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
+
+        action = request.POST.get('action')
+
+        if action == 'upload_pdf':
+            # PDF upload doesn't need month validation
+            pass
+        else:
+            # Individual image upload needs month validation
+            month = request.POST.get('month')
+            if not month or not month.isdigit():
+                messages.error(request, 'Invalid month specified.')
+                return redirect('calendars:header_images', calendar_id=calendar.id)
+            month = int(month)
+
+        if action == 'upload':
+            if 'image' not in request.FILES:
+                messages.error(request, 'No image file provided.')
+                return redirect('calendars:header_images', calendar_id=calendar.id)
+
+
+            # Get or create header image for this month
+            header_image, created = CalendarHeaderImage.objects.get_or_create(
+                calendar=calendar,
+                month=month,
+                defaults={
+                    'image': request.FILES['image'],
+                    'title': request.POST.get('title', ''),
+                }
+            )
+
+            if not created:
+                # Update existing
+                header_image.image = request.FILES['image']
+                header_image.title = request.POST.get('title', '')
+                header_image.save()
+
+            import calendar as cal
+            month_name = "Cover Page" if month == 0 else cal.month_name[month]
+            messages.success(request, f'Header image uploaded for {month_name}!')
+
+        elif action == 'upload_pdf':
+            if 'pdf_file' not in request.FILES:
+                messages.error(request, 'No PDF file provided.')
+                return redirect('calendars:header_images', calendar_id=calendar.id)
+
+            pdf_file = request.FILES['pdf_file']
+
+            # Validate PDF file
+            if not pdf_file.name.lower().endswith('.pdf'):
+                messages.error(request, 'Please upload a PDF file.')
+                return redirect('calendars:header_images', calendar_id=calendar.id)
+
+            try:
+                # Save the PDF to the header page as well
+                from .models import CalendarHeader
+                from django.core.files.base import ContentFile
+
+                # Read the PDF content once
+                pdf_content = pdf_file.read()
+
+                # Create a copy for the header document
+                pdf_copy = ContentFile(pdf_content, name=pdf_file.name)
+
+                header, created = CalendarHeader.objects.update_or_create(
+                    calendar=calendar,
+                    defaults={
+                        'document': pdf_copy,
+                        'january_page': 2  # Default to page 2 for January since page 1 is cover
+                    }
+                )
+
+                # Process PDF to individual header images using the raw content
+                self._process_pdf_to_headers(pdf_content, calendar, request)
+
+                if created:
+                    messages.success(request, 'PDF saved to header page and converted to individual header images successfully!')
+                else:
+                    messages.success(request, 'PDF updated on header page and converted to individual header images successfully!')
+            except Exception as e:
+                messages.error(request, f'Error processing PDF: {str(e)}')
+                return redirect('calendars:header_images', calendar_id=calendar.id)
+
+        elif action == 'delete':
+            try:
+                header_image = CalendarHeaderImage.objects.get(calendar=calendar, month=month)
+                import calendar as cal
+                month_name = "Cover Page" if month == 0 else cal.month_name[month]
+                header_image.delete()
+                messages.success(request, f'Header image removed for {month_name}.')
+            except CalendarHeaderImage.DoesNotExist:
+                messages.error(request, 'Header image not found.')
+
+        return redirect('calendars:header_images', calendar_id=calendar.id)
+
+    def _process_pdf_to_headers(self, pdf_content, calendar, request):
+        """Convert PDF pages to header images"""
+        import tempfile
+        import os
+        from pdf2image import convert_from_bytes
+        from django.core.files.base import ContentFile
+        from .models import CalendarHeaderImage
+
+        try:
+            # Convert PDF to images
+            images = convert_from_bytes(pdf_content, dpi=300)
+
+            created_count = 0
+            for i, image in enumerate(images):
+                # Limit to 14 pages max (cover + 12 months + back cover)
+                if i >= 14:
+                    break
+
+                try:
+                    # Convert PIL image to Django file
+                    from io import BytesIO
+                    img_io = BytesIO()
+                    image.save(img_io, format='JPEG', quality=95)
+                    img_io.seek(0)
+
+                    # Create filename
+                    if i == 0:
+                        filename = f'cover_{calendar.year}_{calendar.id}.jpg'
+                        month_num = 0
+                    elif i == 13:
+                        filename = f'back_cover_{calendar.year}_{calendar.id}.jpg'
+                        month_num = 13
+                    else:
+                        import calendar as cal
+                        month_name = cal.month_name[i].lower()
+                        filename = f'{month_name}_{calendar.year}_{calendar.id}.jpg'
+                        month_num = i
+
+                    # Create or update header image
+                    header_image, created = CalendarHeaderImage.objects.get_or_create(
+                        calendar=calendar,
+                        month=month_num,
+                        defaults={
+                            'title': f'Page {i + 1}',
+                        }
+                    )
+
+                    # Save the image
+                    header_image.image.save(
+                        filename,
+                        ContentFile(img_io.getvalue()),
+                        save=True
+                    )
+
+                    created_count += 1
+
+                except Exception as e:
+                    # Log the error but continue processing other pages
+                    print(f"Error processing page {i + 1}: {str(e)}")
+                    continue
+
+            messages.info(request, f'Created {created_count} header images from PDF.')
+
+        except Exception as e:
+            raise Exception(f'Failed to convert PDF to images: {str(e)}')
+
+
+class DigitalCalendarView(TemplateView):
+    template_name = 'calendars/digital_calendar.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        calendar_id = self.kwargs['calendar_id']
+        calendar = get_object_or_404(Calendar, id=calendar_id)
+
+        # Check permissions - allow public access if calendar is publicly shared
+        if not calendar.can_view(self.request.user) and not calendar.is_publicly_shared:
+            raise PermissionDenied("You don't have permission to view this calendar.")
+
+        # Get all events for the calendar
+        events = calendar.events.all().order_by('month', 'day')
+
+        # Get header images for the calendar
+        header_images = CalendarHeaderImage.objects.filter(calendar=calendar)
+        header_images_dict = {img.month: img for img in header_images}
+
+        # Create month data with events and headers
+        months_data = []
+
+        # Add cover page (month 0)
+        calendar_name = calendar.calendar_year.name if calendar.calendar_year else "Calendar"
+        cover_data = {
+            'month': 0,
+            'name': 'Cover',
+            'display': f'{calendar.year} {calendar_name}',
+            'header_image': header_images_dict.get(0),
+            'events': [],
+            'calendar_grid': None
+        }
+        months_data.append(cover_data)
+
+        # Add each month (1-12)
+        for month in range(1, 13):
+            month_events = events.filter(month=month)
+
+            # Create calendar grid
+            calendar_obj = cal.Calendar(firstweekday=6)  # Sunday = 0
+            month_calendar = calendar_obj.monthdayscalendar(calendar.year, month)
+
+            # Create events dict by day
+            events_by_day = {}
+            for event in month_events:
+                if event.day not in events_by_day:
+                    events_by_day[event.day] = []
+                events_by_day[event.day].append(event)
+
+            # Add events to calendar grid
+            calendar_grid = []
+            for week in month_calendar:
+                week_data = []
+                for day in week:
+                    if day == 0:
+                        week_data.append({'day': 0, 'events': []})
+                    else:
+                        day_events = events_by_day.get(day, [])
+                        week_data.append({'day': day, 'events': day_events})
+                calendar_grid.append(week_data)
+
+            month_data = {
+                'month': month,
+                'name': cal.month_name[month],
+                'display': f'{cal.month_name[month]} {calendar.year}',
+                'header_image': header_images_dict.get(month),
+                'events': month_events,
+                'calendar_grid': calendar_grid
+            }
+            months_data.append(month_data)
+
+        # Add back cover (month 13)
+        back_cover_data = {
+            'month': 13,
+            'name': 'Back Cover',
+            'display': 'Back Cover',
+            'header_image': header_images_dict.get(13),
+            'events': [],
+            'calendar_grid': None
+        }
+        months_data.append(back_cover_data)
+
+        # Process calendar grid to handle multiple events
+        for month_data in months_data:
+            if month_data['calendar_grid']:
+                for week in month_data['calendar_grid']:
+                    for day_data in week:
+                        if day_data['day'] > 0 and len(day_data['events']) > 1:
+                            # Multiple events on this day - create combined display
+                            day_data['is_multiple'] = True
+                            day_data['combined_name'] = CalendarEvent.get_combined_display_name(
+                                calendar, month_data['month'], day_data['day']
+                            )
+
+        context.update({
+            'calendar': calendar,
+            'months_data': months_data,
+            'year': calendar.year,
+            'calendar_name': calendar_name
+        })
+
+        return context
