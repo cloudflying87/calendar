@@ -559,7 +559,6 @@
 }
 </style>
 
-<script src="/static/js/upload-progress.js"></script>
 <script>
 // Add preview functionality for file inputs
 document.addEventListener('DOMContentLoaded', function() {
@@ -640,14 +639,25 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             xhr.addEventListener('load', function() {
-                if (xhr.status === 200) {
+                console.log('Response status:', xhr.status);
+                console.log('Response URL:', xhr.responseURL);
+
+                if (xhr.status === 200 || xhr.status === 302) {
                     progressText.textContent = 'Upload complete!';
                     progressFill.style.backgroundColor = '#10b981';
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
+
+                    // Check if we got redirected
+                    if (xhr.responseURL && xhr.responseURL !== window.location.href) {
+                        setTimeout(() => {
+                            window.location.href = xhr.responseURL;
+                        }, 1000);
+                    } else {
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    }
                 } else {
-                    handleError('Upload failed. Please try again.');
+                    handleError('Upload failed. Status: ' + xhr.status);
                 }
             });
 
@@ -672,8 +682,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 5000);
             }
 
-            xhr.open('POST', pdfForm.action || window.location.href);
-            xhr.setRequestHeader('X-CSRFToken', formData.get('csrfmiddlewaretoken'));
+            // Get the current URL without any malformed parts
+            const postUrl = pdfForm.action || window.location.pathname;
+            console.log('Posting to URL:', postUrl);
+
+            xhr.open('POST', postUrl);
+
+            // Get CSRF token from the specific form
+            const csrfInput = pdfForm.querySelector('[name=csrfmiddlewaretoken]');
+            const csrfToken = csrfInput ? csrfInput.value : '';
+            console.log('CSRF Token:', csrfToken ? 'Found' : 'Not found');
+
+            if (csrfToken) {
+                xhr.setRequestHeader('X-CSRFToken', csrfToken);
+            }
             xhr.timeout = 300000; // 5 minutes for PDF processing
             xhr.send(formData);
         });
