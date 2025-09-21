@@ -101,9 +101,13 @@
                     <div class="current-photo">
                         <img src="{{ form.instance.image.url }}" alt="{{ form.instance.name }}" class="master-event-photo">
                         <div class="photo-actions">
-                            <a href="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" class="btn btn--secondary btn--small">
-                                ✏️ Change Photo
-                            </a>
+                            <form method="post" action="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" enctype="multipart/form-data" class="inline-form">
+                                {% csrf_token %}
+                                <input type="file" name="image" accept="image/*" style="display: none;" id="changePhotoInput">
+                                <label for="changePhotoInput" class="btn btn--secondary btn--small">
+                                    ✏️ Change Photo
+                                </label>
+                            </form>
                             <form method="post" action="{% url 'calendars:master_event_remove_image' pk=form.instance.pk %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn--outline btn--small">
@@ -119,9 +123,13 @@
                             <span class="no-photo-text">No photo</span>
                         </div>
                         {% if form.instance.pk %}
-                            <a href="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" class="btn btn--primary btn--small">
-                                ✏️ Add Photo
-                            </a>
+                            <form method="post" action="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" enctype="multipart/form-data" class="inline-form">
+                                {% csrf_token %}
+                                <input type="file" name="image" accept="image/*" style="display: none;" id="addPhotoInput">
+                                <label for="addPhotoInput" class="btn btn--primary btn--small">
+                                    ✏️ Add Photo
+                                </label>
+                            </form>
                         {% else %}
                             <p class="form-help">Save the event first to add a photo</p>
                         {% endif %}
@@ -165,6 +173,25 @@ document.addEventListener('DOMContentLoaded', function() {
     if (eventTypeField) {
         eventTypeField.addEventListener('change', updateFormBasedOnType);
         updateFormBasedOnType();
+    }
+
+    // Handle photo upload forms
+    const changePhotoInput = document.getElementById('changePhotoInput');
+    const addPhotoInput = document.getElementById('addPhotoInput');
+
+    function handlePhotoUpload(input) {
+        if (input && input.files && input.files[0]) {
+            // Auto-submit the form when a file is selected
+            input.closest('form').submit();
+        }
+    }
+
+    if (changePhotoInput) {
+        changePhotoInput.addEventListener('change', () => handlePhotoUpload(changePhotoInput));
+    }
+
+    if (addPhotoInput) {
+        addPhotoInput.addEventListener('change', () => handlePhotoUpload(addPhotoInput));
     }
 });
 </script>
