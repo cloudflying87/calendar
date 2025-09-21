@@ -552,19 +552,23 @@ class ImportMasterEventsView(LoginRequiredMixin, View):
 
                 for item in data:
                     try:
-                        # Check if event already exists
+                        # Smart matching - check for existing event by name and date
                         existing = EventMaster.objects.filter(
                             user=request.user,
-                            name=item['name'],
+                            name__iexact=item['name'],  # Case-insensitive
                             month=item['month'],
                             day=item['day']
                         ).first()
 
+                        # Auto-detect event type if not provided
+                        event_type = item.get('event_type', self.detect_event_type(item['name']))
+
                         if not existing:
+                            # Create new master event
                             EventMaster.objects.create(
                                 user=request.user,
                                 name=item['name'],
-                                event_type=item.get('event_type', 'custom'),
+                                event_type=event_type,
                                 month=item['month'],
                                 day=item['day'],
                                 year_occurred=item.get('year_occurred'),
@@ -573,7 +577,35 @@ class ImportMasterEventsView(LoginRequiredMixin, View):
                             )
                             imported_count += 1
                         else:
-                            skipped_count += 1
+                            # Update existing event with missing information
+                            updated = False
+
+                            # Update event type if it's currently 'custom' and we have a better detection
+                            if existing.event_type == 'custom' and event_type != 'custom':
+                                existing.event_type = event_type
+                                updated = True
+
+                            # Update year_occurred if missing
+                            if not existing.year_occurred and item.get('year_occurred'):
+                                existing.year_occurred = item.get('year_occurred')
+                                updated = True
+
+                            # Update description if missing
+                            if not existing.description and item.get('description'):
+                                existing.description = item.get('description', '')
+                                updated = True
+
+                            # Update groups if missing
+                            if not existing.groups and item.get('groups'):
+                                existing.groups = item.get('groups', '')
+                                updated = True
+
+                            if updated:
+                                existing.save()
+                                updated_count += 1
+                            else:
+                                skipped_count += 1
+
                     except Exception as e:
                         error_count += 1
 
@@ -584,15 +616,23 @@ class ImportMasterEventsView(LoginRequiredMixin, View):
 
                 for row in reader:
                     try:
-                        # Check if event already exists
+                        # Smart matching - check for existing event by name and date
                         existing = EventMaster.objects.filter(
                             user=request.user,
-                            name=row['Name'],
+                            name__iexact=row['Name'],  # Case-insensitive
                             month=int(row['Month']),
                             day=int(row['Day'])
                         ).first()
 
+                        # Auto-detect event type if not provided or if provided type is 'custom'
+                        provided_type = row.get('Event Type', '').strip()
+                        if not provided_type or provided_type.lower() == 'custom':
+                            event_type = self.detect_event_type(row['Name'])
+                        else:
+                            event_type = provided_type
+
                         if not existing:
+                            # Create new master event
                             year_occurred = None
                             if row.get('Year Occurred') and row['Year Occurred'].strip():
                                 year_occurred = int(row['Year Occurred'])
@@ -600,7 +640,7 @@ class ImportMasterEventsView(LoginRequiredMixin, View):
                             EventMaster.objects.create(
                                 user=request.user,
                                 name=row['Name'],
-                                event_type=row.get('Event Type', 'custom'),
+                                event_type=event_type,
                                 month=int(row['Month']),
                                 day=int(row['Day']),
                                 year_occurred=year_occurred,
@@ -609,20 +649,61 @@ class ImportMasterEventsView(LoginRequiredMixin, View):
                             )
                             imported_count += 1
                         else:
-                            skipped_count += 1
+                            # Update existing event with missing information
+                            updated = False
+
+                            # Update event type if it's currently 'custom' and we have a better detection
+                            if existing.event_type == 'custom' and event_type != 'custom':
+                                existing.event_type = event_type
+                                updated = True
+
+                            # Update year_occurred if missing
+                            if not existing.year_occurred and row.get('Year Occurred') and row['Year Occurred'].strip():
+                                existing.year_occurred = int(row['Year Occurred'])
+                                updated = True
+
+                            # Update description if missing
+                            if not existing.description and row.get('Description'):
+                                existing.description = row.get('Description', '')
+                                updated = True
+
+                            # Update groups if missing
+                            if not existing.groups and row.get('Groups'):
+                                existing.groups = row.get('Groups', '')
+                                updated = True
+
+                            if updated:
+                                existing.save()
+                                updated_count += 1
+                            else:
+                                skipped_count += 1
+
                     except Exception as e:
                         error_count += 1
             else:
                 messages.error(request, 'Please upload a CSV or JSON file')
                 return redirect('calendars:import_master_events')
 
-            message = f'Successfully imported {imported_count} events.'
+            # Build intelligent success message
+            message_parts = []
+            if imported_count > 0:
+                message_parts.append(f"✨ {imported_count} new event(s) imported")
+            if updated_count > 0:
+                message_parts.append(f"🔄 {updated_count} existing event(s) updated with missing information")
             if skipped_count > 0:
-                message += f' Skipped {skipped_count} duplicate events.'
-            if error_count > 0:
-                message += f' Failed to import {error_count} events due to errors.'
+                message_parts.append(f"⏭️ {skipped_count} event(s) skipped (no updates needed)")
 
-            messages.success(request, message)
+            if message_parts:
+                messages.success(request, '. '.join(message_parts) + '.')
+
+            # Add smart feature notifications
+            if imported_count > 0:
+                messages.info(request, f"🎯 Smart event type detection applied to new imports.")
+            if updated_count > 0:
+                messages.info(request, f"🧠 Intelligent matching updated existing events with missing details.")
+
+            if error_count > 0:
+                messages.warning(request, f"⚠️ {error_count} event(s) failed to import due to formatting errors.")
 
         except Exception as e:
             messages.error(request, f'Error importing file: {str(e)}')
