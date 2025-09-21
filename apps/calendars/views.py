@@ -9,6 +9,7 @@ from django.core.exceptions import PermissionDenied
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday, HolidayCalculator, CalendarHeaderImage
 from .forms import CalendarForm, ImageUploadForm, HeaderUploadForm, EventEditForm, HolidayManagementForm
 from .utils import CalendarPDFGenerator
@@ -217,6 +218,99 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
         return events_by_month
 
 
+class CalendarSimpleView(LoginRequiredMixin, DetailView):
+    """Simplified dashboard view focused on PDF calendar creation workflow"""
+    model = Calendar
+    template_name = 'calendars/calendar_simple.html'
+    context_object_name = 'calendar'
+    slug_field = 'year'
+    slug_url_kwarg = 'year'
+
+    def get_queryset(self):
+        from .permissions import get_user_calendars
+        return get_user_calendars(self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        """Override to handle multiple calendars per year"""
+        year = self.kwargs.get('year')
+        calendar_name = self.kwargs.get('calendar_name')
+
+        if not calendar_name:
+            # Check if there are multiple calendars for this year
+            queryset = self.get_queryset()
+            calendars = queryset.filter(year=year)
+
+            if calendars.count() > 1:
+                # Multiple calendars, show selection page for simple view
+                from django.shortcuts import render
+                return render(request, 'calendars/calendar_simple_select.html', {
+                    'calendars': calendars,
+                    'year': year
+                })
+
+        return super().get(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        """Override to handle multiple calendars per year"""
+        if queryset is None:
+            queryset = self.get_queryset()
+
+        year = self.kwargs.get('year')
+        calendar_name = self.kwargs.get('calendar_name')
+
+        if calendar_name:
+            # If calendar_name is provided, get specific calendar
+            try:
+                return queryset.get(year=year, calendar_year__name=calendar_name)
+            except Calendar.DoesNotExist:
+                from django.http import Http404
+                raise Http404("Calendar not found")
+        else:
+            # If no calendar_name, get the single calendar for this year
+            try:
+                return queryset.get(year=year)
+            except Calendar.MultipleObjectsReturned:
+                # This should be handled by the get() method above
+                from django.http import Http404
+                raise Http404("Multiple calendars found")
+            except Calendar.DoesNotExist:
+                from django.http import Http404
+                raise Http404("Calendar not found")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['has_header'] = hasattr(self.object, 'header')
+        context['generated_calendars'] = self.object.generated_pdfs.all()
+
+        # Add sharing context
+        context['user_can_share'] = self.object.can_share(self.request.user)
+        context['user_can_edit'] = self.object.can_edit(self.request.user)
+        context['user_permission'] = self.object.get_user_permission(self.request.user)
+
+        return context
+
+
+class CalendarSimpleByIdView(LoginRequiredMixin, DetailView):
+    """Simple view for accessing calendars directly by their ID"""
+    model = Calendar
+    template_name = 'calendars/calendar_simple.html'
+    context_object_name = 'calendar'
+    pk_url_kwarg = 'calendar_id'
+
+    def get_queryset(self):
+        from .permissions import get_user_calendars
+        return get_user_calendars(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['has_header'] = hasattr(self.object, 'header')
+        context['generated_calendars'] = self.object.generated_pdfs.all()
+        context['user_can_share'] = self.object.can_share(self.request.user)
+        context['user_can_edit'] = self.object.can_edit(self.request.user)
+        context['user_permission'] = self.object.get_user_permission(self.request.user)
+        return context
+
+
 class CalendarDetailByIdView(LoginRequiredMixin, DetailView):
     """View for accessing calendars directly by their ID"""
     model = Calendar
@@ -251,7 +345,181 @@ class CalendarDetailByIdView(LoginRequiredMixin, DetailView):
 
 
 @method_decorator(login_required, name='dispatch')
+class BulkCropView(View):
+    """View for bulk cropping existing calendar photos"""
+    def get(self, request, year):
+        calendar = get_calendar_or_404(year, request.user)
+
+        # Get all events with images
+        events_with_images = calendar.events.filter(image__isnull=False).order_by('month', 'day')
+
+        if not events_with_images.exists():
+            messages.error(request, "No photos found to crop.")
+            return redirect('calendars:calendar_detail', year=year)
+
+        # Get current event index from session or start with 0
+        current_index = request.session.get('bulk_crop_index', 0)
+
+        # Check if we're done with all photos
+        if current_index >= events_with_images.count():
+            # Reset and redirect
+            request.session.pop('bulk_crop_index', None)
+            messages.success(request, "Bulk cropping completed!")
+            return redirect('calendars:calendar_detail', year=year)
+
+        current_event = events_with_images[current_index]
+
+        # Store event info for processing
+        request.session['bulk_crop_event_id'] = current_event.id
+        request.session['bulk_crop_total'] = events_with_images.count()
+
+        return render(request, 'calendars/bulk_crop.html', {
+            'calendar': calendar,
+            'current_event': current_event,
+            'current_index': current_index + 1,  # 1-based for display
+            'total_events': events_with_images.count(),
+            'progress_percentage': ((current_index) / events_with_images.count()) * 100,
+            'year': year,
+        })
+
+    def post(self, request, year):
+        calendar = get_calendar_or_404(year, request.user)
+
+        action = request.POST.get('action')
+
+        if action == 'skip':
+            # Skip current photo and move to next
+            current_index = request.session.get('bulk_crop_index', 0)
+            request.session['bulk_crop_index'] = current_index + 1
+            return redirect('calendars:bulk_crop', year=year)
+
+        elif action == 'finish':
+            # User wants to finish bulk cropping
+            request.session.pop('bulk_crop_index', None)
+            request.session.pop('bulk_crop_event_id', None)
+            request.session.pop('bulk_crop_total', None)
+            messages.success(request, "Bulk cropping session ended.")
+            return redirect('calendars:calendar_detail', year=year)
+
+        elif action == 'crop':
+            # Process the crop data
+            event_id = request.session.get('bulk_crop_event_id')
+            crop_data = request.POST.get('crop_data')
+
+            if not event_id or not crop_data:
+                messages.error(request, "Error processing crop data.")
+                return redirect('calendars:bulk_crop', year=year)
+
+            try:
+                event = CalendarEvent.objects.get(id=event_id, calendar=calendar)
+
+                # Decode base64 image data
+                image_data = crop_data.split(',')[1]  # Remove data:image/jpeg;base64, prefix
+                image_binary = base64.b64decode(image_data)
+
+                # Create PIL image from binary data
+                image = Image.open(io.BytesIO(image_binary))
+
+                # Ensure it's RGB
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    image = image.convert('RGB')
+
+                # Save cropped image to a temporary file with higher quality
+                temp_cropped = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
+                temp_cropped.close()
+
+                # Create Django file from cropped image
+                with open(temp_cropped.name, 'rb') as f:
+                    from django.core.files.base import ContentFile
+                    cropped_django_file = ContentFile(f.read(), name=f"cropped_{event.original_filename or 'image.jpg'}")
+
+                # Update event with new cropped image
+                event.image = cropped_django_file
+                event.save()
+
+                # Clean up temporary file
+                try:
+                    if os.path.exists(temp_cropped.name):
+                        os.unlink(temp_cropped.name)
+                except OSError:
+                    pass
+
+                # Move to next photo
+                current_index = request.session.get('bulk_crop_index', 0)
+                request.session['bulk_crop_index'] = current_index + 1
+
+                messages.success(request, f"Photo cropped for '{event.event_name}'.")
+                return redirect('calendars:bulk_crop', year=year)
+
+            except Exception as e:
+                messages.error(request, f"Error processing cropped image: {str(e)}")
+                return redirect('calendars:bulk_crop', year=year)
+
+        else:
+            messages.error(request, "Invalid action.")
+            return redirect('calendars:bulk_crop', year=year)
+
+
+@method_decorator(login_required, name='dispatch')
 class ImageUploadView(View):
+    def detect_event_type(self, event_name):
+        """Detect event type based on keywords in the event name"""
+        event_name_lower = event_name.lower()
+
+        # Birthday keywords
+        birthday_keywords = ['birthday', 'bday', 'birth day', "b'day", 'born']
+        has_birthday = any(keyword in event_name_lower for keyword in birthday_keywords)
+
+        # Anniversary keywords
+        anniversary_keywords = ['anniversary', 'wedding', 'married', 'engagement']
+        has_anniversary = any(keyword in event_name_lower for keyword in anniversary_keywords)
+
+        # If both birthday and anniversary keywords are present, it's ambiguous - keep as custom
+        if has_birthday and has_anniversary:
+            return 'custom'
+
+        # Single type detection
+        if has_birthday:
+            return 'birthday'
+
+        if has_anniversary:
+            return 'anniversary'
+
+        # Holiday keywords
+        holiday_keywords = [
+            'christmas', 'thanksgiving', 'easter', 'halloween', 'new year',
+            'independence day', 'july 4th', 'memorial day', 'labor day',
+            'valentine', 'mother\'s day', 'father\'s day', 'mothers day',
+            'fathers day', 'hanukkah', 'kwanzaa', 'diwali', 'passover'
+        ]
+        if any(keyword in event_name_lower for keyword in holiday_keywords):
+            return 'holiday'
+
+        # Appointment keywords
+        appointment_keywords = [
+            'appointment', 'meeting', 'doctor', 'dentist', 'checkup',
+            'visit', 'interview', 'consultation'
+        ]
+        if any(keyword in event_name_lower for keyword in appointment_keywords):
+            return 'appointment'
+
+        # Reminder keywords
+        reminder_keywords = ['reminder', 'due', 'deadline', 'payment', 'bill', 'renew']
+        if any(keyword in event_name_lower for keyword in reminder_keywords):
+            return 'reminder'
+
+        # Default to custom if no keywords match
+        return 'custom'
+
+    def clean_event_name(self, event_name):
+        """Clean event name by removing suffixes after apostrophes (e.g., 's Birthday, 's Anniversary)"""
+        # Find the first apostrophe and remove everything after it
+        if "'" in event_name:
+            event_name = event_name.split("'")[0].strip()
+
+        return event_name
+
     def get(self, request, year):
         calendar = get_calendar_or_404(year, request.user)
         form = ImageUploadForm()
@@ -266,6 +534,13 @@ class ImageUploadView(View):
 
         if form.is_valid():
             uploaded_files = request.FILES.getlist('images')
+
+            # Debug: Check if we actually got files
+            if not uploaded_files:
+                messages.error(request, "No files were uploaded. Please select files before submitting.")
+                return redirect('calendars:image_upload', year=year)
+
+            messages.info(request, f"Processing {len(uploaded_files)} files...")
             created_events = []
             errors = []
             duplicate_dates = []
@@ -277,13 +552,37 @@ class ImageUploadView(View):
             # Process all files as bulk upload (no cropping)
             for uploaded_file in uploaded_files:
                 try:
+                    # Debug: Log the filename being processed
+                    print(f"Processing file: {uploaded_file.name}")
+
+                    # Copy the uploaded file to ensure it's available during processing
+                    from django.core.files.base import ContentFile
+                    import tempfile
+
+                    # Read the file content immediately while it's available
+                    uploaded_file.seek(0)  # Ensure we're at the beginning
+                    file_content = uploaded_file.read()
+                    uploaded_file.seek(0)  # Reset for potential later use
+
+                    # Create a new ContentFile with the data
+                    safe_file = ContentFile(file_content, name=uploaded_file.name)
+
                     # Parse filename to extract date and event name
                     parsed_data = CalendarEvent.parse_filename(uploaded_file.name)
 
                     if parsed_data:
                         month, day, event_name = parsed_data
+                        image_added_to_master = False
+                        auto_created_master = False
+                        event_type_updated = False
 
-                        # Check if matching master event exists
+                        # Clean the event name by removing text after apostrophes
+                        cleaned_event_name = self.clean_event_name(event_name)
+
+                        # Auto-detect event type based on the original event name (before cleaning)
+                        detected_event_type = self.detect_event_type(event_name)
+
+                        # Check if matching master event exists (using both original and cleaned names)
                         master_event = EventMaster.objects.filter(
                             user=request.user,
                             name__iexact=event_name,
@@ -291,61 +590,147 @@ class ImageUploadView(View):
                             day=day
                         ).first()
 
+                        # If not found, try with cleaned name
+                        if not master_event:
+                            master_event = EventMaster.objects.filter(
+                                user=request.user,
+                                name__iexact=cleaned_event_name,
+                                month=month,
+                                day=day
+                            ).first()
+
                         # Get display name if master event exists
                         display_name = event_name
                         if master_event:
                             display_name = master_event.get_display_name(for_year=calendar.year, user=request.user)
+
+                            # Update master event with new information
+                            updates = {}
+
+                            # If master event exists but has no image, add the image
+                            if not master_event.image:
+                                updates['image'] = safe_file
+                                image_added_to_master = True
+
+                            # Update event type if it's currently 'custom' and we detected a specific type
+                            if master_event.event_type == 'custom' and detected_event_type != 'custom':
+                                updates['event_type'] = detected_event_type
+                                event_type_updated = True
+
+                            # Update the name to the cleaned version if it's different
+                            if master_event.name != cleaned_event_name and detected_event_type != 'custom':
+                                updates['name'] = cleaned_event_name
+
+                            # Save updates if any
+                            if updates:
+                                for field, value in updates.items():
+                                    setattr(master_event, field, value)
+                                master_event.save(update_fields=list(updates.keys()))
 
                         # Check if events already exist for this date
                         existing_events = CalendarEvent.get_events_for_date(calendar, month, day)
 
                         if existing_events.exists():
                             # Create a new event (allow multiple events on same day)
-                            event = CalendarEvent.objects.create(
+                            event = CalendarEvent(
                                 calendar=calendar,
                                 month=month,
                                 day=day,
                                 event_name=display_name,
                                 master_event=master_event,
-                                image=uploaded_file,
-                                full_image=uploaded_file,  # For bulk uploads, the same image is used for both
+                                image=safe_file,
+                                full_image=safe_file,  # For bulk uploads, the same image is used for both
                                 original_filename=uploaded_file.name
                             )
+                            event.save(skip_resize=True)  # Skip auto-resize for bulk uploads
                             created = True
                             duplicate_dates.append(f"{calendar.year}-{month:02d}-{day:02d}")
                         else:
                             # Create new event
-                            event = CalendarEvent.objects.create(
+                            event = CalendarEvent(
                                 calendar=calendar,
                                 month=month,
                                 day=day,
                                 event_name=display_name,
                                 master_event=master_event,
-                                image=uploaded_file,
-                                full_image=uploaded_file,  # For bulk uploads, the same image is used for both
+                                image=safe_file,
+                                full_image=safe_file,  # For bulk uploads, the same image is used for both
                                 original_filename=uploaded_file.name
                             )
+                            event.save(skip_resize=True)  # Skip auto-resize for bulk uploads
                             created = True
                         created_events.append(event)
 
                         # Handle adding to master list based on preferences
                         if not master_event and preferences.add_to_master_list == 'always':
-                            # Auto-create master event
-                            EventMaster.objects.create(
+                            # Auto-create master event with detected type and cleaned name
+                            new_master_event = EventMaster.objects.create(
                                 user=request.user,
-                                name=event_name,
+                                name=cleaned_event_name,  # Use cleaned name for master event
                                 month=month,
                                 day=day,
-                                groups=preferences.default_groups
+                                event_type=detected_event_type,
+                                groups=preferences.default_groups,
+                                image=safe_file  # Save the image to the master event
                             )
+
+                            # Update the calendar event to link to the new master event
+                            event.master_event = new_master_event
+                            event.save(update_fields=['master_event'], skip_resize=True)
+                            auto_created_master = True
+
+                        # Add tracking flags to the event for notifications
+                        event._auto_created_master = auto_created_master
+                        event._image_added_to_master = image_added_to_master
+                        event._event_type_updated = event_type_updated
                     else:
                         errors.append(f"Could not parse filename: {uploaded_file.name}. Use format: MMDD eventname.jpg")
 
                 except Exception as e:
                     errors.append(f"Error processing {uploaded_file.name}: {str(e)}")
 
+            # Resize images for successfully created events after they've been saved
             if created_events:
+                resize_errors = []
+                auto_created_count = 0
+                auto_typed_count = 0
+                image_added_count = 0
+
+                for event in created_events:
+                    try:
+                        event.resize_image()
+                    except Exception as e:
+                        resize_errors.append(f"Error resizing {event.original_filename}: {str(e)}")
+
+                # Count intelligent features used
+                event_type_updated_count = 0
+                for event in created_events:
+                    if hasattr(event, '_auto_created_master') and event._auto_created_master:
+                        auto_created_count += 1
+                        if event.master_event and event.master_event.event_type != 'custom':
+                            auto_typed_count += 1
+                    elif event.master_event and hasattr(event, '_image_added_to_master') and event._image_added_to_master:
+                        image_added_count += 1
+
+                    # Count event type updates
+                    if hasattr(event, '_event_type_updated') and event._event_type_updated:
+                        event_type_updated_count += 1
+
                 messages.success(request, f"Successfully uploaded {len(created_events)} images.")
+
+                # Add intelligent feature notifications
+                if auto_created_count > 0:
+                    messages.info(request, f"✨ {auto_created_count} master event(s) automatically created with smart type detection.")
+
+                if image_added_count > 0:
+                    messages.info(request, f"🖼️ {image_added_count} existing master event(s) updated with new images.")
+
+                if event_type_updated_count > 0:
+                    messages.info(request, f"🏷️ {event_type_updated_count} existing master event(s) updated with detected event types.")
+
+                if resize_errors:
+                    for error in resize_errors:
+                        messages.warning(request, error)
 
             if duplicate_dates:
                 messages.warning(request, f"Multiple events added to these dates: {', '.join(set(duplicate_dates))}")
@@ -355,6 +740,9 @@ class ImageUploadView(View):
                     messages.error(request, error)
 
             return redirect('calendars:calendar_detail', year=year)
+        else:
+            # Form is not valid - show errors
+            messages.error(request, f"Form validation failed: {form.errors}")
 
         return render(request, 'calendars/image_upload.html', {
             'calendar': calendar,
@@ -400,6 +788,23 @@ class GenerateCalendarView(View):
     def post(self, request, year):
         calendar = get_calendar_or_404(year, request.user)
         generation_type = request.POST.get('generation_type', 'calendar_only')
+        action = request.POST.get('action', 'generate')
+
+        # Check if a calendar of this type already exists
+        existing_calendar = GeneratedCalendar.objects.filter(
+            calendar=calendar,
+            generation_type=generation_type
+        ).first()
+
+        # If existing calendar found and no action specified, ask user what to do
+        if existing_calendar and action == 'generate':
+            return render(request, 'calendars/pdf_generation_conflict.html', {
+                'calendar': calendar,
+                'generation_type': generation_type,
+                'generation_type_display': dict(GeneratedCalendar._meta.get_field('generation_type').choices)[generation_type],
+                'existing_calendar': existing_calendar,
+                'year': year
+            })
 
         try:
             generator = CalendarPDFGenerator(calendar)
@@ -414,14 +819,50 @@ class GenerateCalendarView(View):
                 messages.error(request, "Invalid generation type.")
                 return redirect('calendars:calendar_detail', year=year)
 
-            # Save generated calendar record
-            generated_calendar = GeneratedCalendar.objects.create(
-                calendar=calendar,
-                pdf_file=pdf_file,
-                generation_type=generation_type
-            )
+            # Handle the action based on user choice
+            if action == 'overwrite' and existing_calendar:
+                # Delete the old PDF file if it exists
+                if existing_calendar.pdf_file and os.path.exists(existing_calendar.pdf_file.path):
+                    try:
+                        os.unlink(existing_calendar.pdf_file.path)
+                    except OSError:
+                        pass  # File might already be deleted
 
-            messages.success(request, f"Calendar generated successfully! Type: {generated_calendar.get_generation_type_display()}")
+                # Update existing record
+                existing_calendar.pdf_file = pdf_file
+                existing_calendar.created_at = timezone.now()
+                existing_calendar.save()
+                generated_calendar = existing_calendar
+                action_message = "overwritten"
+
+            elif action == 'create_new':
+                # Remove unique constraint temporarily by deleting existing
+                if existing_calendar:
+                    if existing_calendar.pdf_file and os.path.exists(existing_calendar.pdf_file.path):
+                        try:
+                            os.unlink(existing_calendar.pdf_file.path)
+                        except OSError:
+                            pass
+                    existing_calendar.delete()
+
+                # Create new record
+                generated_calendar = GeneratedCalendar.objects.create(
+                    calendar=calendar,
+                    pdf_file=pdf_file,
+                    generation_type=generation_type
+                )
+                action_message = "created"
+
+            else:
+                # First time generation
+                generated_calendar = GeneratedCalendar.objects.create(
+                    calendar=calendar,
+                    pdf_file=pdf_file,
+                    generation_type=generation_type
+                )
+                action_message = "generated"
+
+            messages.success(request, f"Calendar {action_message} successfully! Type: {generated_calendar.get_generation_type_display()}")
 
         except Exception as e:
             messages.error(request, f"Error generating calendar: {str(e)}")
@@ -432,7 +873,7 @@ class GenerateCalendarView(View):
 @method_decorator(login_required, name='dispatch')
 class DownloadCalendarView(View):
     def get(self, request, year, generation_type):
-        calendar = get_object_or_404(Calendar, user=request.user, year=year)
+        calendar = get_calendar_or_404(year, request.user)
 
         try:
             generated_calendar = calendar.generated_pdfs.filter(

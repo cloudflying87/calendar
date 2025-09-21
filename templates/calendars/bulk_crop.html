@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+
+{% block title %}Bulk Crop Photos - Calendar {{ calendar.year }}{% endblock %}
+
+{% block content %}
+<div class="bulk-crop-container">
+    <div class="bulk-crop-header">
+        <h1>Bulk Crop Photos - Calendar {{ calendar.year }}</h1>
+        <div class="progress-info">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ progress_percentage }}%"></div>
+            </div>
+            <span class="progress-text">Photo {{ current_index }} of {{ total_events }}</span>
+        </div>
+    </div>
+
+    <div class="crop-workspace">
+        <div class="crop-section">
+            <div class="event-info">
+                <h3>{{ current_event.event_name }}</h3>
+                <p>{{ current_event.month }}/{{ current_event.day }}/{{ year }}</p>
+            </div>
+
+            <div class="crop-area">
+                <div id="crop-container">
+                    <img id="crop-image" src="{{ current_event.image.url }}" alt="{{ current_event.event_name }}">
+                </div>
+            </div>
+
+            <div class="crop-controls">
+                <form method="post" id="crop-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="crop_data" id="crop-data">
+
+                    <div class="button-group">
+                        <button type="submit" name="action" value="skip" class="btn btn--outline">
+                            ⏭️ Skip This Photo
+                        </button>
+                        <button type="button" onclick="cropAndSave()" class="btn btn--primary">
+                            ✂️ Crop & Next
+                        </button>
+                        <button type="submit" name="action" value="finish" class="btn btn--secondary">
+                            🏁 Finish Cropping
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h4>Cropping Instructions</h4>
+            <ul>
+                <li>Drag the corners to resize the crop area</li>
+                <li>Drag the center to move the crop area</li>
+                <li>The crop will be optimized for calendar layout (320x200px)</li>
+                <li>Click "Crop & Next" to save and move to the next photo</li>
+                <li>Click "Skip" to keep the current crop and move to next</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Include Cropper.js -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+
+<style>
+.bulk-crop-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.bulk-crop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bulk-crop-header h1 {
+    margin: 0;
+    color: var(--color-text-primary);
+}
+
+.progress-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.progress-bar {
+    width: 200px;
+    height: 8px;
+    background: var(--color-background-light);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.crop-workspace {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 2rem;
+}
+
+.crop-section {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+}
+
+.event-info {
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.event-info h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+}
+
+.event-info p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.crop-area {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+#crop-container {
+    max-width: 100%;
+    max-height: 400px;
+    display: inline-block;
+}
+
+#crop-image {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.crop-controls {
+    text-align: center;
+}
+
+.button-group {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.help-section {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+}
+
+.help-section h4 {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-primary);
+}
+
+.help-section ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.help-section li {
+    margin-bottom: 0.5rem;
+    color: var(--color-text-secondary);
+}
+
+@media (max-width: 968px) {
+    .crop-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .bulk-crop-header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .progress-info {
+        align-items: center;
+    }
+
+    .button-group {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script>
+let cropper;
+let targetAspectRatio = 320 / 200; // Target aspect ratio for calendar layout
+
+document.addEventListener('DOMContentLoaded', function() {
+    const image = document.getElementById('crop-image');
+
+    cropper = new Cropper(image, {
+        aspectRatio: targetAspectRatio,
+        viewMode: 1,
+        guides: true,
+        center: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        responsive: true,
+        ready: function() {
+            // Set initial crop box to cover most of the image
+            const containerData = cropper.getContainerData();
+            const imageData = cropper.getImageData();
+
+            // Calculate optimal crop size
+            let cropWidth = Math.min(imageData.naturalWidth, imageData.naturalHeight * targetAspectRatio);
+            let cropHeight = cropWidth / targetAspectRatio;
+
+            if (cropHeight > imageData.naturalHeight) {
+                cropHeight = imageData.naturalHeight;
+                cropWidth = cropHeight * targetAspectRatio;
+            }
+
+            // Center the crop
+            const x = (imageData.naturalWidth - cropWidth) / 2;
+            const y = (imageData.naturalHeight - cropHeight) / 2;
+
+            cropper.setCropBoxData({
+                left: x * imageData.scaleX + imageData.left,
+                top: y * imageData.scaleY + imageData.top,
+                width: cropWidth * imageData.scaleX,
+                height: cropHeight * imageData.scaleY
+            });
+        }
+    });
+});
+
+function cropAndSave() {
+    if (!cropper) {
+        alert('Cropper not initialized');
+        return;
+    }
+
+    // Get the cropped canvas
+    const canvas = cropper.getCroppedCanvas({
+        width: 320,
+        height: 200,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+    });
+
+    // Convert to base64
+    const base64Data = canvas.toDataURL('image/jpeg', 0.95);
+
+    // Set the crop data in the hidden input
+    document.getElementById('crop-data').value = base64Data;
+
+    // Submit the form with crop action
+    const form = document.getElementById('crop-form');
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'crop';
+    form.appendChild(actionInput);
+
+    form.submit();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        cropAndSave();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        // Skip to next
+        document.querySelector('button[value="skip"]').click();
+    }
+});
+</script>
+{% endblock %}

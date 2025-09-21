@@ -63,7 +63,7 @@
             </div>
 
             <div class="pdf-viewer__content" id="pdf-container">
-                <embed src="{{ pdf_url }}" type="application/pdf" width="100%" height="800px" id="pdf-embed">
+                <embed src="{{ pdf_url }}" type="application/pdf" width="100%" height="550px" id="pdf-embed">
 
                 <!-- Fallback for browsers that don't support PDF embedding -->
                 <div class="pdf-fallback" style="display: none;">
@@ -90,7 +90,7 @@
     {% endif %}
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     {% if not error_message %}
@@ -106,34 +106,78 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Check if PDF embedding is supported
     function checkPDFSupport() {
-        const testEmbed = document.createElement('embed');
-        testEmbed.src = 'data:application/pdf;base64,';
-        testEmbed.style.display = 'none';
-        document.body.appendChild(testEmbed);
+        // Detect Chrome browser - it often has issues with PDF embedding
+        const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
 
-        setTimeout(() => {
-            const isSupported = testEmbed.offsetWidth > 0 || testEmbed.offsetHeight > 0;
-            document.body.removeChild(testEmbed);
+        if (isChrome) {
+            console.log('Chrome detected, using PDF.js for better compatibility');
+            initPDFJS();
+            return;
+        }
 
-            if (!isSupported) {
+        // For other browsers, try embed first with fallback
+        const embed = document.getElementById('pdf-embed');
+
+        // Set up a timeout to check if the embed loaded
+        const embedTimeout = setTimeout(() => {
+            // If embed hasn't loaded properly, switch to PDF.js
+            if (embed.offsetHeight <= 100) { // Very small height indicates failure
+                console.log('PDF embed failed, switching to PDF.js');
                 initPDFJS();
             }
-        }, 100);
+        }, 3000); // Give it more time
+
+        // Listen for load events on the embed
+        embed.addEventListener('load', () => {
+            clearTimeout(embedTimeout);
+            console.log('PDF embed loaded successfully');
+        });
+
+        embed.addEventListener('error', () => {
+            clearTimeout(embedTimeout);
+            console.log('PDF embed error, switching to PDF.js');
+            initPDFJS();
+        });
+
+        // For browsers that support PDF mime types, check if plugins are enabled
+        if (navigator.mimeTypes && navigator.mimeTypes['application/pdf']) {
+            const pdfMimeType = navigator.mimeTypes['application/pdf'];
+            if (!pdfMimeType.enabledPlugin) {
+                console.log('PDF plugin disabled, using PDF.js');
+                clearTimeout(embedTimeout);
+                initPDFJS();
+                return;
+            }
+        }
     }
 
     // Initialize PDF.js as fallback
     async function initPDFJS() {
+        const embed = document.getElementById('pdf-embed');
         embed.style.display = 'none';
         pdfJsContainer.style.display = 'block';
 
         try {
-            const loadingTask = pdfjsLib.getDocument(pdfUrl);
-            pdfDoc = await loadingTask.promise;
+            // Configure PDF.js worker
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-            document.getElementById('page-count').textContent = pdfDoc.numPages;
-            renderPage(currentPage);
+                const loadingTask = pdfjsLib.getDocument({
+                    url: pdfUrl,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                });
+                pdfDoc = await loadingTask.promise;
+
+                document.getElementById('page-count').textContent = pdfDoc.numPages;
+                renderPage(currentPage);
+
+                console.log('PDF.js initialized successfully');
+            } else {
+                throw new Error('PDF.js not available');
+            }
         } catch (error) {
-            console.error('Error loading PDF:', error);
+            console.error('Error loading PDF with PDF.js:', error);
             embed.style.display = 'none';
             fallback.style.display = 'block';
         }
@@ -225,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <style>
 .pdf-viewer-container {
-    max-width: 1200px;
+    max-width: 900px;
     margin: 0 auto;
     background: white;
     border-radius: var(--border-radius);
@@ -265,8 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .pdf-viewer {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    max-height: 800px;
+    height: auto;
 }
 
 .pdf-viewer__toolbar {
@@ -310,7 +353,6 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .pdf-viewer__content {
-    flex: 1;
     position: relative;
     overflow: auto;
     background: #f5f5f5;
@@ -318,6 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
     justify-content: center;
     align-items: flex-start;
     padding: 1rem;
+    height: 600px;
 }
 
 #pdf-embed {
@@ -326,6 +369,8 @@ document.addEventListener('DOMContentLoaded', function() {
     border-radius: var(--border-radius-sm);
     background: white;
     max-width: 100%;
+    width: 100%;
+    height: 550px; /* Optimized size for 8.5x11 pages */
     transition: transform 0.2s ease;
 }
 
@@ -365,6 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 #pdf-canvas {
     max-width: 100%;
+    max-height: 550px; /* Constrain canvas size for 8.5x11 */
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -376,36 +422,50 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex;
     align-items: center;
     gap: 1rem;
-    background: white;
-    padding: 0.75rem 1.5rem;
+    background: var(--color-background-light, #f8f9fa);
+    padding: 1rem 1.5rem;
     border-radius: var(--border-radius);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 2px solid var(--color-border, #e0e0e0);
 }
 
 .nav-btn {
-    background: var(--color-primary);
+    background: var(--color-primary, #2563eb);
     color: white;
-    border: none;
-    border-radius: var(--border-radius-sm);
-    padding: 0.5rem 1rem;
+    border: 2px solid var(--color-primary, #2563eb);
+    border-radius: var(--border-radius-sm, 6px);
+    padding: 0.75rem 1.25rem;
     cursor: pointer;
-    font-weight: 500;
-    transition: background 0.2s ease;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .nav-btn:hover {
     background: var(--color-primary-dark, #1d4ed8);
+    border-color: var(--color-primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .nav-btn:disabled {
-    background: var(--color-background);
-    color: var(--color-text-secondary);
+    background: var(--color-background, #f5f5f5);
+    color: var(--color-text-secondary, #666);
+    border-color: var(--color-border, #ddd);
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 #page-info {
-    font-weight: 500;
-    color: var(--color-text-primary);
+    font-weight: 600;
+    color: var(--color-text-primary, #333);
+    font-size: 0.95rem;
+    padding: 0.5rem 1rem;
+    background: white;
+    border-radius: var(--border-radius-sm, 6px);
+    border: 1px solid var(--color-border, #ddd);
 }
 
 .inline-form {

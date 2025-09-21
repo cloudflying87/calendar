@@ -82,6 +82,14 @@ class UploadProgressHandler {
     }
 
     shouldInterceptForm(form) {
+        // Skip interception for bulk upload forms - they work better with normal submission
+        // Check both the action attribute and the current URL
+        const formAction = form.getAttribute('action') || window.location.href;
+        if (formAction.includes('/upload/') || window.location.href.includes('/upload/')) {
+            console.log('Skipping form interception - bulk upload form detected:', formAction, 'Current URL:', window.location.href);
+            return false;
+        }
+
         // Check if form has file inputs and is an upload form
         if (form.enctype !== 'multipart/form-data') {
             return false;
@@ -99,11 +107,13 @@ class UploadProgressHandler {
                 const totalSize = this.getTotalFileSize(input.files);
                 // Show progress for files > 5MB or multiple files
                 if (totalSize > 5 * 1024 * 1024 || input.files.length > 1) {
+                    console.log('Intercepting form - large files detected:', formAction, 'Total size:', totalSize);
                     return true;
                 }
             }
         }
 
+        console.log('Not intercepting form - no large files:', formAction);
         return false;
     }
 

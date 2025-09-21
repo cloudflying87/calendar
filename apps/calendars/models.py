@@ -740,9 +740,12 @@ class CalendarEvent(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to resize image if needed"""
+        # Skip auto-resize for bulk uploads (indicated by skip_resize kwarg)
+        skip_resize = kwargs.pop('skip_resize', False)
+
         super().save(*args, **kwargs)
 
-        if self.image:
+        if self.image and not skip_resize:
             self.resize_image()
 
     def resize_image(self, target_width=320, target_height=200):

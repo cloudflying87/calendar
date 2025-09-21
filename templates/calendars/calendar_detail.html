@@ -27,6 +27,7 @@
         </div>
     </div>
     <div class="page-header__actions">
+        <a href="{% url 'calendars:calendar_simple' year=calendar.year %}" class="btn btn--outline">Switch to Simple View</a>
         <a href="{% url 'calendars:calendar_list' %}" class="btn btn--outline">Back to Calendars</a>
         <a href="{% url 'calendars:delete_calendar' calendar_id=calendar.id %}" class="btn btn--danger">🗑️ Delete Calendar</a>
     </div>

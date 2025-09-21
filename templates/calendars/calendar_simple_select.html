@@ -1,17 +1,17 @@
 {% extends 'base.html' %}
 
-{% block title %}Select Calendar - {{ year }}{% endblock %}
+{% block title %}Select Calendar - {{ year }} - Simple View{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">Select Calendar for {{ year }}</h1>
+    <h1 class="page-title">Select Calendar for {{ year }} - Simple View</h1>
     <a href="{% url 'calendars:calendar_list' %}" class="btn btn--outline">Back to Calendar List</a>
 </div>
 
 <div class="info-panel">
     <h3 class="info-panel__title">Multiple Calendars Found</h3>
     <div class="info-panel__content">
-        <p>You have {{ calendars.count }} calendar{{ calendars.count|pluralize }} for {{ year }}. Please select which one you'd like to view:</p>
+        <p>You have {{ calendars.count }} calendar{{ calendars.count|pluralize }} for {{ year }}. Please select which one you'd like to view in Simple Mode:</p>
     </div>
 </div>
 
@@ -26,6 +26,9 @@
                         Calendar {{ forloop.counter }}
                     {% endif %}
                 </h3>
+                <div class="simple-view-badge">
+                    <span class="badge badge--primary">Simple View</span>
+                </div>
             </div>
 
             <div class="calendar-select-card__content">
@@ -53,18 +56,18 @@
 
             <div class="calendar-select-card__actions">
                 {% if calendar.calendar_year %}
-                    <a href="{% url 'calendars:calendar_detail_named' year=calendar.year calendar_name=calendar.calendar_year.name %}" class="btn btn--primary">
-                        📋 Full View
+                    <a href="{% url 'calendars:calendar_simple_named' year=calendar.year calendar_name=calendar.calendar_year.name %}" class="btn btn--primary">
+                        Open Simple View
                     </a>
-                    <a href="{% url 'calendars:calendar_simple_named' year=calendar.year calendar_name=calendar.calendar_year.name %}" class="btn btn--secondary">
-                        ⚡ Simple View
+                    <a href="{% url 'calendars:calendar_detail_named' year=calendar.year calendar_name=calendar.calendar_year.name %}" class="btn btn--outline btn--small">
+                        Full View Instead
                     </a>
                 {% else %}
-                    <a href="{% url 'calendars:calendar_detail_by_id' calendar_id=calendar.id %}" class="btn btn--primary">
-                        📋 Full View
+                    <a href="{% url 'calendars:calendar_simple_by_id' calendar_id=calendar.id %}" class="btn btn--primary">
+                        Open Simple View
                     </a>
-                    <a href="{% url 'calendars:calendar_simple_by_id' calendar_id=calendar.id %}" class="btn btn--secondary">
-                        ⚡ Simple View
+                    <a href="{% url 'calendars:calendar_detail_by_id' calendar_id=calendar.id %}" class="btn btn--outline btn--small">
+                        Full View Instead
                     </a>
                 {% endif %}
             </div>
@@ -95,12 +98,36 @@
 
 .calendar-select-card__header {
     margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
 }
 
 .calendar-select-card__title {
     margin: 0;
     font-size: 1.5rem;
     color: var(--color-text-primary);
+    flex: 1;
+}
+
+.simple-view-badge {
+    flex-shrink: 0;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.badge--primary {
+    background: #2563eb;
+    color: white;
 }
 
 .calendar-select-card__content {
@@ -153,9 +180,28 @@
 
 .calendar-select-card__actions {
     display: flex;
-    gap: 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.info-panel {
+    background: #dbeafe;
+    border: 1px solid #3b82f6;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.info-panel__title {
+    margin: 0 0 0.5rem 0;
+    color: #1e40af;
+    font-size: 1.25rem;
+}
+
+.info-panel__content p {
+    margin: 0;
+    color: #1e40af;
 }
 
 @media (max-width: 768px) {
@@ -163,9 +209,10 @@
         grid-template-columns: 1fr;
     }
 
-    .calendar-select-card__actions {
+    .calendar-select-card__header {
         flex-direction: column;
-        align-items: stretch;
+        align-items: flex-start;
+        gap: 0.5rem;
     }
 }
 </style>

@@ -487,7 +487,47 @@ class ExportMasterEventsView(LoginRequiredMixin, View):
 
 
 class ImportMasterEventsView(LoginRequiredMixin, View):
-    """Import master events from CSV or JSON file"""
+    """Import master events from CSV or JSON file with smart matching"""
+
+    def detect_event_type(self, event_name):
+        """Detect event type based on keywords in the event name (same logic as photo upload)"""
+        event_name_lower = event_name.lower()
+
+        # Birthday keywords
+        birthday_keywords = ['birthday', 'bday', 'birth day', "b'day", 'born']
+        if any(keyword in event_name_lower for keyword in birthday_keywords):
+            return 'birthday'
+
+        # Anniversary keywords
+        anniversary_keywords = ['anniversary', 'wedding', 'married', 'engagement']
+        if any(keyword in event_name_lower for keyword in anniversary_keywords):
+            return 'anniversary'
+
+        # Holiday keywords
+        holiday_keywords = [
+            'christmas', 'thanksgiving', 'easter', 'halloween', 'new year',
+            'independence day', 'july 4th', 'memorial day', 'labor day',
+            'valentine', 'mother\'s day', 'father\'s day', 'mothers day',
+            'fathers day', 'hanukkah', 'kwanzaa', 'diwali', 'passover'
+        ]
+        if any(keyword in event_name_lower for keyword in holiday_keywords):
+            return 'holiday'
+
+        # Appointment keywords
+        appointment_keywords = [
+            'appointment', 'meeting', 'doctor', 'dentist', 'checkup',
+            'visit', 'interview', 'consultation'
+        ]
+        if any(keyword in event_name_lower for keyword in appointment_keywords):
+            return 'appointment'
+
+        # Reminder keywords
+        reminder_keywords = ['reminder', 'due', 'deadline', 'payment', 'bill', 'renew']
+        if any(keyword in event_name_lower for keyword in reminder_keywords):
+            return 'reminder'
+
+        # Default to custom if no keywords match
+        return 'custom'
 
     def get(self, request):
         return render(request, 'calendars/import_master_events.html')
@@ -500,6 +540,7 @@ class ImportMasterEventsView(LoginRequiredMixin, View):
 
         file_name = file.name.lower()
         imported_count = 0
+        updated_count = 0
         skipped_count = 0
         error_count = 0
 
