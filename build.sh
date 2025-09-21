@@ -164,9 +164,9 @@ backup_database() {
         ensure_backup_dir
         
         # Create all three backup formats - only exclude cache table
-        sudo docker exec -it $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -a -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_data.sql
-        sudo docker exec -it $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}.sql
-        sudo docker exec -it $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -c -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_clean.sql
+        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -a -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_data.sql
+        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}.sql
+        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -c -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_clean.sql
         
         # Copy from container to host
         sudo docker cp $DB_CONTAINER:/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_data.sql ./backups/
@@ -321,7 +321,7 @@ apply_migration_fixes() {
     
     # First, clear django_migrations to avoid duplicate key conflicts
     echo -e "${YELLOW}Clearing django_migrations table to prevent duplicate key errors...${NC}"
-    sudo docker exec -it $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -c "TRUNCATE django_migrations CASCADE;"
+    sudo docker exec $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -c "TRUNCATE django_migrations CASCADE;"
     echo -e "${GREEN}✓ django_migrations table cleared${NC}"
     
     # Add project-specific migration fixes here
@@ -345,7 +345,7 @@ END $$;
 EOF'
     
     # Run the migration fixes
-    sudo docker exec -it $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/migration_fixes.sql
+    sudo docker exec $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/migration_fixes.sql
     
     # Clean up
     sudo docker exec -i $DB_CONTAINER rm -f /var/lib/postgresql/data/migration_fixes.sql
@@ -377,7 +377,7 @@ END $$;
 EOF'
     
     # Run the constraint restoration
-    sudo docker exec -it $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/restore_constraints.sql
+    sudo docker exec $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/restore_constraints.sql
     
     # Clean up
     sudo docker exec -i $DB_CONTAINER rm -f /var/lib/postgresql/data/restore_constraints.sql
@@ -419,7 +419,7 @@ restore_database() {
     echo -e "${YELLOW}Running database restore...${NC}"
     echo "=================================================================================="
     
-    if sudo docker exec -i $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/${backup_file}; then
+    if sudo docker exec $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/${backup_file}; then
         restore_status=0
         echo "=================================================================================="
         echo -e "${GREEN}✓ Database restore completed successfully${NC}"
@@ -437,7 +437,7 @@ restore_database() {
     fi
     
     # Clean up backup file from container
-    sudo docker exec -i $DB_CONTAINER rm -f /var/lib/postgresql/data/${backup_file}
+    sudo docker exec $DB_CONTAINER rm -f /var/lib/postgresql/data/${backup_file}
     
     echo -e "${GREEN}✓ Database restore completed${NC}"
 }
@@ -616,7 +616,7 @@ if [ "$SOFT_REBUILD" = true ]; then
     
     # Git pull
     echo -e "${YELLOW}Pulling latest changes from git...${NC}"
-    git pull
+    git pull --no-edit
     
     # Stop and remove containers (preserve database)
     stop_containers true
@@ -652,7 +652,7 @@ if [ "$REBUILD" = true ]; then
     
     # Git pull
     echo -e "${YELLOW}Pulling latest changes from git...${NC}"
-    git pull
+    git pull --no-edit
     
     # Stop and remove everything
     stop_containers false
@@ -742,3 +742,4 @@ if [ "$MIGRATE" = true ] && [ "$REBUILD" = false ] && [ "$SOFT_REBUILD" = false 
 fi
 
 echo -e "${GREEN}🎉 Build script completed successfully!${NC}"
+exit 0

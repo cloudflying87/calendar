@@ -2327,6 +2327,41 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
             except CalendarHeaderImage.DoesNotExist:
                 messages.error(request, 'Header image not found.')
 
+        elif action == 'rotate':
+            try:
+                header_image = CalendarHeaderImage.objects.get(calendar=calendar, month=month)
+                degrees = int(request.POST.get('degrees', 0))
+
+                # Transform the image
+                self._transform_header_image(header_image, action='rotate', degrees=degrees)
+
+                import calendar as cal
+                month_name = "Cover Page" if month == 0 else "Back Cover" if month == 13 else cal.month_name[month]
+                messages.success(request, f'Header image rotated {degrees}° for {month_name}.')
+            except CalendarHeaderImage.DoesNotExist:
+                messages.error(request, 'Header image not found.')
+            except ValueError:
+                messages.error(request, 'Invalid rotation value.')
+            except Exception as e:
+                messages.error(request, f'Error rotating image: {str(e)}')
+
+        elif action == 'flip':
+            try:
+                header_image = CalendarHeaderImage.objects.get(calendar=calendar, month=month)
+                direction = request.POST.get('direction', 'horizontal')
+
+                # Transform the image
+                self._transform_header_image(header_image, action='flip', direction=direction)
+
+                import calendar as cal
+                month_name = "Cover Page" if month == 0 else "Back Cover" if month == 13 else cal.month_name[month]
+                flip_text = "horizontally" if direction == "horizontal" else "vertically"
+                messages.success(request, f'Header image flipped {flip_text} for {month_name}.')
+            except CalendarHeaderImage.DoesNotExist:
+                messages.error(request, 'Header image not found.')
+            except Exception as e:
+                messages.error(request, f'Error flipping image: {str(e)}')
+
         return redirect('calendars:header_images', calendar_id=calendar.id)
 
     def _process_pdf_to_headers(self, pdf_content, calendar, request):
@@ -2394,6 +2429,51 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
 
         except Exception as e:
             raise Exception(f'Failed to convert PDF to images: {str(e)}')
+
+    def _transform_header_image(self, header_image, action, **kwargs):
+        """Transform header image (rotate or flip)"""
+        from PIL import Image
+        from django.core.files.base import ContentFile
+        from io import BytesIO
+        import os
+
+        try:
+            # Open the current image
+            image_path = header_image.image.path
+            with Image.open(image_path) as img:
+                # Convert to RGB if necessary (for JPEG compatibility)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+
+                # Apply transformation
+                if action == 'rotate':
+                    degrees = kwargs.get('degrees', 0)
+                    if degrees in [90, 180, 270]:
+                        img = img.rotate(-degrees, expand=True)  # Negative for clockwise rotation
+                elif action == 'flip':
+                    direction = kwargs.get('direction', 'horizontal')
+                    if direction == 'horizontal':
+                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    elif direction == 'vertical':
+                        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+
+                # Save transformed image
+                img_io = BytesIO()
+                img.save(img_io, format='JPEG', quality=95)
+                img_io.seek(0)
+
+                # Get original filename
+                original_name = os.path.basename(header_image.image.name)
+
+                # Save back to the same field
+                header_image.image.save(
+                    original_name,
+                    ContentFile(img_io.getvalue()),
+                    save=True
+                )
+
+        except Exception as e:
+            raise Exception(f'Failed to transform image: {str(e)}')
 
 
 class DigitalCalendarView(TemplateView):

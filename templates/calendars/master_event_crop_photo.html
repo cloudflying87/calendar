@@ -204,15 +204,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const previewImage = document.getElementById('preview-image');
 
     cropper = new Cropper(image, {
-        aspectRatio: 1,
+        aspectRatio: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--calendar-aspect-ratio')), // Use CSS variable
         viewMode: 1,
         autoCropArea: 0.8,
         responsive: true,
         crop: function(event) {
             // Update preview
             const canvas = cropper.getCroppedCanvas({
-                width: 200,
-                height: 200,
+                width: parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calendar-image-width')),
+                height: parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calendar-image-height')),
                 imageSmoothingQuality: 'high'
             });
 
@@ -232,9 +232,10 @@ document.addEventListener('DOMContentLoaded', function() {
         spinner.style.display = 'inline-block';
         button.innerHTML = '<span class="loading-spinner" style="display: inline-block;"></span> Saving...';
 
+        const aspectRatio = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--calendar-aspect-ratio'));
         const canvas = cropper.getCroppedCanvas({
             width: 800,
-            height: 800,
+            height: Math.round(800 / aspectRatio), // Maintain aspect ratio
             imageSmoothingQuality: 'high'
         });
 

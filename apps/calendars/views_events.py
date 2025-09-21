@@ -109,9 +109,14 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
     """View to handle inline image upload for master events - redirects to crop workflow"""
 
     def post(self, request, pk):
+        print(f"MasterEventImageUploadView.post called with pk={pk}")
+        print(f"request.FILES: {list(request.FILES.keys())}")
+        print(f"request.POST: {dict(request.POST)}")
+
         event = get_object_or_404(EventMaster, pk=pk, user=request.user)
 
         if 'image' not in request.FILES:
+            print("No image in request.FILES")
             return JsonResponse({'success': False, 'error': 'No image provided'})
 
         # Store the uploaded image temporarily

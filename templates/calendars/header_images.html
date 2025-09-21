@@ -112,6 +112,66 @@
                         </div>
                     </form>
 
+                    <!-- Image Transformation Controls -->
+                    {% if month_data.has_image %}
+                        <div class="transform-controls">
+                            <h4 class="transform-title">🔄 Transform Image</h4>
+                            <div class="transform-buttons">
+                                <!-- Rotation Controls -->
+                                <form method="post" class="transform-form" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="rotate">
+                                    <input type="hidden" name="month" value="{{ month_data.month }}">
+                                    <input type="hidden" name="degrees" value="90">
+                                    <button type="submit" class="btn btn--outline btn--small" title="Rotate 90° clockwise">
+                                        ↻ 90°
+                                    </button>
+                                </form>
+
+                                <form method="post" class="transform-form" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="rotate">
+                                    <input type="hidden" name="month" value="{{ month_data.month }}">
+                                    <input type="hidden" name="degrees" value="180">
+                                    <button type="submit" class="btn btn--outline btn--small" title="Rotate 180°">
+                                        ↻ 180°
+                                    </button>
+                                </form>
+
+                                <form method="post" class="transform-form" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="rotate">
+                                    <input type="hidden" name="month" value="{{ month_data.month }}">
+                                    <input type="hidden" name="degrees" value="270">
+                                    <button type="submit" class="btn btn--outline btn--small" title="Rotate 90° counter-clockwise">
+                                        ↺ 90°
+                                    </button>
+                                </form>
+
+                                <!-- Flip Controls -->
+                                <form method="post" class="transform-form" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="flip">
+                                    <input type="hidden" name="month" value="{{ month_data.month }}">
+                                    <input type="hidden" name="direction" value="horizontal">
+                                    <button type="submit" class="btn btn--outline btn--small" title="Flip horizontally">
+                                        ↔️ Flip H
+                                    </button>
+                                </form>
+
+                                <form method="post" class="transform-form" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="flip">
+                                    <input type="hidden" name="month" value="{{ month_data.month }}">
+                                    <input type="hidden" name="direction" value="vertical">
+                                    <button type="submit" class="btn btn--outline btn--small" title="Flip vertically">
+                                        ↕️ Flip V
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endif %}
+
                     <!-- Delete Form -->
                     {% if month_data.has_image %}
                         <form method="post" class="delete-form" onsubmit="return confirm('Remove header image for {{ month_data.name }}?');">
@@ -363,6 +423,85 @@
     display: inline-block;
 }
 
+.transform-controls {
+    background: var(--color-background-light);
+    padding: 1rem;
+    border-radius: var(--border-radius-sm);
+    margin-bottom: 1rem;
+    border: 1px solid var(--color-border);
+}
+
+.transform-title {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.transform-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.transform-form {
+    margin: 0;
+}
+
+.transform-buttons .btn {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    white-space: nowrap;
+}
+
+.transform-buttons .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Upload Progress Styles */
+.upload-progress {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: var(--color-background-light);
+    border-radius: var(--border-radius);
+    border: 2px solid var(--color-primary);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.progress-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
 .preview-panel {
     background: white;
     border-radius: var(--border-radius);
@@ -420,16 +559,141 @@
 }
 </style>
 
+<script src="/static/js/upload-progress.js"></script>
 <script>
 // Add preview functionality for file inputs
 document.addEventListener('DOMContentLoaded', function() {
+    // Handle PDF upload with progress tracking
+    const pdfForm = document.querySelector('.pdf-upload-form');
+    const pdfInput = pdfForm ? pdfForm.querySelector('input[name="pdf_file"]') : null;
+    const pdfSubmitBtn = pdfForm ? pdfForm.querySelector('button[type="submit"]') : null;
+
+    if (pdfForm && pdfInput) {
+        let originalButtonText = pdfSubmitBtn.textContent;
+
+        // Add progress container after the form
+        const progressHTML = `
+            <div id="pdf-upload-progress" class="upload-progress" style="display: none;">
+                <div class="progress-header">
+                    <span id="pdf-progress-text">Converting PDF to Headers...</span>
+                    <span id="pdf-progress-percentage">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="pdf-progress-fill" class="progress-fill"></div>
+                </div>
+                <div class="progress-details">
+                    <span id="pdf-upload-speed"></span>
+                    <span id="pdf-time-remaining"></span>
+                </div>
+            </div>
+        `;
+        pdfForm.insertAdjacentHTML('afterend', progressHTML);
+
+        pdfForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const file = pdfInput.files[0];
+            if (!file) {
+                alert('Please select a PDF file');
+                return;
+            }
+
+            const formData = new FormData(pdfForm);
+            const xhr = new XMLHttpRequest();
+
+            // UI elements
+            const progressContainer = document.getElementById('pdf-upload-progress');
+            const progressText = document.getElementById('pdf-progress-text');
+            const progressPercentage = document.getElementById('pdf-progress-percentage');
+            const progressFill = document.getElementById('pdf-progress-fill');
+            const uploadSpeed = document.getElementById('pdf-upload-speed');
+            const timeRemaining = document.getElementById('pdf-time-remaining');
+
+            // Show progress UI
+            progressContainer.style.display = 'block';
+            pdfSubmitBtn.disabled = true;
+            pdfSubmitBtn.textContent = 'Processing...';
+
+            const startTime = Date.now();
+
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    const elapsed = Date.now() - startTime;
+                    const speed = e.loaded / (elapsed / 1000); // bytes per second
+                    const remaining = (e.total - e.loaded) / speed; // seconds
+
+                    progressFill.style.width = percentComplete + '%';
+                    progressPercentage.textContent = Math.round(percentComplete) + '%';
+
+                    if (speed > 0) {
+                        uploadSpeed.textContent = formatFileSize(speed) + '/s';
+                        timeRemaining.textContent = Math.round(remaining) + 's remaining';
+                    }
+
+                    if (percentComplete >= 100) {
+                        progressText.textContent = 'Processing PDF pages...';
+                        uploadSpeed.textContent = '';
+                        timeRemaining.textContent = 'Converting to images...';
+                    }
+                }
+            });
+
+            xhr.addEventListener('load', function() {
+                if (xhr.status === 200) {
+                    progressText.textContent = 'Upload complete!';
+                    progressFill.style.backgroundColor = '#10b981';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    handleError('Upload failed. Please try again.');
+                }
+            });
+
+            xhr.addEventListener('error', function() {
+                handleError('Network error. Please try again.');
+            });
+
+            xhr.addEventListener('timeout', function() {
+                handleError('Upload timed out. The PDF may be too large.');
+            });
+
+            function handleError(message) {
+                progressText.textContent = message;
+                progressFill.style.backgroundColor = '#ef4444';
+                pdfSubmitBtn.disabled = false;
+                pdfSubmitBtn.textContent = originalButtonText;
+
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressFill.style.width = '0%';
+                    progressFill.style.backgroundColor = '';
+                }, 5000);
+            }
+
+            xhr.open('POST', pdfForm.action || window.location.href);
+            xhr.setRequestHeader('X-CSRFToken', formData.get('csrfmiddlewaretoken'));
+            xhr.timeout = 300000; // 5 minutes for PDF processing
+            xhr.send(formData);
+        });
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
     const fileInputs = document.querySelectorAll('input[type="file"]');
 
     fileInputs.forEach(input => {
         input.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
-                // Handle PDF files - no preview needed
+                // Handle PDF files - already handled above
                 if (file.type === 'application/pdf') {
                     return;
                 }
@@ -457,6 +721,71 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 };
                 reader.readAsDataURL(file);
+            }
+        });
+    });
+
+    // Add live preview for transform actions
+    const transformButtons = document.querySelectorAll('.transform-form button');
+
+    transformButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            const form = this.closest('.transform-form');
+            const action = form.querySelector('input[name="action"]').value;
+            const card = form.closest('.header-card');
+            const previewImg = card.querySelector('.header-preview');
+
+            if (previewImg) {
+                // Show loading state
+                this.disabled = true;
+                const originalText = this.innerHTML;
+                this.innerHTML = '⏳ Processing...';
+
+                // Add a temporary visual effect to show the transformation
+                if (action === 'rotate') {
+                    const degrees = form.querySelector('input[name="degrees"]').value;
+                    previewImg.style.transition = 'transform 0.3s ease';
+
+                    // Get current rotation or start from 0
+                    const currentRotation = parseInt(previewImg.dataset.rotation || '0');
+                    const newRotation = (currentRotation + parseInt(degrees)) % 360;
+                    previewImg.dataset.rotation = newRotation;
+                    previewImg.style.transform = `rotate(${newRotation}deg)`;
+
+                } else if (action === 'flip') {
+                    const direction = form.querySelector('input[name="direction"]').value;
+                    previewImg.style.transition = 'transform 0.3s ease';
+
+                    // Get current flip state
+                    const currentFlipH = previewImg.dataset.flipH === 'true';
+                    const currentFlipV = previewImg.dataset.flipV === 'true';
+
+                    let newFlipH = currentFlipH;
+                    let newFlipV = currentFlipV;
+
+                    if (direction === 'horizontal') {
+                        newFlipH = !currentFlipH;
+                    } else if (direction === 'vertical') {
+                        newFlipV = !currentFlipV;
+                    }
+
+                    previewImg.dataset.flipH = newFlipH;
+                    previewImg.dataset.flipV = newFlipV;
+
+                    const rotation = parseInt(previewImg.dataset.rotation || '0');
+                    const scaleX = newFlipH ? -1 : 1;
+                    const scaleY = newFlipV ? -1 : 1;
+
+                    previewImg.style.transform = `rotate(${rotation}deg) scaleX(${scaleX}) scaleY(${scaleY})`;
+                }
+
+                // Submit the form after a brief animation delay
+                setTimeout(() => {
+                    form.submit();
+                }, 300);
+            } else {
+                // No preview image, submit immediately
+                form.submit();
             }
         });
     });

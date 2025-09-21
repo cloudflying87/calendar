@@ -97,44 +97,47 @@
         <div class="form-group">
             <label for="master-event-image">Default Image (Optional)</label>
             <div class="master-event-photo-section">
-                {% if form.instance.image %}
-                    <div class="current-photo">
-                        <img src="{{ form.instance.image.url }}" alt="{{ form.instance.name }}" class="master-event-photo">
-                        <div class="photo-actions">
-                            <form method="post" action="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" enctype="multipart/form-data" class="inline-form">
-                                {% csrf_token %}
-                                <input type="file" name="image" accept="image/*" style="display: none;" id="changePhotoInput">
-                                <label for="changePhotoInput" class="btn btn--secondary btn--small">
-                                    ✏️ Change Photo
-                                </label>
-                            </form>
-                            <form method="post" action="{% url 'calendars:master_event_remove_image' pk=form.instance.pk %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn--outline btn--small">
-                                    ❌ Remove Photo
-                                </button>
-                            </form>
-                        </div>
+                <div class="photo-container">
+                    <div class="current-photo" id="currentPhotoDiv">
+                        {% if form.instance.image %}
+                            <img src="{{ form.instance.image.url }}" alt="{{ form.instance.name }}" class="master-event-photo" id="currentPhoto">
+                        {% else %}
+                            <div class="no-photo-placeholder" id="noPhotoPlaceholder">
+                                <span class="no-photo-icon">📷</span>
+                                <span class="no-photo-text">No photo selected</span>
+                            </div>
+                        {% endif %}
                     </div>
-                {% else %}
-                    <div class="no-photo">
-                        <div class="no-photo-placeholder">
-                            <span class="no-photo-icon">📷</span>
-                            <span class="no-photo-text">No photo</span>
-                        </div>
+
+                    <div class="photo-actions">
                         {% if form.instance.pk %}
-                            <form method="post" action="{% url 'calendars:master_event_upload_image' pk=form.instance.pk %}" enctype="multipart/form-data" class="inline-form">
-                                {% csrf_token %}
-                                <input type="file" name="image" accept="image/*" style="display: none;" id="addPhotoInput">
-                                <label for="addPhotoInput" class="btn btn--primary btn--small">
-                                    ✏️ Add Photo
-                                </label>
-                            </form>
+                            <input type="file" name="photo_upload" accept="image/*" style="display: none;" id="photoInput">
+                            <label for="photoInput" class="btn btn--primary btn--small">
+                                {% if form.instance.image %}✏️ Change Photo{% else %}📷 Add Photo{% endif %}
+                            </label>
+
+                            <div class="photo-preview-actions" id="previewActions" style="display: none;">
+                                <button type="button" class="btn btn--secondary btn--small" id="cropBtn">
+                                    ✂️ Crop & Save
+                                </button>
+                                <button type="button" class="btn btn--outline btn--small" id="cancelBtn">
+                                    ❌ Cancel
+                                </button>
+                            </div>
+
+                            {% if form.instance.image %}
+                                <form method="post" action="{% url 'calendars:master_event_remove_image' pk=form.instance.pk %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn--outline btn--small">
+                                        🗑️ Remove Photo
+                                    </button>
+                                </form>
+                            {% endif %}
                         {% else %}
                             <p class="form-help">Save the event first to add a photo</p>
                         {% endif %}
                     </div>
-                {% endif %}
+                </div>
             </div>
             <small class="form-help">This image will be used as the default for all calendar events created from this master event</small>
         </div>
@@ -175,24 +178,199 @@ document.addEventListener('DOMContentLoaded', function() {
         updateFormBasedOnType();
     }
 
-    // Handle photo upload forms
-    const changePhotoInput = document.getElementById('changePhotoInput');
-    const addPhotoInput = document.getElementById('addPhotoInput');
+    // Handle photo upload with inline preview
+    const photoInput = document.getElementById('photoInput');
+    const currentPhoto = document.getElementById('currentPhoto');
+    const currentPhotoDiv = document.getElementById('currentPhotoDiv');
+    const noPhotoPlaceholder = document.getElementById('noPhotoPlaceholder');
+    const previewActions = document.getElementById('previewActions');
+    const cropBtn = document.getElementById('cropBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
 
-    function handlePhotoUpload(input) {
-        if (input && input.files && input.files[0]) {
-            // Auto-submit the form when a file is selected
-            input.closest('form').submit();
+    let selectedFile = null;
+    let originalImageSrc = currentPhoto ? currentPhoto.src : null;
+
+    if (photoInput) {
+        photoInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                selectedFile = e.target.files[0];
+                showImagePreview(selectedFile);
+            }
+        });
+    }
+
+    function showImagePreview(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Hide placeholder if it exists
+            if (noPhotoPlaceholder) {
+                noPhotoPlaceholder.style.display = 'none';
+            }
+
+            // Show or update the image
+            if (currentPhoto) {
+                currentPhoto.src = e.target.result;
+            } else {
+                // Create new image element
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.alt = 'Preview';
+                img.className = 'master-event-photo';
+                img.id = 'currentPhoto';
+                currentPhotoDiv.appendChild(img);
+            }
+
+            // Show preview actions
+            previewActions.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function cancelPreview() {
+        // Reset file input
+        photoInput.value = '';
+        selectedFile = null;
+
+        // Restore original image or show placeholder
+        if (originalImageSrc) {
+            currentPhoto.src = originalImageSrc;
+        } else {
+            // Remove the preview image and show placeholder
+            const previewImg = document.getElementById('currentPhoto');
+            if (previewImg && !originalImageSrc) {
+                previewImg.remove();
+            }
+            if (noPhotoPlaceholder) {
+                noPhotoPlaceholder.style.display = 'block';
+            }
         }
+
+        // Hide preview actions
+        previewActions.style.display = 'none';
     }
 
-    if (changePhotoInput) {
-        changePhotoInput.addEventListener('change', () => handlePhotoUpload(changePhotoInput));
+    function uploadAndCrop() {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        formData.append('image', selectedFile);
+
+        // Get the upload URL (we need to construct it)
+        const uploadUrl = `/calendars/master-events/{{ form.instance.pk }}/upload-image/`;
+
+        fetch(uploadUrl, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.redirect_to_crop) {
+                // Redirect to crop page
+                window.location.href = data.crop_url;
+            } else {
+                alert('Error: ' + (data.error || 'Upload failed'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Upload failed. Please try again.');
+        });
     }
 
-    if (addPhotoInput) {
-        addPhotoInput.addEventListener('change', () => handlePhotoUpload(addPhotoInput));
+    // Event listeners
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', cancelPreview);
+    }
+
+    if (cropBtn) {
+        cropBtn.addEventListener('click', uploadAndCrop);
     }
 });
 </script>
+
+<style>
+.photo-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.current-photo {
+    display: flex;
+    justify-content: center;
+}
+
+.master-event-photo {
+    width: var(--calendar-image-width);
+    height: var(--calendar-image-height);
+    aspect-ratio: var(--calendar-aspect-ratio);
+    object-fit: cover;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.no-photo-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: var(--calendar-image-width);
+    height: var(--calendar-image-height);
+    aspect-ratio: var(--calendar-aspect-ratio);
+    padding: 2rem;
+    border: 2px dashed var(--color-border);
+    border-radius: var(--border-radius);
+    color: var(--color-text-secondary);
+    background: var(--color-background-light, #f8f9fa);
+}
+
+.no-photo-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.7;
+}
+
+.photo-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.photo-preview-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.inline-form {
+    display: inline-block;
+}
+
+@media (max-width: 768px) {
+    .master-event-photo,
+    .no-photo-placeholder {
+        width: var(--calendar-image-width-mobile);
+        height: var(--calendar-image-height-mobile);
+    }
+
+    .photo-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .photo-preview-actions {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .master-event-photo,
+    .no-photo-placeholder {
+        width: var(--calendar-image-width-small);
+        height: var(--calendar-image-height-small);
+    }
+}
+</style>
 {% endblock %}

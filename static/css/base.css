@@ -1,6 +1,17 @@
 /* Generated Theme - calendar-builder */
 /* Generated on 2025-09-18 */
 
+/*
+ * CALENDAR ASPECT RATIO CONFIGURATION
+ * ===================================
+ * To change the calendar image aspect ratio system-wide:
+ * 1. Update --calendar-aspect-ratio (e.g., 1.6 for 16:10, 1.77 for 16:9, 1.33 for 4:3)
+ * 2. Update --calendar-aspect-padding to be 100 divided by the aspect ratio
+ * 3. Optionally adjust --calendar-image-width/height for display sizes
+ *
+ * All cropping interfaces, previews, and displays will automatically update.
+ */
+
 :root {
     /* Brand Colors */
     --primary-color: #2563eb;
@@ -76,6 +87,18 @@
     --touch-target: 44px;
     --button-height: 44px;
     --input-height: 44px;
+
+    /* Calendar-Specific Variables */
+    --calendar-aspect-ratio: 1.6;
+    --calendar-image-width: 320px;
+    --calendar-image-height: 200px;
+    --calendar-aspect-padding: 62.5%; /* 100 / 1.6 = 62.5% */
+
+    /* Mobile Calendar Sizes */
+    --calendar-image-width-mobile: 280px;
+    --calendar-image-height-mobile: 175px;
+    --calendar-image-width-small: 240px;
+    --calendar-image-height-small: 150px;
 }
 
 /* CSS Reset */
