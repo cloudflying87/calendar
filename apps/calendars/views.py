@@ -2314,6 +2314,9 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
                 else:
                     messages.success(request, 'PDF updated on header page and converted to individual header images successfully!')
             except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f'Error processing PDF to headers: {str(e)}', exc_info=True)
                 messages.error(request, f'Error processing PDF: {str(e)}')
                 return redirect('calendars:header_images', calendar_id=calendar.id)
 
@@ -2368,9 +2371,13 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
         """Convert PDF pages to header images"""
         import tempfile
         import os
-        from pdf2image import convert_from_bytes
         from django.core.files.base import ContentFile
         from .models import CalendarHeaderImage
+
+        try:
+            from pdf2image import convert_from_bytes
+        except ImportError as e:
+            raise Exception("PDF processing library not available. Please contact support.") from e
 
         try:
             # Convert PDF to images
