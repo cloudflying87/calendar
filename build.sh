@@ -146,11 +146,11 @@ backup_database() {
     echo -e "${BLUE}Backing up database in all formats: $backup_date${NC}"
     
     if [ "$is_local" = true ]; then
-        # Local backup without Docker - only exclude cache table
+        # Local backup without Docker - only exclude cache table, with proper dependency handling
         local local_db_name="${DB_NAME}"  # Adjust if different in local setup
-        pg_dump $local_db_name -a -O -T cache_table --format=plain --file=/Users/$(whoami)/backups/${PROJECT_NAME}_backup_${backup_date}_data.sql
-        pg_dump $local_db_name -O -T cache_table --format=plain --file=/Users/$(whoami)/backups/${PROJECT_NAME}_backup_${backup_date}.sql
-        pg_dump $local_db_name -c -O -T cache_table --format=plain --file=/Users/$(whoami)/backups/${PROJECT_NAME}_backup_${backup_date}_clean.sql
+        pg_dump $local_db_name -a -O -T cache_table --disable-triggers --format=plain --file=/Users/$(whoami)/backups/${PROJECT_NAME}_backup_${backup_date}_data.sql
+        pg_dump $local_db_name -O -T cache_table --disable-triggers --format=plain --file=/Users/$(whoami)/backups/${PROJECT_NAME}_backup_${backup_date}.sql
+        pg_dump $local_db_name -c -O -T cache_table --disable-triggers --format=plain --file=/Users/$(whoami)/backups/${PROJECT_NAME}_backup_${backup_date}_clean.sql
         
         echo -e "${GREEN}✓ Local backup completed${NC}"
         
@@ -163,10 +163,10 @@ backup_database() {
         # Docker backup
         ensure_backup_dir
         
-        # Create all three backup formats - only exclude cache table
-        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -a -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_data.sql
-        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}.sql
-        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -c -O -T cache_table --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_clean.sql
+        # Create all three backup formats - only exclude cache table, with proper dependency handling
+        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -a -O -T cache_table --disable-triggers --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_data.sql
+        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -O -T cache_table --disable-triggers --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}.sql
+        sudo docker exec $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME -c -O -T cache_table --disable-triggers --format=plain --file=/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_clean.sql
         
         # Copy from container to host
         sudo docker cp $DB_CONTAINER:/var/lib/postgresql/data/${PROJECT_NAME}_backup_${backup_date}_data.sql ./backups/
@@ -415,11 +415,26 @@ restore_database() {
     # Copy backup to container
     sudo docker cp ./backups/${backup_file} $DB_CONTAINER:/var/lib/postgresql/data/
     
-    # Run the actual restore
+    # Run the actual restore with foreign key handling
     echo -e "${YELLOW}Running database restore...${NC}"
     echo "=================================================================================="
-    
-    if sudo docker exec $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/${backup_file}; then
+
+    # Create a temporary restore script that handles foreign keys properly
+    cat > ./temp_restore.sql << EOF
+-- Disable foreign key constraints during restore
+SET session_replication_role = replica;
+
+-- Run the backup file
+\i /var/lib/postgresql/data/${backup_file}
+
+-- Re-enable foreign key constraints
+SET session_replication_role = DEFAULT;
+EOF
+
+    # Copy the temporary script to container
+    sudo docker cp ./temp_restore.sql $DB_CONTAINER:/var/lib/postgresql/data/
+
+    if sudo docker exec $DB_CONTAINER psql -d $DB_NAME -U $DB_USER -f /var/lib/postgresql/data/temp_restore.sql; then
         restore_status=0
         echo "=================================================================================="
         echo -e "${GREEN}✓ Database restore completed successfully${NC}"
@@ -428,8 +443,15 @@ restore_database() {
         echo "=================================================================================="
         echo -e "${RED}✗ Database restore FAILED with exit code: $restore_status${NC}"
         echo -e "${RED}Check the error messages above for details${NC}"
+        # Clean up temp files
+        sudo docker exec $DB_CONTAINER rm -f /var/lib/postgresql/data/temp_restore.sql
+        rm -f ./temp_restore.sql
         return $restore_status
     fi
+
+    # Clean up temporary script
+    sudo docker exec $DB_CONTAINER rm -f /var/lib/postgresql/data/temp_restore.sql
+    rm -f ./temp_restore.sql
     
     # Restore migration constraints if fixes were applied
     if [ "$MIGRATION_FIX" = true ]; then
