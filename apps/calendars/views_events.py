@@ -342,13 +342,19 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
 
     def post(self, request, calendar_id):
         from .models import Calendar
+        import calendar as cal
         calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
         selected_groups = request.POST.getlist('groups')
         combine_events = request.POST.get('combine_events', False) == 'true'
+        overwrite_events = request.POST.get('overwrite_events', False) == 'true'
 
         applied_count = 0
         combined_count = 0
         skipped_count = 0
+        overwritten_count = 0
+        skipped_events = []  # Track which events were skipped
+        combined_events = []  # Track which events were combined
+        overwritten_events = []  # Track which events were overwritten
 
         # Get all master events from selected groups
         events = EventMaster.objects.filter(user=request.user)
@@ -394,20 +400,99 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
                         )
 
                     applied_count += 1
-                elif combine_events and not existing.image:
-                    # Add to existing event if combining is enabled and no image yet
-                    existing.add_additional_event(event)
+                elif overwrite_events:
+                    # Overwrite existing event
+                    month_name = cal.month_name[event.month]
+                    overwritten_events.append(f"{month_name} {event.day}: {existing.event_name} → {event.name}")
+
+                    # Delete old image if exists
+                    if existing.image:
+                        try:
+                            existing.image.delete()
+                        except:
+                            pass
+
+                    # Update existing event
+                    existing.master_event = event
+                    existing.event_name = event.get_display_name(for_year=calendar.year, user=request.user)
+
+                    # Copy image from master event if it has one
+                    if event.image:
+                        from django.core.files.base import ContentFile
+                        import os
+
+                        # Read the original image
+                        with event.image.open('rb') as f:
+                            image_content = f.read()
+
+                        # Create a new file with a unique name
+                        original_name = os.path.basename(event.image.name)
+                        name, ext = os.path.splitext(original_name)
+                        new_name = f"{name}_{calendar.year}_{existing.id}{ext}"
+
+                        # Save the image to the calendar event
+                        existing.image.save(
+                            new_name,
+                            ContentFile(image_content),
+                            save=True
+                        )
+
+                    existing.save()
+                    overwritten_count += 1
+                elif combine_events:
+                    # Add to existing event by combining names
+                    month_name = cal.month_name[event.month]
+                    combined_events.append(f"{month_name} {event.day}: {existing.event_name} + {event.name}")
+
+                    if hasattr(existing, 'add_additional_event'):
+                        existing.add_additional_event(event)
+                    else:
+                        # Manual combine if method doesn't exist
+                        if existing.combined_events:
+                            existing.combined_events += f" & {event.name}"
+                        else:
+                            existing.combined_events = f"{existing.event_name} & {event.name}"
+                        existing.save()
                     combined_count += 1
                 else:
+                    # Skip this event
+                    month_name = cal.month_name[event.month]
+                    skipped_events.append(f"{month_name} {event.day}: {event.name} (existing: {existing.event_name})")
                     skipped_count += 1
 
-        message = f'Applied {applied_count} new events to the calendar.'
+        # Build detailed success message
+        message_parts = []
+        if applied_count > 0:
+            message_parts.append(f"✅ Applied {applied_count} new events")
+        if overwritten_count > 0:
+            message_parts.append(f"🔄 Overwritten {overwritten_count} existing events")
         if combined_count > 0:
-            message += f' Combined {combined_count} events with existing dates.'
+            message_parts.append(f"🔗 Combined {combined_count} events with existing dates")
         if skipped_count > 0:
-            message += f' Skipped {skipped_count} dates with existing events.'
+            message_parts.append(f"⏭️ Skipped {skipped_count} dates with existing events")
 
-        messages.success(request, message)
+        if message_parts:
+            messages.success(request, '. '.join(message_parts) + '.')
+
+        # Show detailed information about what was skipped/combined/overwritten
+        if skipped_events:
+            skipped_list = '<br>'.join(skipped_events[:10])  # Show first 10
+            if len(skipped_events) > 10:
+                skipped_list += f'<br>... and {len(skipped_events) - 10} more'
+            messages.info(request, f"📋 Skipped events:<br>{skipped_list}")
+
+        if combined_events:
+            combined_list = '<br>'.join(combined_events[:5])  # Show first 5
+            if len(combined_events) > 5:
+                combined_list += f'<br>... and {len(combined_events) - 5} more'
+            messages.info(request, f"🔗 Combined events:<br>{combined_list}")
+
+        if overwritten_events:
+            overwritten_list = '<br>'.join(overwritten_events[:5])  # Show first 5
+            if len(overwritten_events) > 5:
+                overwritten_list += f'<br>... and {len(overwritten_events) - 5} more'
+            messages.warning(request, f"🔄 Overwritten events:<br>{overwritten_list}")
+
         return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
 
 

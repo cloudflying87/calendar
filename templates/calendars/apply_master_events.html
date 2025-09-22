@@ -40,15 +40,42 @@
             {% endif %}
         </div>
 
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" name="combine_events" value="true" checked>
-                <span class="checkbox-text">
-                    Combine multiple events on the same date
-                    <small class="text-muted">When checked, events on the same date will be combined into one entry</small>
-                </span>
-            </label>
-        </div>
+        <fieldset class="form-group">
+            <legend>What to do with existing events on the same dates?</legend>
+            <div class="radio-list">
+                <div class="radio-item">
+                    <label class="radio-label">
+                        <input type="radio" name="conflict_action" value="skip" checked class="radio">
+                        <span class="radio-text">
+                            <strong>Skip</strong> - Leave existing events unchanged
+                            <small class="text-muted">Recommended: Shows you exactly what was skipped with details</small>
+                        </span>
+                    </label>
+                </div>
+                <div class="radio-item">
+                    <label class="radio-label">
+                        <input type="radio" name="conflict_action" value="combine" class="radio">
+                        <span class="radio-text">
+                            <strong>Combine</strong> - Add to existing events on same dates
+                            <small class="text-muted">Merges event names (e.g., "John's Birthday & Work Meeting")</small>
+                        </span>
+                    </label>
+                </div>
+                <div class="radio-item">
+                    <label class="radio-label">
+                        <input type="radio" name="conflict_action" value="overwrite" class="radio">
+                        <span class="radio-text">
+                            <strong>Overwrite</strong> - Replace existing events
+                            <small class="text-muted">⚠️ Careful: This will replace existing events and their images</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Hidden inputs for backward compatibility -->
+            <input type="hidden" name="combine_events" value="false" id="combine_events_hidden">
+            <input type="hidden" name="overwrite_events" value="false" id="overwrite_events_hidden">
+        </fieldset>
 
         {% if groups %}
             <div class="form-actions">
@@ -69,8 +96,106 @@
     <ul>
         <li>Events from selected groups will be added to your calendar</li>
         <li>Birthday and anniversary ages/years will be automatically calculated</li>
-        <li>Existing events on the same dates can be combined or skipped</li>
+        <li>You'll see exactly which events were applied, skipped, combined, or overwritten</li>
+        <li>Images from master events will be copied to calendar events</li>
         <li>You can always edit or remove individual events later</li>
     </ul>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const conflictRadios = document.querySelectorAll('input[name="conflict_action"]');
+    const combineHidden = document.getElementById('combine_events_hidden');
+    const overwriteHidden = document.getElementById('overwrite_events_hidden');
+
+    conflictRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'combine') {
+                combineHidden.value = 'true';
+                overwriteHidden.value = 'false';
+            } else if (this.value === 'overwrite') {
+                combineHidden.value = 'false';
+                overwriteHidden.value = 'true';
+            } else { // skip
+                combineHidden.value = 'false';
+                overwriteHidden.value = 'false';
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.radio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.radio-item {
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    transition: all 0.2s ease;
+}
+
+.radio-item:has(input:checked) {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-light, rgba(37, 99, 235, 0.05));
+}
+
+.radio-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+    margin: 0;
+}
+
+.radio {
+    margin-top: 0.125rem;
+    flex-shrink: 0;
+}
+
+.radio-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.radio-text strong {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.radio-text small {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+fieldset {
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+legend {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .radio-item {
+        padding: 0.75rem;
+    }
+
+    .radio-label {
+        gap: 0.5rem;
+    }
+}
+</style>
 {% endblock %}
