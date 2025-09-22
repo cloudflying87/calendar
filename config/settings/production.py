@@ -10,6 +10,8 @@ DEBUG = False
 # Security settings for production
 SECURE_SSL_REDIRECT = False  # Cloudflare handles SSL termination
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True  # Trust X-Forwarded-Host header from proxy
+USE_X_FORWARDED_PORT = True  # Trust X-Forwarded-Port header from proxy
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_HSTS_SECONDS = 31536000  # 1 year

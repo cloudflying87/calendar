@@ -2180,6 +2180,10 @@ class CalendarPDFViewerView(LoginRequiredMixin, TemplateView):
             })
         )
 
+        # Ensure HTTPS in production
+        if not self.request.is_secure() and 'localhost' not in pdf_url and '127.0.0.1' not in pdf_url:
+            pdf_url = pdf_url.replace('http://', 'https://', 1)
+
         context.update({
             'calendar': calendar,
             'generated_pdf': generated_pdf,
