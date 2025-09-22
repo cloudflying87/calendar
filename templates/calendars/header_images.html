@@ -683,7 +683,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Get the current URL without any malformed parts
-            const postUrl = pdfForm.action || window.location.pathname;
+            // Use getAttribute to avoid conflicts with form elements named "action"
+            const postUrl = pdfForm.getAttribute('action') || window.location.pathname;
             console.log('Posting to URL:', postUrl);
 
             xhr.open('POST', postUrl);
