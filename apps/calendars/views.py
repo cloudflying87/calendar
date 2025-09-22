@@ -1596,15 +1596,26 @@ class MasterEventProcessCropView(View):
             image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
             temp_cropped.close()
 
-            # Create Django file from temporary file
+            # Create Django file from cropped image
             with open(temp_cropped.name, 'rb') as f:
                 from django.core.files.base import ContentFile
                 import os
-                original_filename = f"master_event_{event.id}_{temp_image}"
-                django_file = ContentFile(f.read(), name=original_filename)
+                cropped_filename = f"cropped_master_event_{event.id}_{temp_image}"
+                cropped_django_file = ContentFile(f.read(), name=cropped_filename)
 
-            # Save the image to the master event
-            event.image = django_file
+            # Create Django file from full original image
+            full_django_file = None
+            from django.core.files.storage import default_storage
+            temp_image_path = f"temp/{temp_image}"
+            if default_storage.exists(temp_image_path):
+                with default_storage.open(temp_image_path, 'rb') as f:
+                    full_filename = f"full_master_event_{event.id}_{temp_image}"
+                    full_django_file = ContentFile(f.read(), name=full_filename)
+
+            # Save both images to the master event
+            event.image = cropped_django_file
+            if full_django_file:
+                event.full_image = full_django_file
             event.save()
 
             # Clean up temporary files
@@ -1625,6 +1636,11 @@ class MasterEventProcessCropView(View):
                 del request.session['master_event_temp_tokens']
 
             messages.success(request, f"Photo updated successfully for {event.name}!")
+
+            # Preserve pagination by checking for page parameter in session
+            page = request.session.get('master_events_page')
+            if page:
+                return redirect(f"{reverse('calendars:master_events')}?page={page}")
             return redirect('calendars:master_events')
 
         except Exception as e:

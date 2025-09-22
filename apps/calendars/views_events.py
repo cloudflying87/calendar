@@ -80,7 +80,6 @@ class MasterEventUpdateView(LoginRequiredMixin, UpdateView):
     model = EventMaster
     template_name = 'calendars/master_event_form.html'
     form_class = None  # Will be set dynamically
-    success_url = reverse_lazy('calendars:master_events')
 
     def get_form_class(self):
         from .forms import MasterEventForm
@@ -88,6 +87,13 @@ class MasterEventUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return EventMaster.objects.filter(user=self.request.user)
+
+    def get_success_url(self):
+        # Preserve the page parameter from the request
+        page = self.request.GET.get('page') or self.request.POST.get('page')
+        if page:
+            return f"{reverse('calendars:master_events')}?page={page}"
+        return reverse('calendars:master_events')
 
     def form_valid(self, form):
         messages.success(self.request, 'Master event updated successfully!')
@@ -122,6 +128,11 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
         print(f"request.POST: {dict(request.POST)}")
 
         event = get_object_or_404(EventMaster, pk=pk, user=request.user)
+
+        # Store page parameter for later redirect
+        page = request.POST.get('page')
+        if page:
+            request.session['master_events_page'] = page
 
         if 'image' not in request.FILES:
             print("No image in request.FILES")

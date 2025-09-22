@@ -8,7 +8,7 @@
         <h1 class="page-title">{{ title }}</h1>
     </div>
     <div class="page-header__actions">
-        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Back to Events</a>
+        <a href="{% url 'calendars:master_events' %}{% if request.GET.page %}?page={{ request.GET.page }}{% endif %}" class="btn btn--outline">Back to Events</a>
     </div>
 </div>
 
@@ -22,6 +22,9 @@
 
     <form method="post" action="" enctype="multipart/form-data" class="form" id="master-event-form">
         {% csrf_token %}
+        {% if request.GET.page %}
+            <input type="hidden" name="page" value="{{ request.GET.page }}">
+        {% endif %}
 
         <div class="form-group">
             <label for="{{ form.name.id_for_label }}">Event/Person Name</label>
@@ -148,7 +151,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn--primary" id="submit-btn">Save Event</button>
-            <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Cancel</a>
+            <a href="{% url 'calendars:master_events' %}{% if request.GET.page %}?page={{ request.GET.page }}{% endif %}" class="btn btn--outline">Cancel</a>
         </div>
     </form>
 </div>
@@ -262,6 +265,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Get the upload URL (we need to construct it)
         const uploadUrl = `/calendars/master-events/{{ form.instance.pk }}/upload-image/`;
+
+        // Store current page in session for later redirect
+        const currentPage = new URLSearchParams(window.location.search).get('page');
+        if (currentPage) {
+            formData.append('page', currentPage);
+        }
 
         fetch(uploadUrl, {
             method: 'POST',

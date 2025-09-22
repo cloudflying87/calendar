@@ -188,7 +188,13 @@ class EventMaster(models.Model):
         upload_to='master_events/%Y/%m/',
         blank=True,
         null=True,
-        help_text="Default image for this event (will be copied to calendar events)"
+        help_text="Cropped image for this event (used in PDF generation)"
+    )
+    full_image = models.ImageField(
+        upload_to='master_events/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text="Full-sized original image for high-resolution viewing"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
