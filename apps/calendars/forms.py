@@ -1,7 +1,8 @@
 from django import forms
 from django.core.validators import FileExtensionValidator
-from .models import Calendar, CalendarHeader, CalendarEvent, Holiday, CalendarYear
+from .models import Calendar, CalendarHeader, CalendarEvent, Holiday, CalendarYear, EventMaster
 from datetime import datetime
+import calendar
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -286,3 +287,66 @@ class AddEventToMasterListForm(forms.Form):
             raise forms.ValidationError("Anniversary year is required for anniversary events.")
 
         return cleaned_data
+
+
+class MasterEventForm(forms.ModelForm):
+    """Form for creating and editing master events"""
+
+    # Override month and day fields to use Select widgets with choices
+    MONTH_CHOICES = [(i, calendar.month_name[i]) for i in range(1, 13)]
+    DAY_CHOICES = [(i, str(i)) for i in range(1, 32)]
+
+    month = forms.ChoiceField(
+        choices=MONTH_CHOICES,
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'id_month'
+        })
+    )
+
+    day = forms.ChoiceField(
+        choices=DAY_CHOICES,
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'id_day'
+        })
+    )
+
+    class Meta:
+        model = EventMaster
+        fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description', 'image']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter event or person name',
+                'required': True
+            }),
+            'event_type': forms.Select(attrs={
+                'class': 'form-control',
+                'id': 'id_event_type'
+            }),
+            'year_occurred': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Optional: Year (e.g., 1990)',
+                'min': 1900,
+                'max': 2100,
+                'id': 'id_year_occurred'
+            }),
+            'groups': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Family, Birthdays, Important',
+                'id': 'id_groups'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Optional: Add notes or description',
+                'id': 'id_description'
+            }),
+            'image': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*',
+                'id': 'id_image',
+                'style': 'display: none;'  # Hidden as we use custom UI
+            })
+        }

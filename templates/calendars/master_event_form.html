@@ -13,7 +13,14 @@
 </div>
 
 <div class="form-container">
-    <form method="post" enctype="multipart/form-data" class="form">
+    {% if form.errors %}
+        <div class="alert alert-danger">
+            <strong>Please correct the errors below:</strong>
+            {{ form.errors }}
+        </div>
+    {% endif %}
+
+    <form method="post" action="" enctype="multipart/form-data" class="form" id="master-event-form">
         {% csrf_token %}
 
         <div class="form-group">
@@ -126,12 +133,9 @@
                             </div>
 
                             {% if form.instance.image %}
-                                <form method="post" action="{% url 'calendars:master_event_remove_image' pk=form.instance.pk %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn--outline btn--small">
-                                        🗑️ Remove Photo
-                                    </button>
-                                </form>
+                                <button type="button" class="btn btn--outline btn--small" onclick="removePhoto({{ form.instance.pk }})">
+                                    🗑️ Remove Photo
+                                </button>
                             {% endif %}
                         {% else %}
                             <p class="form-help">Save the event first to add a photo</p>
@@ -143,7 +147,7 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn--primary">Save Event</button>
+            <button type="submit" class="btn btn--primary" id="submit-btn">Save Event</button>
             <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Cancel</a>
         </div>
     </form>
@@ -285,6 +289,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cropBtn) {
         cropBtn.addEventListener('click', uploadAndCrop);
+    }
+
+    // Debug form submission
+    const form = document.getElementById('master-event-form');
+    const submitBtn = document.getElementById('submit-btn');
+
+    // Handle photo removal without nested form
+    window.removePhoto = function(eventId) {
+        if (confirm('Remove this photo?')) {
+            const removeUrl = `/calendars/master-events/${eventId}/remove-image/`;
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            // Create a temporary form to submit the removal
+            const tempForm = document.createElement('form');
+            tempForm.method = 'POST';
+            tempForm.action = removeUrl;
+
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            tempForm.appendChild(csrfInput);
+
+            document.body.appendChild(tempForm);
+            tempForm.submit();
+        }
+    };
+
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submit event triggered');
+            // Don't prevent default - let it submit
+        });
+    }
+
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function(e) {
+            console.log('Submit button clicked');
+            console.log('Form validity:', form.checkValidity());
+            if (!form.checkValidity()) {
+                form.reportValidity();
+            }
+        });
     }
 });
 </script>

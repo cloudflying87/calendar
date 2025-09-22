@@ -57,8 +57,12 @@ class MasterEventListView(LoginRequiredMixin, ListView):
 class MasterEventCreateView(LoginRequiredMixin, CreateView):
     model = EventMaster
     template_name = 'calendars/master_event_form.html'
-    fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description', 'image']
+    form_class = None  # Will be set dynamically
     success_url = reverse_lazy('calendars:master_events')
+
+    def get_form_class(self):
+        from .forms import MasterEventForm
+        return MasterEventForm
 
     def form_valid(self, form):
         form.instance.user = self.request.user
@@ -75,8 +79,12 @@ class MasterEventCreateView(LoginRequiredMixin, CreateView):
 class MasterEventUpdateView(LoginRequiredMixin, UpdateView):
     model = EventMaster
     template_name = 'calendars/master_event_form.html'
-    fields = ['name', 'event_type', 'month', 'day', 'year_occurred', 'groups', 'description', 'image']
+    form_class = None  # Will be set dynamically
     success_url = reverse_lazy('calendars:master_events')
+
+    def get_form_class(self):
+        from .forms import MasterEventForm
+        return MasterEventForm
 
     def get_queryset(self):
         return EventMaster.objects.filter(user=self.request.user)
