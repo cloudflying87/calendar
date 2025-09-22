@@ -123,9 +123,10 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
     """View to handle inline image upload for master events - redirects to crop workflow"""
 
     def post(self, request, pk):
-        print(f"MasterEventImageUploadView.post called with pk={pk}")
-        print(f"request.FILES: {list(request.FILES.keys())}")
-        print(f"request.POST: {dict(request.POST)}")
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"Master event image upload started - Event ID: {pk}, User: {request.user.username}")
 
         event = get_object_or_404(EventMaster, pk=pk, user=request.user)
 
@@ -135,7 +136,7 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
             request.session['master_events_page'] = page
 
         if 'image' not in request.FILES:
-            print("No image in request.FILES")
+            logger.warning(f"Master event image upload failed - No image provided for Event ID: {pk}")
             return JsonResponse({'success': False, 'error': 'No image provided'})
 
         # Store the uploaded image temporarily
@@ -152,6 +153,8 @@ class MasterEventImageUploadView(LoginRequiredMixin, View):
 
         # Return the crop URL instead of saving directly
         crop_url = f"/calendars/master-events/{pk}/crop-photo/?temp_image={temp_filename}"
+
+        logger.info(f"Master event image upload successful - Event ID: {pk}, Temp file: {temp_filename}")
 
         return JsonResponse({
             'success': True,

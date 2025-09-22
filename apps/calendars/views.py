@@ -2254,9 +2254,13 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
 
     def post(self, request, calendar_id):
         """Handle header image uploads"""
-        calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
+        import logging
+        logger = logging.getLogger(__name__)
 
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
         action = request.POST.get('action')
+
+        logger.info(f"Header images action - Calendar ID: {calendar_id}, Action: {action}, User: {request.user.username}")
 
         if action == 'upload_pdf':
             # PDF upload doesn't need month validation
@@ -2297,13 +2301,16 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
 
         elif action == 'upload_pdf':
             if 'pdf_file' not in request.FILES:
+                logger.warning(f"PDF upload failed - No PDF file provided, Calendar ID: {calendar_id}")
                 messages.error(request, 'No PDF file provided.')
                 return redirect('calendars:header_images', calendar_id=calendar.id)
 
             pdf_file = request.FILES['pdf_file']
+            logger.info(f"PDF upload started - File: {pdf_file.name}, Size: {pdf_file.size} bytes, Calendar ID: {calendar_id}")
 
             # Validate PDF file
             if not pdf_file.name.lower().endswith('.pdf'):
+                logger.warning(f"PDF upload failed - Invalid file type: {pdf_file.name}, Calendar ID: {calendar_id}")
                 messages.error(request, 'Please upload a PDF file.')
                 return redirect('calendars:header_images', calendar_id=calendar.id)
 
@@ -2330,8 +2337,10 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
                 self._process_pdf_to_headers(pdf_content, calendar, request)
 
                 if created:
+                    logger.info(f"PDF upload successful - New header created, Calendar ID: {calendar_id}")
                     messages.success(request, 'PDF saved to header page and converted to individual header images successfully!')
                 else:
+                    logger.info(f"PDF upload successful - Header updated, Calendar ID: {calendar_id}")
                     messages.success(request, 'PDF updated on header page and converted to individual header images successfully!')
             except Exception as e:
                 import logging

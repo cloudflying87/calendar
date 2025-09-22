@@ -7,6 +7,9 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+# Add request logging middleware for production debugging
+MIDDLEWARE.insert(1, 'apps.core.middleware.RequestLoggingMiddleware')
+
 # Security settings for production
 SECURE_SSL_REDIRECT = False  # Cloudflare handles SSL termination
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -88,9 +91,44 @@ DATABASES['default'].update({
     }
 })
 
-# Production logging - console only
-LOGGING['handlers']['console']['level'] = 'WARNING'
-LOGGING['root']['level'] = 'WARNING'
+# Production logging - more verbose for debugging
+LOGGING['handlers']['console']['level'] = 'INFO'
+LOGGING['root']['level'] = 'INFO'
+
+# Configure specific loggers for production debugging
+LOGGING['loggers'] = {
+    'django': {
+        'handlers': ['console'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'django.request': {
+        'handlers': ['console'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'django.server': {
+        'handlers': ['console'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'apps': {
+        'handlers': ['console'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    'apps.calendars': {
+        'handlers': ['console'],
+        'level': 'INFO',
+        'propagate': False,
+    },
+    # Security logging
+    'django.security': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+        'propagate': False,
+    },
+}
 
 # Additional production apps
 if config('USE_CELERY', default=False, cast=bool):
