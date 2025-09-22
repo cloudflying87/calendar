@@ -1011,9 +1011,23 @@ class PhotoEditorUploadView(View):
 
         # Check if we're editing an existing event
         edit_event_data = request.session.get('edit_event_data')
+
+        # Check if we're editing a master event
+        master_event_id = request.GET.get('master_event_id')
+        master_event = None
+        if master_event_id:
+            from .models import EventMaster
+            try:
+                master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+                # Store in session for later processing
+                request.session['edit_master_event_id'] = master_event_id
+            except EventMaster.DoesNotExist:
+                pass
+
         context = {
             'calendar': calendar,
             'edit_event_data': edit_event_data,
+            'master_event': master_event,
         }
 
         return render(request, 'calendars/photo_editor_upload.html', context)
@@ -1127,20 +1141,37 @@ class PhotoCropView(View):
 
         # Check if we have edit event data or crop data
         edit_event_data = request.session.get('edit_event_data')
+        master_event_id = request.session.get('edit_master_event_id')
+        master_event = None
 
-        if edit_event_data:
+        if master_event_id:
+            # Editing master event
+            from .models import EventMaster
+            try:
+                master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+                event_date = f"{master_event.month:02d}/{master_event.day:02d}"
+                event_name = master_event.name
+                month = master_event.month
+                day = master_event.day
+            except EventMaster.DoesNotExist:
+                # Clear invalid session data
+                del request.session['edit_master_event_id']
+                master_event_id = None
+                master_event = None
+
+        if edit_event_data and not master_event_id:
             # Editing existing event - use event data
             event_date = f"{edit_event_data['month']:02d}/{edit_event_data['day']:02d}/{year}"
             event_name = edit_event_data['event_name']
             month = edit_event_data['month']
             day = edit_event_data['day']
-        elif 'month' in crop_data and 'day' in crop_data:
+        elif 'month' in crop_data and 'day' in crop_data and not master_event_id:
             # Old workflow - has date/event data in crop_data
             event_date = f"{crop_data['month']:02d}/{crop_data['day']:02d}/{year}"
             event_name = crop_data['event_name']
             month = crop_data['month']
             day = crop_data['day']
-        else:
+        elif not master_event_id:
             # New workflow - no date/event data yet
             event_date = "Choose Date"
             event_name = "Enter Event Name"
@@ -1158,6 +1189,8 @@ class PhotoCropView(View):
             'event_date': event_date,
             'year': year,
             'edit_event_data': edit_event_data,
+            'master_event': master_event,
+            'is_master_event': bool(master_event),
         })
 
 
@@ -1165,6 +1198,10 @@ class PhotoCropView(View):
 class ProcessCropView(View):
     def post(self, request, year):
         calendar = get_calendar_or_404(year, request.user)
+
+        # Check if we're updating a master event
+        master_event_id = request.session.get('edit_master_event_id')
+        is_master_event = bool(master_event_id)
 
         # Get form data
         temp_image_path = request.POST.get('temp_image_path')
@@ -1206,7 +1243,41 @@ class ProcessCropView(View):
                 with open(temp_image_path, 'rb') as f:
                     full_django_file = ContentFile(f.read(), name=f"full_{original_filename}")
 
-            # Check if events already exist for this date
+            # Handle master event update if applicable
+            if is_master_event:
+                from .models import EventMaster
+                try:
+                    master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+                    master_event.image = cropped_django_file
+                    if full_django_file:
+                        master_event.full_image = full_django_file
+                    master_event.save()
+
+                    # Clear session data
+                    if 'crop_data' in request.session:
+                        del request.session['crop_data']
+                    if 'edit_master_event_id' in request.session:
+                        del request.session['edit_master_event_id']
+                    if 'temp_tokens' in request.session:
+                        del request.session['temp_tokens']
+
+                    # Clean up temporary files
+                    try:
+                        if os.path.exists(temp_image_path):
+                            os.unlink(temp_image_path)
+                        if os.path.exists(temp_cropped.name):
+                            os.unlink(temp_cropped.name)
+                    except OSError:
+                        pass
+
+                    messages.success(request, f"Photo updated successfully for master event '{master_event.name}'!")
+                    return redirect('calendars:master_events')
+
+                except EventMaster.DoesNotExist:
+                    messages.error(request, "Master event not found.")
+                    return redirect('calendars:master_events')
+
+            # Check if events already exist for this date (calendar event logic)
             existing_events = CalendarEvent.get_events_for_date(calendar, month, day)
 
             if existing_events.exists():
@@ -1264,6 +1335,8 @@ class ProcessCropView(View):
                 del request.session['crop_data']
             if 'edit_event_data' in request.session:
                 del request.session['edit_event_data']
+            if 'edit_master_event_id' in request.session:
+                del request.session['edit_master_event_id']
             if 'temp_tokens' in request.session:
                 del request.session['temp_tokens']
 
@@ -1650,21 +1723,12 @@ class MasterEventProcessCropView(View):
 
 @method_decorator(login_required, name='dispatch')
 class EditEventPhotoView(View):
-    """Edit photo for an existing event using the photo editor"""
+    """Edit photo for an existing event using the unified photo editor"""
     def get(self, request, event_id):
         event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)
 
-        # Store event info in session for the photo editor
-        request.session['edit_event_data'] = {
-            'event_id': event.id,
-            'month': event.month,
-            'day': event.day,
-            'event_name': event.event_name,
-            'return_to_edit': True,
-        }
-
-        # Redirect to photo editor upload
-        return redirect('calendars:photo_editor_upload', year=event.calendar.year)
+        # Redirect to unified photo editor with calendar event context
+        return redirect(f"{reverse('calendars:unified_photo_editor')}?calendar_event_id={event.id}")
 
 
 @method_decorator(login_required, name='dispatch')
@@ -2614,3 +2678,449 @@ class DigitalCalendarView(TemplateView):
         })
 
         return context
+
+
+@method_decorator(login_required, name='dispatch')
+class UnifiedPhotoEditorView(View):
+    """Year-agnostic photo editor that handles both calendar events and master events"""
+
+    def get(self, request):
+        # Determine context from URL parameters
+        master_event_id = request.GET.get('master_event_id')
+        calendar_event_id = request.GET.get('calendar_event_id')
+        year = request.GET.get('year')
+
+        context = {}
+
+        if master_event_id:
+            # Master event context
+            from .models import EventMaster
+            try:
+                master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+                request.session['edit_master_event_id'] = master_event_id
+                context.update({
+                    'master_event': master_event,
+                    'page_title': 'Edit Master Event Photo',
+                    'back_url': reverse('calendars:master_events'),
+                    'back_text': 'Back to Master Events'
+                })
+            except EventMaster.DoesNotExist:
+                messages.error(request, "Master event not found.")
+                return redirect('calendars:master_events')
+
+        elif calendar_event_id:
+            # Existing calendar event context
+            event = get_object_or_404(CalendarEvent, id=calendar_event_id, calendar__user=request.user)
+            request.session['edit_event_data'] = {
+                'event_id': event.id,
+                'month': event.month,
+                'day': event.day,
+                'event_name': event.event_name,
+                'return_to_edit': True,
+            }
+            context.update({
+                'edit_event_data': request.session['edit_event_data'],
+                'calendar': event.calendar,
+                'page_title': 'Change Event Photo',
+                'back_url': reverse('calendars:edit_event', kwargs={'event_id': event.id}),
+                'back_text': 'Back to Event'
+            })
+
+        elif year:
+            # New calendar event context
+            calendar = get_calendar_or_404(int(year), request.user)
+            context.update({
+                'calendar': calendar,
+                'page_title': 'Upload & Edit Photo',
+                'back_url': reverse('calendars:calendar_detail', kwargs={'year': int(year)}),
+                'back_text': 'Back to Calendar'
+            })
+        else:
+            messages.error(request, "Invalid photo editing context.")
+            return redirect('calendars:calendar_list')
+
+        return render(request, 'calendars/unified_photo_editor.html', context)
+
+    def post(self, request):
+        # Handle photo upload for any context
+        photo_mode = request.POST.get('photo_mode', 'single')
+
+        if photo_mode == 'single':
+            uploaded_file = request.FILES.get('photo')
+
+            if not uploaded_file:
+                messages.error(request, "Please select a photo to upload.")
+                return self.get(request)
+
+            # Save temporary file for cropping
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            for chunk in uploaded_file.chunks():
+                temp_file.write(chunk)
+            temp_file.close()
+
+            # Store data in session for the crop view
+            request.session['crop_data'] = {
+                'temp_path': temp_file.name,
+                'original_filename': uploaded_file.name,
+                'photo_mode': 'single'
+            }
+
+            return redirect('calendars:unified_photo_crop')
+
+        elif photo_mode == 'multi':
+            uploaded_files = request.FILES.getlist('photos')
+            layout = request.POST.get('layout', 'side_by_side')
+
+            if not uploaded_files or len(uploaded_files) < 2:
+                messages.error(request, "Please select at least 2 photos for multi-photo mode.")
+                return self.get(request)
+
+            if len(uploaded_files) > 4:
+                messages.error(request, "Maximum 4 photos allowed for multi-photo mode.")
+                return self.get(request)
+
+            # Save temporary files
+            temp_paths = []
+            original_filenames = []
+
+            for uploaded_file in uploaded_files:
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                for chunk in uploaded_file.chunks():
+                    temp_file.write(chunk)
+                temp_file.close()
+                temp_paths.append(temp_file.name)
+                original_filenames.append(uploaded_file.name)
+
+            # Store multi-crop data in session
+            request.session['multi_crop_data'] = {
+                'temp_paths': temp_paths,
+                'original_filenames': original_filenames,
+                'layout': layout,
+                'current_photo_index': 0,
+                'cropped_paths': [],
+                'photo_mode': 'multi'
+            }
+
+            # TODO: Create unified multi-crop view or redirect to existing one
+            # For now, combine into single image and redirect to single crop
+            combined_temp_path = self._create_temp_combined_image(temp_paths, layout)
+            if combined_temp_path:
+                request.session['crop_data'] = {
+                    'temp_path': combined_temp_path,
+                    'original_filename': f"combined_{len(uploaded_files)}_photos.jpg",
+                    'photo_mode': 'combined_multi'
+                }
+                return redirect('calendars:unified_photo_crop')
+            else:
+                messages.error(request, "Error combining photos. Please try again.")
+                return self.get(request)
+
+        messages.error(request, "Invalid photo mode selected.")
+        return self.get(request)
+
+    def _create_temp_combined_image(self, temp_paths, layout):
+        """Create a temporary combined image from multiple photos"""
+        try:
+            from PIL import Image
+            import tempfile
+
+            target_width, target_height = 320, 200
+            combined_img = Image.new('RGB', (target_width, target_height), (255, 255, 255))
+
+            images = []
+            for path in temp_paths:
+                try:
+                    img = Image.open(path)
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        img = img.convert('RGB')
+                    images.append(img)
+                except Exception:
+                    continue
+
+            if len(images) < 2:
+                return None
+
+            # Combine images based on layout
+            if layout == 'side_by_side' and len(images) >= 2:
+                # Side by side
+                half_width = target_width // 2
+                for i in range(min(2, len(images))):
+                    img_resized = images[i].resize((half_width, target_height), Image.Resampling.LANCZOS)
+                    x_pos = i * half_width
+                    combined_img.paste(img_resized, (x_pos, 0))
+
+            elif layout == 'top_bottom' and len(images) >= 2:
+                # Top/bottom
+                half_height = target_height // 2
+                for i in range(min(2, len(images))):
+                    img_resized = images[i].resize((target_width, half_height), Image.Resampling.LANCZOS)
+                    y_pos = i * half_height
+                    combined_img.paste(img_resized, (0, y_pos))
+
+            elif layout == 'grid':
+                # 2x2 grid
+                half_width = target_width // 2
+                half_height = target_height // 2
+                for i in range(min(4, len(images))):
+                    img_resized = images[i].resize((half_width, half_height), Image.Resampling.LANCZOS)
+                    x_pos = (i % 2) * half_width
+                    y_pos = (i // 2) * half_height
+                    combined_img.paste(img_resized, (x_pos, y_pos))
+
+            # Save combined image to temporary file
+            temp_combined = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            combined_img.save(temp_combined.name, 'JPEG', quality=95, optimize=True)
+            temp_combined.close()
+
+            # Clean up individual temp files
+            for path in temp_paths:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+            return temp_combined.name
+
+        except Exception as e:
+            print(f"Error creating combined image: {str(e)}")
+            return None
+
+
+@method_decorator(login_required, name='dispatch')
+class UnifiedPhotoCropView(View):
+    """Year-agnostic photo cropping view"""
+
+    def get(self, request):
+        # Get crop data from session
+        crop_data = request.session.get('crop_data')
+        if not crop_data:
+            messages.error(request, "No image to crop. Please upload an image first.")
+            return redirect('calendars:unified_photo_editor')
+
+        # Check if temp file exists
+        if not os.path.exists(crop_data['temp_path']):
+            messages.error(request, "Temporary image file not found. Please upload again.")
+            return redirect('calendars:unified_photo_editor')
+
+        # Create a secure URL for the temporary image
+        import uuid
+        temp_token = str(uuid.uuid4())
+
+        # Store the temp file path in session with a secure token
+        if 'temp_tokens' not in request.session:
+            request.session['temp_tokens'] = {}
+        request.session['temp_tokens'][temp_token] = crop_data['temp_path']
+        request.session.modified = True
+
+        # Create URL that will be served by our secure view
+        temp_image_url = f"/calendars/temp-image/{temp_token}/"
+
+        # Determine context and prepare data
+        context = {
+            'temp_image_url': temp_image_url,
+            'temp_image_path': crop_data['temp_path'],
+            'original_filename': crop_data['original_filename'],
+        }
+
+        # Check context
+        master_event_id = request.session.get('edit_master_event_id')
+        edit_event_data = request.session.get('edit_event_data')
+
+        if master_event_id:
+            # Master event context
+            from .models import EventMaster
+            from .forms import MasterEventForm
+            try:
+                master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+                master_event_form = MasterEventForm(instance=master_event)
+                context.update({
+                    'master_event': master_event,
+                    'master_event_form': master_event_form,
+                    'is_master_event': True,
+                    'event_name': master_event.name,
+                    'month': master_event.month,
+                    'day': master_event.day,
+                    'event_date': f"{master_event.month:02d}/{master_event.day:02d}",
+                    'page_title': f'Crop Photo for {master_event.name}'
+                })
+            except EventMaster.DoesNotExist:
+                del request.session['edit_master_event_id']
+                messages.error(request, "Master event not found.")
+                return redirect('calendars:master_events')
+
+        elif edit_event_data:
+            # Calendar event context
+            context.update({
+                'edit_event_data': edit_event_data,
+                'is_master_event': False,
+                'event_name': edit_event_data['event_name'],
+                'month': edit_event_data['month'],
+                'day': edit_event_data['day'],
+                'event_date': f"{edit_event_data['month']:02d}/{edit_event_data['day']:02d}",
+                'year': 2025,  # We'll need to get this from the event or session
+                'page_title': f'Crop Photo for {edit_event_data["event_name"]}'
+            })
+        else:
+            # New calendar event context
+            context.update({
+                'is_master_event': False,
+                'event_name': 'Enter Event Name',
+                'month': '',
+                'day': '',
+                'event_date': 'Choose Date',
+                'year': 2025,  # Default year or get from session
+                'page_title': 'Crop Photo for New Event'
+            })
+
+        return render(request, 'calendars/unified_photo_crop.html', context)
+
+
+@method_decorator(login_required, name='dispatch')
+class UnifiedProcessCropView(View):
+    """Year-agnostic crop processing view"""
+
+    def post(self, request):
+        # Get form data
+        temp_image_path = request.POST.get('temp_image_path')
+        original_filename = request.POST.get('original_filename')
+        crop_data = request.POST.get('crop_data')
+
+        if not crop_data:
+            messages.error(request, "No crop data received. Please try again.")
+            return redirect('calendars:unified_photo_crop')
+
+        try:
+            # Process the cropped image
+            image_data = crop_data.split(',')[1]  # Remove data:image/jpeg;base64, prefix
+            image_binary = base64.b64decode(image_data)
+
+            # Create PIL image from binary data
+            image = Image.open(io.BytesIO(image_binary))
+
+            # Ensure it's RGB
+            if image.mode in ('RGBA', 'LA', 'P'):
+                image = image.convert('RGB')
+
+            # Save cropped image to a temporary file with higher quality
+            temp_cropped = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
+            temp_cropped.close()
+
+            # Create Django files
+            with open(temp_cropped.name, 'rb') as f:
+                from django.core.files.base import ContentFile
+                cropped_django_file = ContentFile(f.read(), name=f"cropped_{original_filename}")
+
+            full_django_file = None
+            if temp_image_path and os.path.exists(temp_image_path):
+                with open(temp_image_path, 'rb') as f:
+                    full_django_file = ContentFile(f.read(), name=f"full_{original_filename}")
+
+            # Determine context and save appropriately
+            master_event_id = request.session.get('edit_master_event_id')
+            edit_event_data = request.session.get('edit_event_data')
+
+            if master_event_id:
+                # Save to master event with form data
+                from .models import EventMaster
+                try:
+                    master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+
+                    # Update master event fields from form
+                    master_event.name = request.POST.get('master_event_name', master_event.name)
+                    master_event.month = int(request.POST.get('master_month', master_event.month))
+                    master_event.day = int(request.POST.get('master_day', master_event.day))
+                    master_event.event_type = request.POST.get('master_event_type', master_event.event_type)
+
+                    year_occurred = request.POST.get('master_year_occurred', '')
+                    master_event.year_occurred = int(year_occurred) if year_occurred else None
+
+                    master_event.groups = request.POST.get('master_groups', master_event.groups)
+                    master_event.description = request.POST.get('master_description', master_event.description)
+
+                    # Update photos
+                    master_event.image = cropped_django_file
+                    if full_django_file:
+                        master_event.full_image = full_django_file
+                    master_event.save()
+
+                    messages.success(request, f"Master event '{master_event.name}' updated successfully with new photo!")
+                    redirect_url = 'calendars:master_events'
+
+                except EventMaster.DoesNotExist:
+                    messages.error(request, "Master event not found.")
+                    redirect_url = 'calendars:master_events'
+                except ValueError as e:
+                    messages.error(request, f"Invalid form data: {str(e)}")
+                    return redirect('calendars:unified_photo_crop')
+
+            elif edit_event_data:
+                # Update existing calendar event
+                event = CalendarEvent.objects.get(id=edit_event_data['event_id'])
+                event.image = cropped_django_file
+                event.full_image = full_django_file
+                event.original_filename = original_filename
+                event.save()
+
+                messages.success(request, f"Photo updated successfully for '{event.event_name}'!")
+                redirect_url = reverse('calendars:edit_event', kwargs={'event_id': event.id})
+
+            else:
+                # Create new calendar event - need form data
+                event_name = request.POST.get('event_name')
+                month = int(request.POST.get('month'))
+                day = int(request.POST.get('day'))
+                year = int(request.POST.get('year', 2025))  # Default to 2025 or get from context
+
+                calendar = get_calendar_or_404(year, request.user)
+
+                # Check if events already exist for this date
+                existing_events = CalendarEvent.get_events_for_date(calendar, month, day)
+
+                if existing_events.exists():
+                    # Create a new event (allow multiple events on same day)
+                    event = CalendarEvent.objects.create(
+                        calendar=calendar,
+                        month=month,
+                        day=day,
+                        event_name=event_name,
+                        image=cropped_django_file,
+                        full_image=full_django_file,
+                        original_filename=original_filename
+                    )
+                    messages.warning(request, f"Added '{event_name}' to {calendar.year}-{month:02d}-{day:02d}. This date now has {existing_events.count() + 1} events.")
+                else:
+                    # Create new event
+                    event = CalendarEvent.objects.create(
+                        calendar=calendar,
+                        month=month,
+                        day=day,
+                        event_name=event_name,
+                        image=cropped_django_file,
+                        full_image=full_django_file,
+                        original_filename=original_filename
+                    )
+
+                messages.success(request, f"Event '{event_name}' created successfully with cropped photo.")
+                redirect_url = reverse('calendars:calendar_detail', kwargs={'year': year})
+
+            # Clean up temporary files
+            try:
+                if temp_image_path and os.path.exists(temp_image_path):
+                    os.unlink(temp_image_path)
+                if os.path.exists(temp_cropped.name):
+                    os.unlink(temp_cropped.name)
+            except OSError:
+                pass
+
+            # Clear session data
+            session_keys_to_clear = ['crop_data', 'edit_master_event_id', 'edit_event_data', 'temp_tokens']
+            for key in session_keys_to_clear:
+                if key in request.session:
+                    del request.session[key]
+
+            return redirect(redirect_url)
+
+        except Exception as e:
+            messages.error(request, f"Error processing cropped image: {str(e)}")
+            return redirect('calendars:unified_photo_crop')

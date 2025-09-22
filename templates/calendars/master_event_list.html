@@ -55,10 +55,9 @@
                                 <span class="event-card__placeholder-text">No Image</span>
                             </div>
                         {% endif %}
-                        <button class="event-card__image-edit" onclick="triggerImageUpload({{ event.id }})">
+                        <button class="event-card__image-edit" onclick="editMasterEventPhoto({{ event.id }})">
                             <span>📷</span>
                         </button>
-                        <input type="file" id="image-upload-{{ event.id }}" class="hidden-file-input" accept="image/*" onchange="uploadEventImage({{ event.id }}, this)">
                     </div>
                 </div>
 
@@ -87,7 +86,7 @@
                         <p class="event-card__description">{{ event.description|truncatewords:20 }}</p>
                     {% endif %}
                     <div class="event-card__actions">
-                        <a href="{% url 'calendars:master_event_edit' pk=event.pk %}" class="btn btn--small btn--outline">Edit</a>
+                        <a href="{% url 'calendars:unified_photo_editor' %}?master_event_id={{ event.pk }}" class="btn btn--small btn--outline">Edit</a>
                         <a href="{% url 'calendars:master_event_delete' pk=event.pk %}" class="btn btn--small btn--danger">Delete</a>
                     </div>
                 </div>
@@ -272,39 +271,9 @@
 </style>
 
 <script>
-function triggerImageUpload(eventId) {
-    document.getElementById(`image-upload-${eventId}`).click();
-}
-
-function uploadEventImage(eventId, input) {
-    if (!input.files || !input.files[0]) return;
-
-    const formData = new FormData();
-    formData.append('image', input.files[0]);
-    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-
-    fetch(`/calendars/master-events/${eventId}/upload-image/`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            if (data.redirect_to_crop) {
-                // Redirect to crop page
-                window.location.href = data.crop_url;
-            } else {
-                // Direct upload success (shouldn't happen with new workflow)
-                location.reload();
-            }
-        } else {
-            alert('Failed to upload image: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to upload image');
-    });
+function editMasterEventPhoto(eventId) {
+    // Redirect to the unified photo editor with master event context
+    window.location.href = `/calendars/upload-edit/?master_event_id=${eventId}`;
 }
 </script>
 {% endblock %}

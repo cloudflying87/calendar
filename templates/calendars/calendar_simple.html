@@ -77,7 +77,7 @@
                 <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--primary">
                     📁 Bulk Upload Photos
                 </a>
-                <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--outline">
+                <a href="{% url 'calendars:unified_photo_editor' %}?year={{ calendar.year }}" class="btn btn--outline">
                     ✏️ Upload & Edit Single Photo
                 </a>
             </div>

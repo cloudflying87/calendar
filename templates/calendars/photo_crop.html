@@ -209,49 +209,58 @@
 
     <div class="crop-preview">
         <h3>Step 3: Choose Date & Event Name</h3>
-        <p>Now that you can see your cropped photo, choose the calendar date and event name:</p>
-
-        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
-            <div class="form-group">
-                <label for="month-select" class="form-label">Month</label>
-                <select name="month_input" id="month-select" class="form-select" required>
-                    <option value="">Select month...</option>
-                    <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
-                    <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
-                    <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
-                    <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
-                    <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
-                    <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
-                    <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
-                    <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
-                    <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
-                    <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
-                    <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
-                    <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
-                </select>
+        {% if is_master_event %}
+            <p>Updating photo for master event: <strong>{{ master_event.name }}</strong> ({{ master_event.month }}/{{ master_event.day }})</p>
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+                <div class="alert alert--info">
+                    <strong>Note:</strong> You're editing a master event photo. The date and name cannot be changed here.
+                </div>
             </div>
+        {% else %}
+            <p>Now that you can see your cropped photo, choose the calendar date and event name:</p>
 
-            <div class="form-group">
-                <label for="day-select" class="form-label">Day</label>
-                <select name="day_input" id="day-select" class="form-select" required>
-                    <option value="">Select day...</option>
-                    {% for d in "x"|rjust:31 %}
-                        <option value="{{ forloop.counter }}" {% if day == forloop.counter %}selected{% endif %}>{{ forloop.counter }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label for="month-select" class="form-label">Month</label>
+                    <select name="month_input" id="month-select" class="form-select" required>
+                        <option value="">Select month...</option>
+                        <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                        <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                        <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                        <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                        <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                        <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                        <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                        <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                        <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                        <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                        <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                        <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label for="event-name-input" class="form-label">Event Name</label>
-                <input type="text"
-                       name="event_name_input"
-                       id="event-name-input"
-                       class="form-control"
-                       placeholder="e.g., Birthday Party, Anniversary, Vacation"
-                       value="{{ event_name|default:'' }}"
-                       required>
+                <div class="form-group">
+                    <label for="day-select" class="form-label">Day</label>
+                    <select name="day_input" id="day-select" class="form-select" required>
+                        <option value="">Select day...</option>
+                        {% for d in "x"|rjust:31 %}
+                            <option value="{{ forloop.counter }}" {% if day == forloop.counter %}selected{% endif %}>{{ forloop.counter }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="event-name-input" class="form-label">Event Name</label>
+                    <input type="text"
+                           name="event_name_input"
+                           id="event-name-input"
+                           class="form-control"
+                           placeholder="e.g., Birthday Party, Anniversary, Vacation"
+                           value="{{ event_name|default:'' }}"
+                           required>
+                </div>
             </div>
-        </div>
+        {% endif %}
     </div>
 
     <form id="crop-form" method="post" action="{% url 'calendars:process_crop' calendar.year %}">
@@ -393,7 +402,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Validate date/event inputs
+        // Validate date/event inputs for calendar events (not master events)
+        {% if not is_master_event %}
         const monthSelect = document.getElementById('month-select');
         const daySelect = document.getElementById('day-select');
         const eventNameInput = document.getElementById('event-name-input');
@@ -408,6 +418,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('input[name="month"]').value = monthSelect.value;
         document.querySelector('input[name="day"]').value = daySelect.value;
         document.querySelector('input[name="event_name"]').value = eventNameInput.value.trim();
+        {% endif %}
 
         // Get the cropped canvas data
         const croppedCanvas = cropper.getCroppedCanvas({
@@ -427,7 +438,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Handle month/day validation
+    // Handle month/day validation (only for calendar events)
+    {% if not is_master_event %}
     const monthSelect = document.getElementById('month-select');
     const daySelect = document.getElementById('day-select');
 
@@ -453,6 +465,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+    {% endif %}
 
     // Handle clearing placeholder-like values in event name input
     const eventNameInput = document.getElementById('event-name-input');

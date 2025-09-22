@@ -1,0 +1,714 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✏️ {{ page_title }}</h1>
+    {% if master_event %}
+        <div class="page-meta">
+            <span class="meta-item">📅 {{ master_event.month|stringformat:"02d" }}/{{ master_event.day|stringformat:"02d" }}</span>
+            <span class="meta-item">🎉 {{ master_event.name }}</span>
+            <span class="meta-item">📊 {{ master_event.get_event_type_display }}</span>
+        </div>
+    {% elif edit_event_data %}
+        <div class="page-meta">
+            <span class="meta-item">📅 {{ edit_event_data.month|stringformat:"02d" }}/{{ edit_event_data.day|stringformat:"02d" }}/{{ calendar.year }}</span>
+            <span class="meta-item">🎉 {{ edit_event_data.event_name }}</span>
+        </div>
+    {% elif calendar %}
+        <div class="page-meta">
+            <span class="meta-item">📅 Calendar {{ calendar.year }}</span>
+        </div>
+    {% endif %}
+    <a href="{{ back_url }}" class="btn btn--outline">{{ back_text }}</a>
+</div>
+
+{% if master_event and master_event.image %}
+<div class="current-image-section">
+    <div class="current-image-card">
+        <h3 class="current-image-card__title">📷 Current Photo</h3>
+        <div class="current-image-display">
+            <img src="{{ master_event.image.url }}" alt="{{ master_event.name }}" class="current-image">
+            <div class="current-image-info">
+                <p><strong>{{ master_event.name }}</strong></p>
+                <p>{{ master_event.month }}/{{ master_event.day }} • {{ master_event.get_event_type_display }}</p>
+                {% if master_event.year_occurred %}
+                    <p>Year: {{ master_event.year_occurred }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <p class="current-image-help">Choose an option below to update this photo or add additional photos:</p>
+    </div>
+</div>
+{% endif %}
+
+<div class="upload-instructions">
+    <div class="instruction-card">
+        <h3 class="instruction-card__title">Photo Editor Options</h3>
+        <div class="instruction-card__content">
+            <p>Choose how you want to create your calendar event:</p>
+
+            <div class="photo-options">
+                <div class="photo-option" data-option="single">
+                    <div class="option-icon">📷</div>
+                    <div class="option-content">
+                        <h4>Single Photo</h4>
+                        <p>Upload one photo for your event</p>
+                        <ul>
+                            <li>Upload → Crop → Save</li>
+                            <li>Perfect for birthdays, anniversaries</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="photo-option" data-option="multi">
+                    <div class="option-icon">🖼️</div>
+                    <div class="option-content">
+                        <h4>Multiple Photos</h4>
+                        <p>Combine 2-3 photos into one event</p>
+                        <ul>
+                            <li>Upload multiple → Choose layout → Crop each → Save</li>
+                            <li>Great for vacations, parties, busy days</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Single Photo Upload Form -->
+<div id="single-photo-form" class="upload-form" style="display: none;">
+    <div class="upload-card">
+        <h3 class="upload-card__title">📷 Single Photo Upload</h3>
+        <form method="post" enctype="multipart/form-data" class="upload-form__form">
+            {% csrf_token %}
+            <input type="hidden" name="photo_mode" value="single">
+
+            <div class="file-upload-area">
+                <input type="file" name="photo" id="single-photo-input" accept="image/*" required class="file-input">
+                <label for="single-photo-input" class="file-upload-label" id="single-upload-label">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">
+                        <strong>Click to choose a photo</strong>
+                        <span>or drag and drop</span>
+                    </div>
+                </label>
+                <div class="file-preview" id="single-file-preview" style="display: none;">
+                    <div class="file-preview-container">
+                        <img id="single-preview-image" class="preview-image" alt="Selected photo">
+                        <div class="file-preview-info">
+                            <div class="file-name" id="single-file-name"></div>
+                            <div class="file-size" id="single-file-size"></div>
+                            <button type="button" class="remove-file-btn" onclick="clearSingleFile()">
+                                ❌ Remove
+                            </button>
+                        </div>
+                    </div>
+                    <div class="file-preview-actions">
+                        <p class="preview-help">👆 This photo will be uploaded and cropped in the next step</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="upload-actions">
+                <button type="submit" class="btn btn--primary">Continue to Crop</button>
+                <button type="button" class="btn btn--outline" onclick="resetPhotoOptions()">Back to Options</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Multiple Photos Upload Form -->
+<div id="multi-photo-form" class="upload-form" style="display: none;">
+    <div class="upload-card">
+        <h3 class="upload-card__title">🖼️ Multiple Photos Upload</h3>
+        <form method="post" enctype="multipart/form-data" class="upload-form__form">
+            {% csrf_token %}
+            <input type="hidden" name="photo_mode" value="multi">
+
+            <div class="layout-selection">
+                <h4>Choose Layout:</h4>
+                <div class="layout-options">
+                    <label class="layout-option">
+                        <input type="radio" name="layout" value="side_by_side" checked>
+                        <div class="layout-preview">
+                            <div class="layout-demo layout-demo--side-by-side">
+                                <div class="demo-box"></div>
+                                <div class="demo-box"></div>
+                            </div>
+                            <span>Side by Side</span>
+                        </div>
+                    </label>
+
+                    <label class="layout-option">
+                        <input type="radio" name="layout" value="top_bottom">
+                        <div class="layout-preview">
+                            <div class="layout-demo layout-demo--top-bottom">
+                                <div class="demo-box"></div>
+                                <div class="demo-box"></div>
+                            </div>
+                            <span>Top/Bottom</span>
+                        </div>
+                    </label>
+
+                    <label class="layout-option">
+                        <input type="radio" name="layout" value="grid">
+                        <div class="layout-preview">
+                            <div class="layout-demo layout-demo--grid">
+                                <div class="demo-box"></div>
+                                <div class="demo-box"></div>
+                                <div class="demo-box"></div>
+                                <div class="demo-box"></div>
+                            </div>
+                            <span>Grid (2×2)</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="file-upload-area">
+                <input type="file" name="photos" id="multi-photo-input" accept="image/*" multiple required class="file-input">
+                <label for="multi-photo-input" class="file-upload-label" id="multi-upload-label">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">
+                        <strong>Click to choose photos</strong>
+                        <span>Select 2-4 photos</span>
+                    </div>
+                </label>
+                <div class="files-preview" id="multi-files-preview" style="display: none;">
+                    <div class="files-preview-grid" id="multi-preview-grid"></div>
+                    <div class="files-preview-actions">
+                        <div class="files-count" id="multi-files-count"></div>
+                        <button type="button" class="remove-all-files-btn" onclick="clearMultiFiles()">
+                            🗑️ Clear All
+                        </button>
+                    </div>
+                    <div class="preview-help">
+                        👆 These photos will be combined according to your layout choice
+                    </div>
+                </div>
+            </div>
+
+            <div class="upload-actions">
+                <button type="submit" class="btn btn--primary">Continue to Crop</button>
+                <button type="button" class="btn btn--outline" onclick="resetPhotoOptions()">Back to Options</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Include the same styles from photo_editor_upload.html */
+.upload-instructions {
+    max-width: 800px;
+    margin: 0 auto 2rem auto;
+}
+
+.instruction-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.instruction-card__title {
+    background: var(--color-primary);
+    color: white;
+    padding: 1.5rem;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.instruction-card__content {
+    padding: 2rem;
+}
+
+.photo-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.photo-option {
+    border: 2px solid #e5e7eb;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.photo-option:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.photo-option.selected {
+    border-color: var(--color-primary);
+    background: #eff6ff;
+}
+
+.option-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.option-content h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+    font-size: 1.1rem;
+}
+
+.option-content p {
+    margin: 0 0 1rem 0;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+}
+
+.option-content ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+}
+
+.option-content li {
+    margin-bottom: 0.25rem;
+}
+
+.upload-form {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.upload-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.upload-card__title {
+    background: var(--color-primary);
+    color: white;
+    padding: 1.5rem;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.upload-form__form {
+    padding: 2rem;
+}
+
+.file-upload-area {
+    margin-bottom: 2rem;
+}
+
+.file-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.file-upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    border: 2px dashed #d1d5db;
+    border-radius: var(--border-radius);
+    background: #f9fafb;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 2rem;
+    text-align: center;
+}
+
+.file-upload-label:hover {
+    border-color: var(--color-primary);
+    background: #eff6ff;
+}
+
+.upload-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.7;
+}
+
+.upload-text strong {
+    display: block;
+    color: var(--color-text-primary);
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.upload-text span {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+}
+
+.upload-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+/* Current image display styles */
+.current-image-section {
+    max-width: 800px;
+    margin: 0 auto 2rem auto;
+}
+
+.current-image-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    border: 2px solid #e5e7eb;
+}
+
+.current-image-card__title {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem 1.5rem;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.current-image-display {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    align-items: center;
+}
+
+.current-image {
+    width: 160px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: var(--border-radius);
+    border: 2px solid #e5e7eb;
+    flex-shrink: 0;
+}
+
+.current-image-info {
+    flex: 1;
+}
+
+.current-image-info p {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-secondary);
+}
+
+.current-image-info p:first-child {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: 1.1rem;
+}
+
+.current-image-help {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+/* File preview styles */
+.file-preview {
+    background: #f8f9fa;
+    border: 2px solid #28a745;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.file-preview-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.preview-image {
+    width: 120px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: var(--border-radius);
+    border: 2px solid #dee2e6;
+    flex-shrink: 0;
+}
+
+.file-preview-info {
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.file-size {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+}
+
+.remove-file-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.remove-file-btn:hover {
+    background: #c82333;
+}
+
+.file-preview-actions {
+    text-align: center;
+}
+
+.preview-help {
+    color: var(--color-text-secondary);
+    font-style: italic;
+    margin: 0;
+}
+
+/* Multi-file preview styles */
+.files-preview {
+    background: #f8f9fa;
+    border: 2px solid #28a745;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.files-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.multi-file-item {
+    text-align: center;
+}
+
+.multi-file-item img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: var(--border-radius);
+    border: 2px solid #dee2e6;
+    margin-bottom: 0.5rem;
+}
+
+.multi-file-name {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    word-break: break-word;
+}
+
+.files-preview-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.files-count {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.remove-all-files-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.remove-all-files-btn:hover {
+    background: #c82333;
+}
+
+@media (max-width: 640px) {
+    .upload-actions {
+        flex-direction: column;
+    }
+
+    .photo-options {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const photoOptions = document.querySelectorAll('.photo-option');
+    const singleForm = document.getElementById('single-photo-form');
+    const multiForm = document.getElementById('multi-photo-form');
+    const singlePhotoInput = document.getElementById('single-photo-input');
+    const multiPhotoInput = document.getElementById('multi-photo-input');
+
+    photoOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            const optionType = this.dataset.option;
+
+            // Remove selected class from all options
+            photoOptions.forEach(opt => opt.classList.remove('selected'));
+
+            // Add selected class to clicked option
+            this.classList.add('selected');
+
+            // Show appropriate form
+            if (optionType === 'single') {
+                singleForm.style.display = 'block';
+                multiForm.style.display = 'none';
+            } else if (optionType === 'multi') {
+                singleForm.style.display = 'none';
+                multiForm.style.display = 'block';
+            }
+        });
+    });
+
+    // Single photo file input handler
+    if (singlePhotoInput) {
+        singlePhotoInput.addEventListener('change', function(e) {
+            handleSingleFileSelect(e.target.files[0]);
+        });
+    }
+
+    // Multi photo file input handler
+    if (multiPhotoInput) {
+        multiPhotoInput.addEventListener('change', function(e) {
+            handleMultiFileSelect(e.target.files);
+        });
+    }
+});
+
+// Handle single file selection
+function handleSingleFileSelect(file) {
+    const uploadLabel = document.getElementById('single-upload-label');
+    const filePreview = document.getElementById('single-file-preview');
+    const previewImage = document.getElementById('single-preview-image');
+    const fileName = document.getElementById('single-file-name');
+    const fileSize = document.getElementById('single-file-size');
+
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+
+            // Hide upload label and show preview
+            uploadLabel.style.display = 'none';
+            filePreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// Handle multiple file selection
+function handleMultiFileSelect(files) {
+    const uploadLabel = document.getElementById('multi-upload-label');
+    const filesPreview = document.getElementById('multi-files-preview');
+    const previewGrid = document.getElementById('multi-preview-grid');
+    const filesCount = document.getElementById('multi-files-count');
+
+    if (files.length > 0) {
+        // Clear existing previews
+        previewGrid.innerHTML = '';
+
+        let validFiles = 0;
+        Array.from(files).forEach((file, index) => {
+            if (file.type.startsWith('image/') && validFiles < 4) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'multi-file-item';
+                    fileItem.innerHTML = `
+                        <img src="${e.target.result}" alt="Photo ${validFiles + 1}">
+                        <div class="multi-file-name">${file.name}</div>
+                    `;
+                    previewGrid.appendChild(fileItem);
+                };
+                reader.readAsDataURL(file);
+                validFiles++;
+            }
+        });
+
+        if (validFiles > 0) {
+            filesCount.textContent = `${validFiles} photo${validFiles > 1 ? 's' : ''} selected`;
+
+            // Hide upload label and show preview
+            uploadLabel.style.display = 'none';
+            filesPreview.style.display = 'block';
+        }
+    }
+}
+
+// Clear single file
+function clearSingleFile() {
+    const singlePhotoInput = document.getElementById('single-photo-input');
+    const uploadLabel = document.getElementById('single-upload-label');
+    const filePreview = document.getElementById('single-file-preview');
+
+    singlePhotoInput.value = '';
+    uploadLabel.style.display = 'flex';
+    filePreview.style.display = 'none';
+}
+
+// Clear multiple files
+function clearMultiFiles() {
+    const multiPhotoInput = document.getElementById('multi-photo-input');
+    const uploadLabel = document.getElementById('multi-upload-label');
+    const filesPreview = document.getElementById('multi-files-preview');
+
+    multiPhotoInput.value = '';
+    uploadLabel.style.display = 'flex';
+    filesPreview.style.display = 'none';
+}
+
+// Format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function resetPhotoOptions() {
+    document.querySelectorAll('.photo-option').forEach(opt => opt.classList.remove('selected'));
+    document.getElementById('single-photo-form').style.display = 'none';
+    document.getElementById('multi-photo-form').style.display = 'none';
+
+    // Clear any file selections and previews
+    clearSingleFile();
+    clearMultiFiles();
+}
+</script>
+{% endblock %}

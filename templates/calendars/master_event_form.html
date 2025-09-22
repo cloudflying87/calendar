@@ -121,19 +121,10 @@
 
                     <div class="photo-actions">
                         {% if form.instance.pk %}
-                            <input type="file" name="photo_upload" accept="image/*" style="display: none;" id="photoInput">
-                            <label for="photoInput" class="btn btn--primary btn--small">
+                            <a href="{% url 'calendars:unified_photo_editor' %}?master_event_id={{ form.instance.pk }}" class="btn btn--primary btn--small">
                                 {% if form.instance.image %}✏️ Change Photo{% else %}📷 Add Photo{% endif %}
-                            </label>
+                            </a>
 
-                            <div class="photo-preview-actions" id="previewActions" style="display: none;">
-                                <button type="button" class="btn btn--secondary btn--small" id="cropBtn">
-                                    ✂️ Crop & Save
-                                </button>
-                                <button type="button" class="btn btn--outline btn--small" id="cancelBtn">
-                                    ❌ Cancel
-                                </button>
-                            </div>
 
                             {% if form.instance.image %}
                                 <button type="button" class="btn btn--outline btn--small" onclick="removePhoto({{ form.instance.pk }})">
@@ -185,126 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateFormBasedOnType();
     }
 
-    // Handle photo upload with inline preview
-    const photoInput = document.getElementById('photoInput');
-    const currentPhoto = document.getElementById('currentPhoto');
-    const currentPhotoDiv = document.getElementById('currentPhotoDiv');
-    const noPhotoPlaceholder = document.getElementById('noPhotoPlaceholder');
-    const previewActions = document.getElementById('previewActions');
-    const cropBtn = document.getElementById('cropBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-
-    let selectedFile = null;
-    let originalImageSrc = currentPhoto ? currentPhoto.src : null;
-
-    if (photoInput) {
-        photoInput.addEventListener('change', function(e) {
-            if (e.target.files && e.target.files[0]) {
-                selectedFile = e.target.files[0];
-                showImagePreview(selectedFile);
-            }
-        });
-    }
-
-    function showImagePreview(file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            // Hide placeholder if it exists
-            if (noPhotoPlaceholder) {
-                noPhotoPlaceholder.style.display = 'none';
-            }
-
-            // Show or update the image
-            if (currentPhoto) {
-                currentPhoto.src = e.target.result;
-            } else {
-                // Create new image element
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.alt = 'Preview';
-                img.className = 'master-event-photo';
-                img.id = 'currentPhoto';
-                currentPhotoDiv.appendChild(img);
-            }
-
-            // Show preview actions
-            previewActions.style.display = 'flex';
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function cancelPreview() {
-        // Reset file input
-        photoInput.value = '';
-        selectedFile = null;
-
-        // Restore original image or show placeholder
-        if (originalImageSrc) {
-            currentPhoto.src = originalImageSrc;
-        } else {
-            // Remove the preview image and show placeholder
-            const previewImg = document.getElementById('currentPhoto');
-            if (previewImg && !originalImageSrc) {
-                previewImg.remove();
-            }
-            if (noPhotoPlaceholder) {
-                noPhotoPlaceholder.style.display = 'block';
-            }
-        }
-
-        // Hide preview actions
-        previewActions.style.display = 'none';
-    }
-
-    function uploadAndCrop() {
-        if (!selectedFile) return;
-
-        const formData = new FormData();
-        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-        formData.append('image', selectedFile);
-
-        // Get the upload URL (we need to construct it)
-        const uploadUrl = `/calendars/master-events/{{ form.instance.pk }}/upload-image/`;
-
-        // Store current page in session for later redirect
-        const currentPage = new URLSearchParams(window.location.search).get('page');
-        if (currentPage) {
-            formData.append('page', currentPage);
-        }
-
-        fetch(uploadUrl, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.redirect_to_crop) {
-                // Redirect to crop page
-                window.location.href = data.crop_url;
-            } else {
-                alert('Error: ' + (data.error || 'Upload failed'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Upload failed. Please try again.');
-        });
-    }
-
-    // Event listeners
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', cancelPreview);
-    }
-
-    if (cropBtn) {
-        cropBtn.addEventListener('click', uploadAndCrop);
-    }
-
-    // Debug form submission
-    const form = document.getElementById('master-event-form');
-    const submitBtn = document.getElementById('submit-btn');
-
-    // Handle photo removal without nested form
+    // Photo removal functionality (kept for existing photos)
     window.removePhoto = function(eventId) {
         if (confirm('Remove this photo?')) {
             const removeUrl = `/calendars/master-events/${eventId}/remove-image/`;
@@ -325,6 +197,10 @@ document.addEventListener('DOMContentLoaded', function() {
             tempForm.submit();
         }
     };
+
+    // Debug form submission
+    const form = document.getElementById('master-event-form');
+    const submitBtn = document.getElementById('submit-btn');
 
     if (form) {
         form.addEventListener('submit', function(e) {

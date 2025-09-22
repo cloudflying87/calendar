@@ -37,7 +37,7 @@
     <div class="action-panel__section">
         <h3>📸 Photos & Events</h3>
         <div class="action-buttons">
-            <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}" class="btn btn--primary" title="Upload and edit a single photo with custom date and event name">
+            <a href="{% url 'calendars:unified_photo_editor' %}?year={{ calendar.year }}" class="btn btn--primary" title="Upload and edit a single photo with custom date and event name">
                 ✏️ Upload & Edit Photo
             </a>
             <a href="{% url 'calendars:image_upload' year=calendar.year %}" class="btn btn--secondary" title="Bulk upload multiple photos (requires MMDD_eventname format)">

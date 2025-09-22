@@ -91,7 +91,7 @@
 
     <div style="margin-top: 1rem; padding: 1rem; background: var(--color-bg-secondary); border-radius: var(--border-radius);">
         <strong>💡 Tip:</strong> For custom dates and cropping, use the
-        <a href="{% url 'calendars:photo_editor_upload' year=calendar.year %}">Upload & Edit Photo</a> feature instead.
+        <a href="{% url 'calendars:unified_photo_editor' %}?year={{ calendar.year }}">Upload & Edit Photo</a> feature instead.
     </div>
 </div>
 

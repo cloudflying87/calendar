@@ -4,7 +4,15 @@
 
 {% block content %}
 <div class="page-header">
-    {% if edit_event_data %}
+    {% if master_event %}
+        <h1 class="page-title">✏️ Change Master Event Photo</h1>
+        <div class="page-meta">
+            <span class="meta-item">📅 {{ master_event.month|stringformat:"02d" }}/{{ master_event.day|stringformat:"02d" }}</span>
+            <span class="meta-item">🎉 {{ master_event.name }}</span>
+            <span class="meta-item">📊 {{ master_event.get_event_type_display }}</span>
+        </div>
+        <a href="{% url 'calendars:master_events' %}" class="btn btn--outline">Back to Master Events</a>
+    {% elif edit_event_data %}
         <h1 class="page-title">✏️ {% if edit_event_data.event_id %}Change Photo{% else %}Add Photo{% endif %}</h1>
         <div class="page-meta">
             <span class="meta-item">📅 {{ edit_event_data.month|stringformat:"02d" }}/{{ edit_event_data.day|stringformat:"02d" }}/{{ calendar.year }}</span>

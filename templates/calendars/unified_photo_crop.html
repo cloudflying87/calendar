@@ -1,0 +1,569 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - Calendar Builder{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cropper.min.css' %}">
+<style>
+.crop-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.crop-stage {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.crop-preview {
+    background: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.cropper-container {
+    max-width: 100%;
+    max-height: 400px;
+    margin: 1rem 0;
+}
+
+.crop-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+.preview-section h4 {
+    margin-bottom: 1rem;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.calendar-preview {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    background: white;
+    text-align: center;
+}
+
+.calendar-cell {
+    width: 120px;
+    height: 80px;
+    border: 1px solid #dee2e6;
+    margin: 0 auto;
+    position: relative;
+    background: white;
+    border-radius: 4px;
+}
+
+.calendar-day {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: #495057;
+}
+
+.calendar-image {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 100px;
+    max-height: 40px;
+    object-fit: cover;
+    border-radius: 2px;
+}
+
+.calendar-event-name {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    font-style: italic;
+    color: #6c757d;
+    text-align: center;
+    width: 100%;
+    padding: 0 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius);
+}
+
+.alert--info {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.master-event-form-section {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    border: 1px solid #e9ecef;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.form-control, .form-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--color-primary);
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+}
+
+.form-help {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    margin-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+    .preview-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .crop-controls {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="crop-container">
+    <div class="page-header">
+        <h1 class="page-title">✂️ {{ page_title }}</h1>
+        <div class="page-meta">
+            <span class="meta-item">📅 {{ event_date }}</span>
+            <span class="meta-item">🎉 {{ event_name }}</span>
+        </div>
+        <a href="{% url 'calendars:unified_photo_editor' %}{% if master_event %}?master_event_id={{ master_event.id }}{% elif edit_event_data %}?calendar_event_id={{ edit_event_data.event_id }}{% elif year %}?year={{ year }}{% endif %}" class="btn btn--outline">← Back to Upload</a>
+    </div>
+
+    <div class="crop-stage">
+        <h3>Step 1: Crop Your Photo</h3>
+        <p>Drag the corners to adjust your photo. The cropped area will be used in your calendar.</p>
+
+        <div class="cropper-container">
+            <img id="crop-image" src="{{ temp_image_url }}" alt="Image to crop" style="display: block; max-width: 100%;">
+        </div>
+
+        <div class="crop-controls">
+            <button type="button" id="zoom-in-btn" class="btn btn--outline btn--small">🔍 Zoom In</button>
+            <button type="button" id="zoom-out-btn" class="btn btn--outline btn--small">🔍 Zoom Out</button>
+            <button type="button" id="rotate-left-btn" class="btn btn--outline btn--small">↺ Rotate Left</button>
+            <button type="button" id="rotate-right-btn" class="btn btn--outline btn--small">↻ Rotate Right</button>
+            <button type="button" id="reset-btn" class="btn btn--outline btn--small">↻ Reset</button>
+        </div>
+    </div>
+
+    <div class="crop-preview">
+        <h3>Step 2: Preview</h3>
+        <div class="preview-grid">
+            <div class="preview-section">
+                <h4>High Resolution Preview</h4>
+                <canvas id="preview-canvas-large" width="320" height="200" style="border: 1px solid #dee2e6; border-radius: 4px; max-width: 100%;"></canvas>
+            </div>
+
+            <div class="preview-section">
+                <h4>Calendar Cell Preview</h4>
+                <div class="calendar-preview">
+                    <div class="calendar-cell">
+                        <div class="calendar-day">{{ day }}</div>
+                        <canvas id="preview-canvas-small" class="calendar-image" width="80" height="50"></canvas>
+                        <div class="calendar-event-name">{{ event_name }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="crop-stage">
+        <h3>Step 3: {% if is_master_event %}Edit Master Event{% else %}Set Date & Name{% endif %}</h3>
+
+        {% if is_master_event %}
+            <p>Edit all details for this master event:</p>
+
+            <div class="master-event-form-section">
+                <div class="form-row" style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label for="master-event-name" class="form-label">Event Name *</label>
+                        <input type="text"
+                               name="master_event_name"
+                               id="master-event-name"
+                               class="form-control"
+                               placeholder="Enter event or person name"
+                               value="{{ master_event.name }}"
+                               required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="master-month-select" class="form-label">Month *</label>
+                        <select name="master_month" id="master-month-select" class="form-select" required>
+                            {% for value, label in master_event_form.month.field.choices %}
+                                <option value="{{ value }}" {% if value == master_event.month %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="master-day-select" class="form-label">Day *</label>
+                        <select name="master_day" id="master-day-select" class="form-select" required>
+                            {% for value, label in master_event_form.day.field.choices %}
+                                <option value="{{ value }}" {% if value == master_event.day %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label for="master-event-type" class="form-label">Event Type</label>
+                        <select name="master_event_type" id="master-event-type" class="form-select">
+                            {% for value, label in master_event_form.event_type.field.choices %}
+                                <option value="{{ value }}" {% if value == master_event.event_type %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="master-year-occurred" class="form-label">Year Occurred</label>
+                        <input type="number"
+                               name="master_year_occurred"
+                               id="master-year-occurred"
+                               class="form-control"
+                               placeholder="Optional: Year (e.g., 1990)"
+                               min="1900"
+                               max="2100"
+                               value="{{ master_event.year_occurred|default:'' }}">
+                        <small class="form-help">For birthdays and anniversaries</small>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label for="master-groups" class="form-label">Groups</label>
+                        <input type="text"
+                               name="master_groups"
+                               id="master-groups"
+                               class="form-control"
+                               placeholder="e.g., Family, Birthdays, Important"
+                               value="{{ master_event.groups }}">
+                        <small class="form-help">Comma-separated list of groups</small>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label for="master-description" class="form-label">Description</label>
+                        <textarea name="master_description"
+                                  id="master-description"
+                                  class="form-control"
+                                  rows="3"
+                                  placeholder="Optional: Add notes or description">{{ master_event.description }}</textarea>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p>Now that you can see your cropped photo, choose the calendar date and event name:</p>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label for="month-select" class="form-label">Month</label>
+                    <select name="month_input" id="month-select" class="form-select" required>
+                        <option value="">Select month...</option>
+                        <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                        <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                        <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                        <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                        <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                        <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                        <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                        <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                        <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                        <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                        <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                        <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="day-select" class="form-label">Day</label>
+                    <select name="day_input" id="day-select" class="form-select" required>
+                        <option value="">Select day...</option>
+                        {% for d in "x"|rjust:31 %}
+                            <option value="{{ forloop.counter }}" {% if day == forloop.counter %}selected{% endif %}>{{ forloop.counter }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="event-name-input" class="form-label">Event Name</label>
+                    <input type="text"
+                           name="event_name_input"
+                           id="event-name-input"
+                           class="form-control"
+                           placeholder="e.g., Birthday Party, Anniversary, Vacation"
+                           value="{{ event_name|default:'' }}"
+                           required>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <form id="crop-form" method="post" action="{% url 'calendars:unified_process_crop' %}">
+        {% csrf_token %}
+        <input type="hidden" name="temp_image_path" value="{{ temp_image_path }}">
+        <input type="hidden" name="original_filename" value="{{ original_filename }}">
+        <input type="hidden" name="event_name" value="{{ event_name }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <input type="hidden" name="day" value="{{ day }}">
+        {% if year %}<input type="hidden" name="year" value="{{ year }}">{% endif %}
+        <input type="hidden" name="crop_data" id="crop-data">
+
+        <div class="action-buttons">
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;">
+                <button type="submit" class="btn btn--primary btn--large">
+                    💾 {% if is_master_event %}Save Master Event Photo{% else %}Save Event{% endif %}
+                </button>
+                <a href="{% url 'calendars:unified_photo_editor' %}{% if master_event %}?master_event_id={{ master_event.id }}{% elif edit_event_data %}?calendar_event_id={{ edit_event_data.event_id }}{% elif year %}?year={{ year }}{% endif %}" class="btn btn--outline btn--large">Cancel</a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/cropper.min.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const image = document.getElementById('crop-image');
+    const previewCanvasLarge = document.getElementById('preview-canvas-large');
+    const previewCanvasSmall = document.getElementById('preview-canvas-small');
+    const cropDataInput = document.getElementById('crop-data');
+    const cropForm = document.getElementById('crop-form');
+
+    // Initialize Cropper.js
+    const cropper = new Cropper(image, {
+        aspectRatio: 8/5, // 320/200 = 1.6 ratio for calendar images
+        viewMode: 1,
+        responsive: true,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        ready: function() {
+            updatePreviews();
+        },
+        crop: function() {
+            updatePreviews();
+        }
+    });
+
+    // Control buttons
+    document.getElementById('zoom-in-btn').addEventListener('click', function() {
+        cropper.zoom(0.1);
+    });
+
+    document.getElementById('zoom-out-btn').addEventListener('click', function() {
+        cropper.zoom(-0.1);
+    });
+
+    document.getElementById('rotate-left-btn').addEventListener('click', function() {
+        cropper.rotate(-90);
+    });
+
+    document.getElementById('rotate-right-btn').addEventListener('click', function() {
+        cropper.rotate(90);
+    });
+
+    document.getElementById('reset-btn').addEventListener('click', function() {
+        cropper.reset();
+    });
+
+    // Update preview canvases
+    function updatePreviews() {
+        const canvas = cropper.getCroppedCanvas({
+            width: 320,
+            height: 200,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (canvas) {
+            // Update large preview
+            const ctxLarge = previewCanvasLarge.getContext('2d');
+            ctxLarge.clearRect(0, 0, previewCanvasLarge.width, previewCanvasLarge.height);
+            ctxLarge.drawImage(canvas, 0, 0, previewCanvasLarge.width, previewCanvasLarge.height);
+
+            // Update small preview
+            const ctxSmall = previewCanvasSmall.getContext('2d');
+            ctxSmall.clearRect(0, 0, previewCanvasSmall.width, previewCanvasSmall.height);
+            ctxSmall.drawImage(canvas, 0, 0, previewCanvasSmall.width, previewCanvasSmall.height);
+        }
+    }
+
+    // Form submission
+    cropForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Validate and process form inputs based on context
+        {% if is_master_event %}
+        // Master event validation
+        const masterNameInput = document.getElementById('master-event-name');
+        const masterMonthSelect = document.getElementById('master-month-select');
+        const masterDaySelect = document.getElementById('master-day-select');
+
+        if (!masterNameInput.value.trim() || !masterMonthSelect.value || !masterDaySelect.value) {
+            e.preventDefault();
+            alert('Please fill in the event name, month, and day.');
+            return;
+        }
+
+        // Update the hidden fields with master event data for display purposes
+        document.querySelector('input[name="event_name"]').value = masterNameInput.value.trim();
+        document.querySelector('input[name="month"]').value = masterMonthSelect.value;
+        document.querySelector('input[name="day"]').value = masterDaySelect.value;
+        {% else %}
+        // Calendar event validation
+        const monthSelect = document.getElementById('month-select');
+        const daySelect = document.getElementById('day-select');
+        const eventNameInput = document.getElementById('event-name-input');
+
+        if (!monthSelect.value || !daySelect.value || !eventNameInput.value.trim()) {
+            e.preventDefault();
+            alert('Please fill in the month, day, and event name.');
+            return;
+        }
+
+        // Copy values from visible form to hidden form
+        document.querySelector('input[name="month"]').value = monthSelect.value;
+        document.querySelector('input[name="day"]').value = daySelect.value;
+        document.querySelector('input[name="event_name"]').value = eventNameInput.value.trim();
+        {% endif %}
+
+        // Get the cropped canvas data
+        const canvas = cropper.getCroppedCanvas({
+            width: 320,
+            height: 200,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        if (canvas) {
+            const dataURL = canvas.toDataURL('image/jpeg', 0.95);
+            cropDataInput.value = dataURL;
+            cropForm.submit();
+        } else {
+            alert('Failed to process the cropped image. Please try again.');
+        }
+    });
+
+    // Handle month/day validation for both contexts
+    {% if is_master_event %}
+    // Master event month/day validation
+    const masterMonthSelect = document.getElementById('master-month-select');
+    const masterDaySelect = document.getElementById('master-day-select');
+
+    masterMonthSelect.addEventListener('change', function() {
+        const month = parseInt(this.value);
+        const year = new Date().getFullYear(); // Use current year for validation
+
+        if (month) {
+            // Calculate days in month
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const currentDay = parseInt(masterDaySelect.value);
+
+            // Update day options
+            masterDaySelect.innerHTML = '';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                if (i === currentDay && i <= daysInMonth) {
+                    option.selected = true;
+                }
+                masterDaySelect.appendChild(option);
+            }
+        }
+    });
+    {% else %}
+    // Calendar event month/day validation
+    const monthSelect = document.getElementById('month-select');
+    const daySelect = document.getElementById('day-select');
+
+    monthSelect.addEventListener('change', function() {
+        const month = parseInt(this.value);
+        const year = {{ year|default:2025 }};
+
+        if (month) {
+            // Calculate days in month
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const currentDay = parseInt(daySelect.value);
+
+            // Update day options
+            daySelect.innerHTML = '<option value="">Select day...</option>';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                if (i === currentDay && i <= daysInMonth) {
+                    option.selected = true;
+                }
+                daySelect.appendChild(option);
+            }
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}
