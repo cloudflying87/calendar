@@ -2807,10 +2807,11 @@ class UnifiedPhotoEditorView(View):
 
             # TODO: Create unified multi-crop view or redirect to existing one
             # For now, combine into single image and redirect to single crop
-            combined_temp_path = self._create_temp_combined_image(temp_paths, layout)
+            combined_temp_path, full_image_path = self._create_temp_combined_image(temp_paths, layout)
             if combined_temp_path:
                 request.session['crop_data'] = {
                     'temp_path': combined_temp_path,
+                    'full_image_path': full_image_path,  # Store path to full-size image
                     'original_filename': f"combined_{len(uploaded_files)}_photos.jpg",
                     'photo_mode': 'combined_multi'
                 }
@@ -2827,6 +2828,7 @@ class UnifiedPhotoEditorView(View):
         try:
             from PIL import Image
             import tempfile
+            import shutil
 
             target_width, target_height = 320, 200
             combined_img = Image.new('RGB', (target_width, target_height), (255, 255, 255))
@@ -2842,7 +2844,13 @@ class UnifiedPhotoEditorView(View):
                     continue
 
             if len(images) < 2:
-                return None
+                return None, None
+
+            # Create a copy of the first image as the full-size image
+            full_image_temp = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            if temp_paths:
+                shutil.copy2(temp_paths[0], full_image_temp.name)
+            full_image_temp.close()
 
             # Combine images based on layout
             if layout == 'side_by_side' and len(images) >= 2:
@@ -2876,18 +2884,18 @@ class UnifiedPhotoEditorView(View):
             combined_img.save(temp_combined.name, 'JPEG', quality=95, optimize=True)
             temp_combined.close()
 
-            # Clean up individual temp files
+            # Clean up individual temp files (except the one we copied for full image)
             for path in temp_paths:
                 try:
                     os.unlink(path)
                 except OSError:
                     pass
 
-            return temp_combined.name
+            return temp_combined.name, full_image_temp.name
 
         except Exception as e:
             print(f"Error creating combined image: {str(e)}")
-            return None
+            return None, None
 
 
 @method_decorator(login_required, name='dispatch')
@@ -2937,6 +2945,7 @@ class UnifiedPhotoCropView(View):
             try:
                 master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
                 master_event_form = MasterEventForm(instance=master_event)
+                print(f"DEBUG: Loading master event {master_event.id}, year_occurred: {master_event.year_occurred}")
                 context.update({
                     'master_event': master_event,
                     'master_event_form': master_event_form,
@@ -2989,6 +2998,10 @@ class UnifiedProcessCropView(View):
         original_filename = request.POST.get('original_filename')
         crop_data = request.POST.get('crop_data')
 
+        # Check if this is a combined multi-photo (no full image to preserve)
+        crop_session_data = request.session.get('crop_data', {})
+        is_combined_multi = crop_session_data.get('photo_mode') == 'combined_multi'
+
         if not crop_data:
             messages.error(request, "No crop data received. Please try again.")
             return redirect('calendars:unified_photo_crop')
@@ -3015,10 +3028,16 @@ class UnifiedProcessCropView(View):
                 from django.core.files.base import ContentFile
                 cropped_django_file = ContentFile(f.read(), name=f"cropped_{original_filename}")
 
+            # Try to get full image path - for multi-photo it's stored separately
+            full_image_path = request.session.get('crop_data', {}).get('full_image_path', temp_image_path)
+
             full_django_file = None
-            if temp_image_path and os.path.exists(temp_image_path):
-                with open(temp_image_path, 'rb') as f:
+            if full_image_path and os.path.exists(full_image_path):
+                with open(full_image_path, 'rb') as f:
                     full_django_file = ContentFile(f.read(), name=f"full_{original_filename}")
+                print(f"DEBUG: Created full_django_file from {full_image_path}")
+            else:
+                print(f"DEBUG: Could not create full_django_file. full_image_path={full_image_path}, exists={os.path.exists(full_image_path) if full_image_path else False}")
 
             # Determine context and save appropriately
             master_event_id = request.session.get('edit_master_event_id')
@@ -3036,8 +3055,12 @@ class UnifiedProcessCropView(View):
                     master_event.day = int(request.POST.get('master_day', master_event.day))
                     master_event.event_type = request.POST.get('master_event_type', master_event.event_type)
 
-                    year_occurred = request.POST.get('master_year_occurred', '')
+                    # Debug all POST data related to year
+                    print(f"DEBUG: All POST keys: {list(request.POST.keys())}")
+                    year_occurred = request.POST.get('master_year_occurred', '') or request.POST.get('year_occurred', '')
+                    print(f"DEBUG: year_occurred from POST: '{year_occurred}' (type: {type(year_occurred)})")
                     master_event.year_occurred = int(year_occurred) if year_occurred else None
+                    print(f"DEBUG: master_event.year_occurred set to: {master_event.year_occurred}")
 
                     master_event.groups = request.POST.get('master_groups', master_event.groups)
                     master_event.description = request.POST.get('master_description', master_event.description)
@@ -3046,7 +3069,12 @@ class UnifiedProcessCropView(View):
                     master_event.image = cropped_django_file
                     if full_django_file:
                         master_event.full_image = full_django_file
+                        print(f"DEBUG: Setting master_event.full_image for event {master_event.id}")
+                    else:
+                        print(f"DEBUG: No full_django_file to save for master event {master_event.id}")
                     master_event.save()
+                    print(f"DEBUG: Saved master event {master_event.id}, full_image field: {bool(master_event.full_image)}")
+
 
                     messages.success(request, f"Master event '{master_event.name}' updated successfully with new photo!")
                     redirect_url = 'calendars:master_events'
@@ -3112,6 +3140,8 @@ class UnifiedProcessCropView(View):
             try:
                 if temp_image_path and os.path.exists(temp_image_path):
                     os.unlink(temp_image_path)
+                if full_image_path and full_image_path != temp_image_path and os.path.exists(full_image_path):
+                    os.unlink(full_image_path)
                 if os.path.exists(temp_cropped.name):
                     os.unlink(temp_cropped.name)
             except OSError:

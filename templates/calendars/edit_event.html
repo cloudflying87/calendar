@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load calendar_extras %}
 
 {% block title %}Edit Event - {{ event.event_name }}{% endblock %}
 
@@ -20,23 +21,75 @@
                 <span class="event-info__label">Original Filename:</span>
                 <span class="event-info__value">{{ event.original_filename }}</span>
             </div>
+            {% if event.combined_events %}
             <div class="event-info__item">
-                <span class="event-info__label">Photo:</span>
+                <span class="event-info__label">Combined Events:</span>
+                <div class="combined-events-display">
+                    {% for event_name in event.combined_events|split:" & " %}
+                        <span class="combined-event-tag">{{ event_name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="event-info__item">
+                <span class="event-info__label">Photos:</span>
                 <div class="event-photo-section">
                     {% if event.image %}
-                        <div class="current-photo">
-                            <img src="{{ event.image.url }}" alt="{{ event.event_name }}" class="event-photo">
-                            <div class="photo-actions">
-                                <a href="{% url 'calendars:edit_event_photo' event_id=event.id %}" class="btn btn--secondary btn--small">
-                                    ✏️ Change Photo
-                                </a>
-                                <form method="post" action="{% url 'calendars:remove_event_photo' event_id=event.id %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn--outline btn--small">
-                                        ❌ Remove Photo
-                                    </button>
-                                </form>
+                        <div class="current-photos-grid">
+                            <div class="image-preview-item">
+                                <div class="image-preview-container">
+                                    <img src="{{ event.image.url }}" alt="{{ event.event_name }}" class="current-image">
+                                    <div class="image-type-badge">Thumbnail</div>
+                                </div>
+                                <div class="image-details">
+                                    <span class="image-label">Calendar Thumbnail</span>
+                                    <span class="image-size">320×200px</span>
+                                </div>
                             </div>
+
+                            {% if event.full_image %}
+                            <div class="image-preview-item">
+                                <div class="image-preview-container">
+                                    <img src="{{ event.full_image.url }}" alt="{{ event.event_name }} - Full Size" class="current-image" onclick="viewFullImage('{{ event.full_image.url }}', '{{ event.event_name }}')">
+                                    <div class="image-type-badge full-image-badge">Full Size</div>
+                                    <div class="click-to-expand">🔍 Click to view</div>
+                                </div>
+                                <div class="image-details">
+                                    <span class="image-label">Full Resolution</span>
+                                    <span class="image-size">Original size</span>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="image-preview-item missing-image">
+                                <div class="image-preview-container">
+                                    <div class="missing-image-placeholder">
+                                        <span class="missing-icon">📷</span>
+                                        <span class="missing-text">No full-size image</span>
+                                    </div>
+                                </div>
+                                <div class="image-details">
+                                    <span class="image-label">Full Resolution</span>
+                                    <span class="image-size">Upload to create</span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="photo-actions">
+                            <a href="{% url 'calendars:edit_event_photo' event_id=event.id %}" class="btn btn--secondary btn--small">
+                                ✏️ Change Photo
+                            </a>
+                            <form method="post" action="{% url 'calendars:remove_event_photo' event_id=event.id %}" class="inline-form" onsubmit="return confirm('Remove this photo?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn--outline btn--small">
+                                    ❌ Remove Photo
+                                </button>
+                            </form>
+                            {% if event.combined_events %}
+                            <a href="{% url 'calendars:tweak_combined_image' event_id=event.id %}" class="btn btn--accent btn--small">
+                                🎨 Tweak Combined Image
+                            </a>
+                            {% endif %}
                         </div>
                     {% else %}
                         <div class="no-photo">
@@ -345,6 +398,23 @@
     font-weight: 500;
 }
 
+.combined-events-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.combined-event-tag {
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--color-accent);
+}
+
 @media (min-width: 768px) {
     .event-info__item,
     .master-event-info__item {
@@ -357,5 +427,243 @@
         min-width: 150px;
     }
 }
+
+/* Image Preview Grid Styles */
+.current-photos-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 576px) {
+    .current-photos-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.image-preview-item {
+    border: 2px solid #e5e7eb;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.image-preview-item.missing-image {
+    border-style: dashed;
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+}
+
+.image-preview-container {
+    position: relative;
+    aspect-ratio: 1.6;
+    overflow: hidden;
+}
+
+.current-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.current-image[onclick] {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.current-image[onclick]:hover {
+    transform: scale(1.05);
+}
+
+.image-type-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: rgba(37, 99, 235, 0.9);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.full-image-badge {
+    background: rgba(16, 185, 129, 0.9);
+}
+
+.click-to-expand {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.missing-image-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #94a3b8;
+}
+
+.missing-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.missing-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.image-details {
+    padding: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+}
+
+.image-label {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+}
+
+.image-size {
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Full Image Modal Styles */
+.full-image-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+}
+
+.full-image-modal__content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.full-image-modal__image {
+    width: 100%;
+    height: auto;
+    max-height: 80vh;
+    object-fit: contain;
+    display: block;
+}
+
+.full-image-modal__caption {
+    padding: 1rem 1.5rem;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e5e7eb;
+}
+
+.full-image-modal__caption span {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.full-image-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.full-image-modal__close:hover {
+    background-color: #f3f4f6;
+    color: var(--color-text-primary);
+}
+
+@media (max-width: 768px) {
+    .full-image-modal__content {
+        max-width: 95vw;
+        max-height: 95vh;
+    }
+
+    .full-image-modal__image {
+        max-height: 75vh;
+    }
+
+    .full-image-modal__caption {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+    }
+}
 </style>
+
+<!-- Full Image Modal -->
+<div id="full-image-modal" class="full-image-modal" onclick="closeFullImageModal()">
+    <div class="full-image-modal__content">
+        <img id="full-image-display" src="" alt="" class="full-image-modal__image">
+        <div class="full-image-modal__caption">
+            <span id="full-image-caption"></span>
+            <button class="full-image-modal__close" onclick="closeFullImageModal()">×</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function viewFullImage(imageUrl, imageName) {
+    const modal = document.getElementById('full-image-modal');
+    const image = document.getElementById('full-image-display');
+    const caption = document.getElementById('full-image-caption');
+
+    image.src = imageUrl;
+    image.alt = imageName + ' - Full Size';
+    caption.textContent = imageName + ' - Full Resolution';
+    modal.style.display = 'flex';
+
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+}
+
+function closeFullImageModal() {
+    const modal = document.getElementById('full-image-modal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal with escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeFullImageModal();
+    }
+});
+</script>
 {% endblock %}

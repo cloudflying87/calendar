@@ -86,8 +86,11 @@
                         <p class="event-card__description">{{ event.description|truncatewords:20 }}</p>
                     {% endif %}
                     <div class="event-card__actions">
-                        <a href="{% url 'calendars:unified_photo_editor' %}?master_event_id={{ event.pk }}" class="btn btn--small btn--outline">Edit</a>
-                        <a href="{% url 'calendars:master_event_delete' pk=event.pk %}" class="btn btn--small btn--danger">Delete</a>
+                        <div class="action-row">
+                            <a href="{% url 'calendars:master_event_edit' pk=event.pk %}" class="btn btn--small btn--secondary">📝 Edit Info</a>
+                            <a href="{% url 'calendars:unified_photo_editor' %}?master_event_id={{ event.pk }}" class="btn btn--small btn--outline">📷 Edit Photo</a>
+                        </div>
+                        <a href="{% url 'calendars:master_event_delete' pk=event.pk %}" class="btn btn--small btn--danger btn--full-width">Delete</a>
                     </div>
                 </div>
             </div>
@@ -250,8 +253,19 @@
 
 .event-card__actions {
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
     margin-top: 1rem;
+}
+
+.action-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn--full-width {
+    width: 100%;
+    justify-content: center;
 }
 
 .badge {

@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+
+{% block title %}Tweak Combined Image - {{ event.event_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Tweak Combined Image</h1>
+    <a href="{% url 'calendars:edit_event' event_id=event.id %}" class="btn btn--outline">Back to Event</a>
+</div>
+
+<div class="event-info">
+    <div class="event-info__card">
+        <h3 class="event-info__title">Event Details</h3>
+        <div class="event-info__content">
+            <div class="event-info__item">
+                <span class="event-info__label">Date:</span>
+                <span class="event-info__value">{{ event.calendar.year }}-{{ event.month|stringformat:"02d" }}-{{ event.day|stringformat:"02d" }}</span>
+            </div>
+            <div class="event-info__item">
+                <span class="event-info__label">Combined Events:</span>
+                <div class="combined-events-list">
+                    {% for event_name in combined_events %}
+                        <span class="event-tag">{{ event_name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if event.image %}
+            <div class="event-info__item">
+                <span class="event-info__label">Current Combined Image:</span>
+                <div class="current-combined-image">
+                    <img src="{{ event.image.url }}" alt="{{ event.event_name }}" class="combined-image-preview">
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="form-container">
+    <div class="form-card">
+        <h3 class="form-title">Choose Image Layout</h3>
+        <p class="form-description">
+            Select how you'd like the multiple images to be arranged. The combined image will be regenerated with your chosen layout.
+        </p>
+
+        <form method="post" class="form">
+            {% csrf_token %}
+
+            <div class="layout-options">
+                {% for value, label in layout_choices %}
+                <div class="layout-option">
+                    <input type="radio"
+                           id="layout_{{ value }}"
+                           name="layout_preference"
+                           value="{{ value }}"
+                           {% if value == current_layout %}checked{% endif %}
+                           class="layout-radio">
+                    <label for="layout_{{ value }}" class="layout-label">
+                        <div class="layout-preview">
+                            {% if value == 'auto' %}
+                                <div class="layout-demo layout-demo--auto">
+                                    <div class="demo-image">📸</div>
+                                    <div class="demo-image">📸</div>
+                                    <span class="demo-text">Best Fit</span>
+                                </div>
+                            {% elif value == 'side_by_side' %}
+                                <div class="layout-demo layout-demo--side">
+                                    <div class="demo-image">📸</div>
+                                    <div class="demo-image">📸</div>
+                                </div>
+                            {% elif value == 'top_bottom' %}
+                                <div class="layout-demo layout-demo--vertical">
+                                    <div class="demo-image">📸</div>
+                                    <div class="demo-image">📸</div>
+                                </div>
+                            {% elif value == 'grid' %}
+                                <div class="layout-demo layout-demo--grid">
+                                    <div class="demo-image">📸</div>
+                                    <div class="demo-image">📸</div>
+                                    <div class="demo-image">📸</div>
+                                    <div class="demo-image">📸</div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <span class="layout-name">{{ label }}</span>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary">Regenerate Combined Image</button>
+                <a href="{% url 'calendars:edit_event' event_id=event.id %}" class="btn btn--outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.combined-events-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.event-tag {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.combined-image-preview {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-top: 8px;
+}
+
+.form-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.form-title {
+    margin: 0 0 8px 0;
+    color: var(--color-text-primary);
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.form-description {
+    color: var(--color-text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.layout-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.layout-option {
+    position: relative;
+}
+
+.layout-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.layout-label {
+    display: block;
+    padding: 16px;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.layout-label:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+}
+
+.layout-radio:checked + .layout-label {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+
+.layout-preview {
+    margin-bottom: 12px;
+}
+
+.layout-demo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    height: 60px;
+    margin-bottom: 8px;
+}
+
+.layout-demo--auto {
+    position: relative;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.layout-demo--side {
+    flex-direction: row;
+}
+
+.layout-demo--vertical {
+    flex-direction: column;
+    gap: 2px;
+}
+
+.layout-demo--grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    height: 40px;
+}
+
+.demo-image {
+    background: var(--color-accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.layout-demo--side .demo-image {
+    width: 40px;
+    height: 30px;
+}
+
+.layout-demo--vertical .demo-image {
+    width: 50px;
+    height: 20px;
+}
+
+.layout-demo--grid .demo-image {
+    width: 100%;
+    height: 100%;
+    font-size: 12px;
+}
+
+.demo-text {
+    font-size: 10px;
+    color: var(--color-text-secondary);
+    position: absolute;
+    bottom: -2px;
+}
+
+.layout-name {
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.layout-radio:checked + .layout-label .layout-name {
+    color: var(--color-primary);
+}
+
+@media (max-width: 576px) {
+    .layout-options {
+        grid-template-columns: 1fr;
+    }
+
+    .combined-image-preview {
+        max-width: 100%;
+    }
+}
+</style>
+{% endblock %}

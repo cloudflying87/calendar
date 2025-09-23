@@ -3,6 +3,13 @@ from datetime import datetime
 
 register = template.Library()
 
+@register.filter
+def split(value, delimiter):
+    """Split a string by delimiter and return a list"""
+    if not value:
+        return []
+    return value.split(delimiter)
+
 @register.simple_tag
 def calculate_current_age(year_occurred, event_type):
     """Calculate current age or years since an event occurred"""

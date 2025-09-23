@@ -93,6 +93,9 @@ urlpatterns = [
     # Single Event to Master List
     path('event/<int:event_id>/add-to-master/', views_events.AddEventToMasterListView.as_view(), name='add_event_to_master_list'),
 
+    # Tweak Combined Images
+    path('event/<int:event_id>/tweak-combined-image/', views_events.TweakCombinedImageView.as_view(), name='tweak_combined_image'),
+
     # API endpoints
     path('api/master-events/', views_events.get_master_events_json, name='api_master_events'),
 ]
