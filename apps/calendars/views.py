@@ -1242,6 +1242,10 @@ class ProcessCropView(View):
             if temp_image_path and os.path.exists(temp_image_path):
                 with open(temp_image_path, 'rb') as f:
                     full_django_file = ContentFile(f.read(), name=f"full_{original_filename}")
+                print(f"DEBUG: Created full_django_file from {temp_image_path}, size: {len(full_django_file.read())} bytes")
+                full_django_file.seek(0)  # Reset file pointer after reading for debug
+            else:
+                print(f"DEBUG: Could not create full_django_file. temp_image_path={temp_image_path}, exists={os.path.exists(temp_image_path) if temp_image_path else False}")
 
             # Handle master event update if applicable
             if is_master_event:

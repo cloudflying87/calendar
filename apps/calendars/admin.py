@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday, CalendarShare, CalendarInvitation
+from .models import (
+    Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday,
+    CalendarShare, CalendarInvitation, EventGroup, EventMaster,
+    CalendarYear, UserEventPreferences, CalendarHeaderImage
+)
 
 
 @admin.register(Calendar)
@@ -124,3 +128,92 @@ class CalendarInvitationAdmin(admin.ModelAdmin):
         return obj.is_expired()
     is_expired_status.boolean = True
     is_expired_status.short_description = "Expired"
+
+
+@admin.register(EventGroup)
+class EventGroupAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'description', 'created_at']
+    list_filter = ['created_at', 'user']
+    search_fields = ['name', 'description', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(EventMaster)
+class EventMasterAdmin(admin.ModelAdmin):
+    list_display = ['name', 'event_type', 'month', 'day', 'year_occurred', 'user', 'image_preview', 'created_at']
+    list_filter = ['event_type', 'month', 'user', 'created_at']
+    search_fields = ['name', 'groups', 'description', 'user__username']
+    readonly_fields = ['created_at', 'updated_at', 'image_preview']
+
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'name', 'event_type', 'month', 'day', 'year_occurred')
+        }),
+        ('Organization', {
+            'fields': ('groups', 'description')
+        }),
+        ('Images', {
+            'fields': ('image', 'full_image', 'image_preview')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" width="50" height="50" style="object-fit: cover;" />', obj.image.url)
+        return "No image"
+    image_preview.short_description = "Preview"
+
+
+@admin.register(CalendarYear)
+class CalendarYearAdmin(admin.ModelAdmin):
+    list_display = ['year', 'name', 'user', 'calendar_count', 'created_at']
+    list_filter = ['year', 'user', 'created_at']
+    search_fields = ['name', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
+
+    def calendar_count(self, obj):
+        return obj.calendars.count()
+    calendar_count.short_description = "Calendar Count"
+
+
+@admin.register(UserEventPreferences)
+class UserEventPreferencesAdmin(admin.ModelAdmin):
+    list_display = ['user', 'add_to_master_list', 'show_age_numbers', 'image_combination_layout', 'created_at']
+    list_filter = ['add_to_master_list', 'show_age_numbers', 'image_combination_layout', 'created_at']
+    search_fields = ['user__username', 'default_groups']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(CalendarHeaderImage)
+class CalendarHeaderImageAdmin(admin.ModelAdmin):
+    list_display = ['calendar', 'month_name', 'title', 'image_preview', 'created_at']
+    list_filter = ['month', 'calendar__year', 'created_at']
+    search_fields = ['title', 'calendar__year', 'original_filename']
+    readonly_fields = ['original_filename', 'created_at', 'updated_at', 'image_preview']
+
+    fieldsets = (
+        (None, {
+            'fields': ('calendar', 'month', 'title')
+        }),
+        ('Image', {
+            'fields': ('image', 'image_preview', 'original_filename')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def month_name(self, obj):
+        return obj.get_month_display()
+    month_name.short_description = "Month"
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" width="100" height="60" style="object-fit: cover;" />', obj.image.url)
+        return "No image"
+    image_preview.short_description = "Preview"
