@@ -2805,20 +2805,8 @@ class UnifiedPhotoEditorView(View):
                 'photo_mode': 'multi'
             }
 
-            # TODO: Create unified multi-crop view or redirect to existing one
-            # For now, combine into single image and redirect to single crop
-            combined_temp_path, full_image_path = self._create_temp_combined_image(temp_paths, layout)
-            if combined_temp_path:
-                request.session['crop_data'] = {
-                    'temp_path': combined_temp_path,
-                    'full_image_path': full_image_path,  # Store path to full-size image
-                    'original_filename': f"combined_{len(uploaded_files)}_photos.jpg",
-                    'photo_mode': 'combined_multi'
-                }
-                return redirect('calendars:unified_photo_crop')
-            else:
-                messages.error(request, "Error combining photos. Please try again.")
-                return self.get(request)
+            # Redirect to individual photo cropping flow
+            return redirect('calendars:unified_multi_photo_crop')
 
         messages.error(request, "Invalid photo mode selected.")
         return self.get(request)
@@ -3008,6 +2996,281 @@ class UnifiedPhotoCropView(View):
             })
 
         return render(request, 'calendars/unified_photo_crop.html', context)
+
+
+@method_decorator(login_required, name='dispatch')
+class UnifiedMultiPhotoCropView(View):
+    """Year-agnostic multi-photo cropping view - crop each photo individually"""
+    def get(self, request):
+        # Get multi-crop data from session
+        multi_crop_data = request.session.get('multi_crop_data')
+        if not multi_crop_data:
+            messages.error(request, "No images to crop. Please upload images first.")
+            return redirect('calendars:unified_photo_editor')
+
+        current_index = multi_crop_data.get('current_photo_index', 0)
+        temp_paths = multi_crop_data['temp_paths']
+
+        # Check if we're done with all photos
+        if current_index >= len(temp_paths):
+            # All photos cropped, redirect to final processing
+            return redirect('calendars:unified_process_multi_crop')
+
+        # Check if current temp file exists
+        current_temp_path = temp_paths[current_index]
+        if not os.path.exists(current_temp_path):
+            messages.error(request, "Temporary image file not found. Please upload again.")
+            return redirect('calendars:unified_photo_editor')
+
+        # Create a secure URL for the temporary image
+        import uuid
+        temp_token = str(uuid.uuid4())
+
+        # Store the temp file path in session with a secure token
+        if 'temp_tokens' not in request.session:
+            request.session['temp_tokens'] = {}
+        request.session['temp_tokens'][temp_token] = current_temp_path
+        request.session.modified = True
+
+        # Create URL that will be served by our secure view
+        temp_image_url = f"/calendars/temp-image/{temp_token}/"
+
+        # Determine context for proper navigation
+        context = {
+            'temp_image_url': temp_image_url,
+            'current_index': current_index,
+            'total_photos': len(temp_paths),
+            'layout': multi_crop_data['layout'],
+            'current_filename': multi_crop_data['original_filenames'][current_index],
+            'temp_image_path': current_temp_path,
+            'original_filename': multi_crop_data['original_filenames'][current_index],
+        }
+
+        # Check context from session
+        master_event_id = request.session.get('edit_master_event_id')
+        edit_event_data = request.session.get('edit_event_data')
+
+        if master_event_id:
+            from .models import EventMaster
+            try:
+                master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
+                context.update({
+                    'master_event': master_event,
+                    'is_master_event': True,
+                    'page_title': f'Crop Photo {current_index + 1} of {len(temp_paths)} for {master_event.name}'
+                })
+            except EventMaster.DoesNotExist:
+                del request.session['edit_master_event_id']
+                messages.error(request, "Master event not found.")
+                return redirect('calendars:master_events')
+        elif edit_event_data:
+            context.update({
+                'edit_event_data': edit_event_data,
+                'is_master_event': False,
+                'page_title': f'Crop Photo {current_index + 1} of {len(temp_paths)} for {edit_event_data["event_name"]}'
+            })
+        else:
+            context.update({
+                'is_master_event': False,
+                'page_title': f'Crop Photo {current_index + 1} of {len(temp_paths)}'
+            })
+
+        return render(request, 'calendars/unified_multi_photo_crop.html', context)
+
+    def post(self, request):
+        # Process the cropped photo and move to next one
+        multi_crop_data = request.session.get('multi_crop_data')
+        if not multi_crop_data:
+            messages.error(request, "No crop session found.")
+            return redirect('calendars:unified_photo_editor')
+
+        crop_data = request.POST.get('crop_data')
+        if not crop_data:
+            messages.error(request, "No crop data received.")
+            return self.get(request)
+
+        try:
+            # Process the cropped image
+            import base64
+            from PIL import Image
+            import io
+            import tempfile
+
+            image_data = crop_data.split(',')[1]
+            image_binary = base64.b64decode(image_data)
+            image = Image.open(io.BytesIO(image_binary))
+
+            if image.mode in ('RGBA', 'LA', 'P'):
+                image = image.convert('RGB')
+
+            # Save cropped image
+            temp_cropped = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            image.save(temp_cropped.name, 'JPEG', quality=95, optimize=True)
+            temp_cropped.close()
+
+            # Add to cropped paths
+            current_index = multi_crop_data['current_photo_index']
+            cropped_paths = multi_crop_data.get('cropped_paths', [])
+            cropped_paths.append(temp_cropped.name)
+
+            # Update session data
+            multi_crop_data['cropped_paths'] = cropped_paths
+            multi_crop_data['current_photo_index'] = current_index + 1
+            request.session['multi_crop_data'] = multi_crop_data
+
+            # Redirect back to crop next photo or finish
+            return redirect('calendars:unified_multi_photo_crop')
+
+        except Exception as e:
+            messages.error(request, f"Error processing crop: {str(e)}")
+            return self.get(request)
+
+
+@method_decorator(login_required, name='dispatch')
+class UnifiedProcessMultiCropView(View):
+    """Combine all individually cropped photos and create final event"""
+    def get(self, request):
+        # Get multi-crop data from session
+        multi_crop_data = request.session.get('multi_crop_data')
+        if not multi_crop_data:
+            messages.error(request, "No crop session found.")
+            return redirect('calendars:unified_photo_editor')
+
+        cropped_paths = multi_crop_data.get('cropped_paths', [])
+        if not cropped_paths:
+            messages.error(request, "No cropped photos found.")
+            return redirect('calendars:unified_photo_editor')
+
+        try:
+            # Combine the individually cropped photos
+            layout = multi_crop_data['layout']
+            combined_path, full_image_path = self._combine_cropped_images(cropped_paths, layout)
+
+            if combined_path:
+                # Store combined image in session for the unified crop flow
+                request.session['crop_data'] = {
+                    'temp_path': combined_path,
+                    'full_image_path': full_image_path,
+                    'original_filename': f"combined_{len(cropped_paths)}_photos.jpg",
+                    'photo_mode': 'multi_cropped'
+                }
+
+                # Clean up individual cropped files
+                for path in cropped_paths:
+                    try:
+                        if os.path.exists(path):
+                            os.unlink(path)
+                    except OSError:
+                        pass
+
+                # Clear multi-crop session data
+                if 'multi_crop_data' in request.session:
+                    del request.session['multi_crop_data']
+
+                # Redirect to unified crop to show combined result and get event details
+                return redirect('calendars:unified_photo_crop')
+            else:
+                messages.error(request, "Error combining photos. Please try again.")
+                return redirect('calendars:unified_photo_editor')
+
+        except Exception as e:
+            messages.error(request, f"Error processing photos: {str(e)}")
+            return redirect('calendars:unified_photo_editor')
+
+    def _combine_cropped_images(self, cropped_paths, layout):
+        """Combine individually cropped images based on layout"""
+        try:
+            from PIL import Image
+            import tempfile
+            import shutil
+
+            # Standard calendar dimensions
+            target_width = 320
+            target_height = 200
+
+            # Create combined image
+            combined_img = Image.new('RGB', (target_width, target_height), (255, 255, 255))
+
+            images = []
+            for path in cropped_paths:
+                if os.path.exists(path):
+                    images.append(Image.open(path))
+
+            if not images:
+                return None, None
+
+            num_images = len(images)
+
+            if layout == 'side_by_side' and num_images == 2:
+                # Side by side layout
+                half_width = target_width // 2
+                for i, img in enumerate(images[:2]):
+                    img_resized = img.resize((half_width, target_height), Image.Resampling.LANCZOS)
+                    x_pos = i * half_width
+                    combined_img.paste(img_resized, (x_pos, 0))
+
+            elif layout == 'top_bottom' and num_images == 2:
+                # Top/bottom layout
+                half_height = target_height // 2
+                for i, img in enumerate(images[:2]):
+                    img_resized = img.resize((target_width, half_height), Image.Resampling.LANCZOS)
+                    y_pos = i * half_height
+                    combined_img.paste(img_resized, (0, y_pos))
+
+            elif num_images == 3:
+                # Top image, bottom two split
+                half_height = target_height // 2
+                half_width = target_width // 2
+
+                # First image on top
+                img_resized = images[0].resize((target_width, half_height), Image.Resampling.LANCZOS)
+                combined_img.paste(img_resized, (0, 0))
+
+                # Other two on bottom
+                for i, img in enumerate(images[1:3]):
+                    img_resized = img.resize((half_width, half_height), Image.Resampling.LANCZOS)
+                    x_pos = i * half_width
+                    combined_img.paste(img_resized, (x_pos, half_height))
+
+            elif num_images >= 4:
+                # 2x2 grid
+                half_width = target_width // 2
+                half_height = target_height // 2
+                for i, img in enumerate(images[:4]):
+                    img_resized = img.resize((half_width, half_height), Image.Resampling.LANCZOS)
+                    x_pos = (i % 2) * half_width
+                    y_pos = (i // 2) * half_height
+                    combined_img.paste(img_resized, (x_pos, y_pos))
+
+            else:
+                # Single image or fallback
+                img_resized = images[0].resize((target_width, target_height), Image.Resampling.LANCZOS)
+                combined_img.paste(img_resized, (0, 0))
+
+            # Save combined image
+            temp_combined = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            combined_img.save(temp_combined.name, 'JPEG', quality=95, optimize=True)
+            temp_combined.close()
+
+            # Create full image (larger version for full_image field)
+            full_combined = Image.new('RGB', (target_width * 2, target_height * 2), (255, 255, 255))
+            full_combined_img = combined_img.resize((target_width * 2, target_height * 2), Image.Resampling.LANCZOS)
+
+            temp_full = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            full_combined_img.save(temp_full.name, 'JPEG', quality=95, optimize=True)
+            temp_full.close()
+
+            # Close images
+            for img in images:
+                img.close()
+            combined_img.close()
+            full_combined_img.close()
+
+            return temp_combined.name, temp_full.name
+
+        except Exception as e:
+            print(f"Error combining images: {str(e)}")
+            return None, None
 
 
 @method_decorator(login_required, name='dispatch')

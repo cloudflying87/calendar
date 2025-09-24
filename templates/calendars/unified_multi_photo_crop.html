@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - Calendar Builder{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cropper.min.css' %}">
+<style>
+.multi-crop-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.crop-progress {
+    background: var(--color-background-light);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1rem 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.crop-stage {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.cropper-container {
+    max-width: 100%;
+    max-height: 400px;
+    margin: 1rem 0;
+}
+
+.crop-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.crop-btn {
+    background: var(--color-primary, #2563eb);
+    color: white;
+    border: 1px solid var(--color-primary, #2563eb);
+    border-radius: var(--border-radius-sm, 6px);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    min-width: 100px;
+}
+
+.crop-btn:hover {
+    background: var(--color-primary-dark, #1d4ed8);
+    border-color: var(--color-primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.crop-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .crop-controls {
+        justify-content: center;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="multi-crop-container">
+    <div class="page-header">
+        <h1 class="page-title">✂️ {{ page_title }}</h1>
+        <div class="page-meta">
+            <span class="meta-item">📸 {{ current_filename }}</span>
+        </div>
+    </div>
+
+    <div class="crop-progress">
+        <h3>Photo {{ current_index|add:1 }} of {{ total_photos }}</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {% widthratio current_index|add:1 total_photos 100 %}%;"></div>
+        </div>
+        <p>Crop each photo individually for the best quality combination</p>
+    </div>
+
+    <div class="crop-stage">
+        <div class="cropper-container">
+            <img src="{{ temp_image_url }}" id="crop-image" style="max-width: 100%;">
+        </div>
+
+        <div class="crop-controls">
+            <button type="button" id="zoom-in" class="crop-btn">🔍+ Zoom In</button>
+            <button type="button" id="zoom-out" class="crop-btn">🔍- Zoom Out</button>
+            <button type="button" id="move-left" class="crop-btn">← Move Left</button>
+            <button type="button" id="move-right" class="crop-btn">→ Move Right</button>
+            <button type="button" id="move-up" class="crop-btn">↑ Move Up</button>
+            <button type="button" id="move-down" class="crop-btn">↓ Move Down</button>
+            <button type="button" id="reset-crop" class="crop-btn">🔄 Reset</button>
+        </div>
+    </div>
+
+    <form id="crop-form" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="crop_data" id="crop-data">
+
+        <div class="action-buttons">
+            <button type="submit" class="btn btn--primary btn--large">
+                {% if current_index|add:1 == total_photos %}
+                    ✅ Crop Final Photo & Continue
+                {% else %}
+                    ➡️ Crop & Next Photo ({{ current_index|add:2 }}/{{ total_photos }})
+                {% endif %}
+            </button>
+            <a href="{% url 'calendars:unified_photo_editor' %}" class="btn btn--outline btn--large">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/cropper.min.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const image = document.getElementById('crop-image');
+    const cropForm = document.getElementById('crop-form');
+    const cropDataInput = document.getElementById('crop-data');
+
+    let cropper;
+
+    // Initialize cropper when image loads
+    function initializeCropper() {
+        if (cropper) {
+            cropper.destroy();
+        }
+
+        // Calculate aspect ratio based on layout and position
+        let aspectRatio = 16 / 10; // Default calendar aspect ratio
+        const layout = '{{ layout }}';
+        const totalPhotos = {{ total_photos }};
+
+        if (layout === 'side_by_side' && totalPhotos === 2) {
+            // Each photo will be half width, full height
+            aspectRatio = 8 / 10; // Half of 16/10
+        } else if (layout === 'top_bottom' && totalPhotos === 2) {
+            // Each photo will be full width, half height
+            aspectRatio = 16 / 5; // Double width of 16/10
+        } else if (totalPhotos === 3) {
+            // First photo is full width, half height (16/5)
+            // Other two are half width, half height (8/5)
+            const currentIndex = {{ current_index }};
+            if (currentIndex === 0) {
+                aspectRatio = 16 / 5; // Top photo: full width, half height
+            } else {
+                aspectRatio = 8 / 5; // Bottom photos: half width, half height
+            }
+        } else if (totalPhotos >= 4) {
+            // 2x2 grid: each photo is half width, half height
+            aspectRatio = 8 / 5;
+        }
+        // else use default 16/10 for single image or other layouts
+
+        cropper = new Cropper(image, {
+            aspectRatio: aspectRatio,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            minCropBoxWidth: 100,
+            minCropBoxHeight: 60,
+        });
+    }
+
+    // Check if image is already loaded
+    if (image.complete && image.naturalWidth > 0) {
+        initializeCropper();
+    } else {
+        image.addEventListener('load', initializeCropper);
+    }
+
+    // Crop controls with safety checks
+    document.getElementById('zoom-in').addEventListener('click', () => {
+        if (cropper) {
+            cropper.zoom(0.1);
+        }
+    });
+
+    document.getElementById('zoom-out').addEventListener('click', () => {
+        if (cropper) {
+            cropper.zoom(-0.1);
+        }
+    });
+
+    document.getElementById('move-left').addEventListener('click', () => {
+        if (cropper) {
+            cropper.move(-10, 0);
+        }
+    });
+
+    document.getElementById('move-right').addEventListener('click', () => {
+        if (cropper) {
+            cropper.move(10, 0);
+        }
+    });
+
+    document.getElementById('move-up').addEventListener('click', () => {
+        if (cropper) {
+            cropper.move(0, -10);
+        }
+    });
+
+    document.getElementById('move-down').addEventListener('click', () => {
+        if (cropper) {
+            cropper.move(0, 10);
+        }
+    });
+
+    document.getElementById('reset-crop').addEventListener('click', () => {
+        if (cropper) {
+            cropper.reset();
+        }
+    });
+
+    // Handle form submission
+    cropForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (!cropper) {
+            alert('Please wait for the image to load.');
+            return;
+        }
+
+        // Get cropped canvas
+        const canvas = cropper.getCroppedCanvas({
+            width: 320,
+            height: 200,
+            minWidth: 320,
+            minHeight: 200,
+            maxWidth: 640,
+            maxHeight: 400,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
+        });
+
+        // Convert to base64
+        const cropData = canvas.toDataURL('image/jpeg', 0.9);
+        cropDataInput.value = cropData;
+
+        // Submit form
+        cropForm.submit();
+    });
+});
+</script>
+{% endblock %}
