@@ -310,6 +310,7 @@
                     </div>
                 </div>
             </div>
+
         {% else %}
             <p>Now that you can see your cropped photo, choose the calendar date and event name:</p>
 
@@ -365,6 +366,51 @@
         <input type="hidden" name="month" value="{{ month }}">
         <input type="hidden" name="day" value="{{ day }}">
         {% if year %}<input type="hidden" name="year" value="{{ year }}">{% endif %}
+
+        {% if is_master_event %}
+        <!-- Hidden fields for master event data -->
+        <input type="hidden" name="master_event_name" value="{{ master_event.name }}">
+        <input type="hidden" name="master_month" value="{{ master_event.month }}">
+        <input type="hidden" name="master_day" value="{{ master_event.day }}">
+        <input type="hidden" name="master_event_type" value="{{ master_event.event_type }}">
+        <input type="hidden" name="master_year_occurred" value="{{ master_event.year_occurred|default:'' }}">
+        <input type="hidden" name="master_groups" value="{{ master_event.groups|default:'' }}">
+        <input type="hidden" name="master_description" value="{{ master_event.description|default:'' }}">
+
+        {% if linked_events_count > 0 %}
+        <!-- Linked Calendar Events Notice -->
+        <div style="margin-top: 1.5rem; padding: 1rem; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: var(--border-radius); border-left: 4px solid #f39c12;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #856404; display: flex; align-items: center;">
+                📅 Calendar Events Found
+            </h4>
+            <p style="margin-bottom: 1rem; color: #856404;">
+                This master event is used in <strong>{{ linked_events_count }}</strong> calendar event(s) across
+                {% if linked_calendars|length == 1 %}
+                    {{ linked_calendars.0.count }} calendar{{ linked_calendars.0.count|pluralize }} ({{ linked_calendars.0.year }})
+                {% else %}
+                    {{ linked_calendars|length }} calendar year{{ linked_calendars|length|pluralize }}:
+                    {% for calendar in linked_calendars %}
+                        {{ calendar.year }} ({{ calendar.count }} event{{ calendar.count|pluralize }}){% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </p>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="radio" id="update_calendar_events_no" name="update_calendar_events" value="no" checked style="margin: 0;">
+                <label for="update_calendar_events_no" style="margin: 0; cursor: pointer; font-weight: normal;">Keep calendar events unchanged</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                <input type="radio" id="update_calendar_events_yes" name="update_calendar_events" value="yes" style="margin: 0;">
+                <label for="update_calendar_events_yes" style="margin: 0; cursor: pointer; font-weight: normal;">
+                    <strong>Update all linked calendar events</strong> (photo, name, and details)
+                </label>
+            </div>
+            <p style="margin-top: 0.5rem; margin-bottom: 0; font-size: 0.875rem; color: #6c757d;">
+                Tip: Choose "Update" to automatically sync changes to all calendars using this event.
+            </p>
+        </div>
+        {% endif %}
+        {% endif %}
+
         <input type="hidden" name="crop_data" id="crop-data">
 
         <div class="action-buttons">
@@ -469,10 +515,34 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Update the hidden fields with master event data for display purposes
+        // Update the hidden fields with master event data
         document.querySelector('input[name="event_name"]').value = masterNameInput.value.trim();
         document.querySelector('input[name="month"]').value = masterMonthSelect.value;
         document.querySelector('input[name="day"]').value = masterDaySelect.value;
+
+        // Update master event specific hidden fields
+        document.querySelector('input[name="master_event_name"]').value = masterNameInput.value.trim();
+        document.querySelector('input[name="master_month"]').value = masterMonthSelect.value;
+        document.querySelector('input[name="master_day"]').value = masterDaySelect.value;
+        document.querySelector('input[name="master_event_type"]').value = document.getElementById('master-event-type').value;
+
+        // Update year_occurred if present
+        const yearField = document.getElementById('master-year-occurred');
+        if (yearField) {
+            document.querySelector('input[name="master_year_occurred"]').value = yearField.value;
+        }
+
+        // Update groups if present
+        const groupsField = document.getElementById('master-groups');
+        if (groupsField) {
+            document.querySelector('input[name="master_groups"]').value = groupsField.value;
+        }
+
+        // Update description if present
+        const descriptionField = document.getElementById('master-description');
+        if (descriptionField) {
+            document.querySelector('input[name="master_description"]').value = descriptionField.value;
+        }
         {% else %}
         // Calendar event validation
         const monthSelect = document.getElementById('month-select');

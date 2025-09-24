@@ -433,9 +433,9 @@ class Calendar(models.Model):
         from django.urls import reverse
         if request:
             return request.build_absolute_uri(
-                reverse('calendars:public_calendar', kwargs={'token': self.public_share_token})
+                reverse('calendars:digital_calendar', kwargs={'calendar_id': self.id})
             )
-        return reverse('calendars:public_calendar', kwargs={'token': self.public_share_token})
+        return reverse('calendars:digital_calendar', kwargs={'calendar_id': self.id})
 
     def disable_public_sharing(self):
         """Disable public sharing for this calendar"""

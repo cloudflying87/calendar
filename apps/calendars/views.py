@@ -2946,6 +2946,26 @@ class UnifiedPhotoCropView(View):
                 master_event = EventMaster.objects.get(pk=master_event_id, user=request.user)
                 master_event_form = MasterEventForm(instance=master_event)
                 print(f"DEBUG: Loading master event {master_event.id}, year_occurred: {master_event.year_occurred}")
+
+                # Get linked calendar events for this master event
+                linked_events = CalendarEvent.objects.filter(master_event=master_event).select_related('calendar')
+                linked_calendars = []
+                if linked_events.exists():
+                    # Group events by calendar year for display
+                    calendar_years = {}
+                    for event in linked_events:
+                        year = event.calendar.year
+                        if year not in calendar_years:
+                            calendar_years[year] = []
+                        calendar_years[year].append(event)
+
+                    # Create list of affected calendars
+                    for year in sorted(calendar_years.keys()):
+                        linked_calendars.append({
+                            'year': year,
+                            'count': len(calendar_years[year])
+                        })
+
                 context.update({
                     'master_event': master_event,
                     'master_event_form': master_event_form,
@@ -2954,7 +2974,9 @@ class UnifiedPhotoCropView(View):
                     'month': master_event.month,
                     'day': master_event.day,
                     'event_date': f"{master_event.month:02d}/{master_event.day:02d}",
-                    'page_title': f'Crop Photo for {master_event.name}'
+                    'page_title': f'Crop Photo for {master_event.name}',
+                    'linked_events_count': linked_events.count(),
+                    'linked_calendars': linked_calendars
                 })
             except EventMaster.DoesNotExist:
                 del request.session['edit_master_event_id']
@@ -3059,7 +3081,20 @@ class UnifiedProcessCropView(View):
                     print(f"DEBUG: All POST keys: {list(request.POST.keys())}")
                     year_occurred = request.POST.get('master_year_occurred', '') or request.POST.get('year_occurred', '')
                     print(f"DEBUG: year_occurred from POST: '{year_occurred}' (type: {type(year_occurred)})")
-                    master_event.year_occurred = int(year_occurred) if year_occurred else None
+
+                    # More robust year processing
+                    if year_occurred and str(year_occurred).strip():
+                        try:
+                            year_value = int(str(year_occurred).strip())
+                            master_event.year_occurred = year_value
+                            print(f"DEBUG: Successfully converted year_occurred to: {year_value}")
+                        except (ValueError, TypeError) as e:
+                            print(f"DEBUG: Failed to convert year_occurred '{year_occurred}': {e}")
+                            master_event.year_occurred = None
+                    else:
+                        print(f"DEBUG: year_occurred is empty or None, setting to None")
+                        master_event.year_occurred = None
+
                     print(f"DEBUG: master_event.year_occurred set to: {master_event.year_occurred}")
 
                     master_event.groups = request.POST.get('master_groups', master_event.groups)
@@ -3072,11 +3107,65 @@ class UnifiedProcessCropView(View):
                         print(f"DEBUG: Setting master_event.full_image for event {master_event.id}")
                     else:
                         print(f"DEBUG: No full_django_file to save for master event {master_event.id}")
+
+                    # Debug year before save
+                    print(f"DEBUG: About to save master_event {master_event.id}")
+                    print(f"DEBUG: master_event.year_occurred before save: {master_event.year_occurred}")
+                    print(f"DEBUG: master_event.__dict__ before save: {master_event.__dict__}")
+
                     master_event.save()
+
+                    # Debug year after save
+                    master_event.refresh_from_db()
+                    print(f"DEBUG: After save and refresh - master_event.year_occurred: {master_event.year_occurred}")
                     print(f"DEBUG: Saved master event {master_event.id}, full_image field: {bool(master_event.full_image)}")
 
+                    # Check if user wants to update linked calendar events
+                    update_calendar_events_value = request.POST.get('update_calendar_events')
+                    update_calendar_events = update_calendar_events_value == 'yes'
+                    linked_events = CalendarEvent.objects.filter(master_event=master_event)
 
-                    messages.success(request, f"Master event '{master_event.name}' updated successfully with new photo!")
+                    print(f"DEBUG: update_calendar_events POST value: '{update_calendar_events_value}'")
+                    print(f"DEBUG: update_calendar_events boolean: {update_calendar_events}")
+                    print(f"DEBUG: Found {linked_events.count()} linked events")
+
+                    if update_calendar_events and linked_events.exists():
+                        updated_count = 0
+                        print(f"DEBUG: Starting update of {linked_events.count()} linked events")
+                        print(f"DEBUG: Master event image: {master_event.image}")
+                        print(f"DEBUG: Master event full_image: {master_event.full_image}")
+
+                        for event in linked_events:
+                            print(f"DEBUG: Updating event {event.id} in calendar {event.calendar.year}")
+                            print(f"DEBUG: Before - event image: {event.image}")
+                            print(f"DEBUG: Before - event full_image: {event.full_image}")
+
+                            # Update event name based on master event
+                            event.event_name = master_event.get_display_name(
+                                for_year=event.calendar.year,
+                                user=event.calendar.user
+                            )
+                            # Reference images from master event (no copying needed)
+                            if master_event.image:
+                                event.image = master_event.image
+                            if master_event.full_image:
+                                event.full_image = master_event.full_image
+
+                            event.save()
+
+                            # Verify the update
+                            event.refresh_from_db()
+                            print(f"DEBUG: After save - event image: {event.image}")
+                            print(f"DEBUG: After save - event full_image: {event.full_image}")
+                            updated_count += 1
+
+                        messages.success(request,
+                            f"Master event '{master_event.name}' updated successfully! "
+                            f"Also updated {updated_count} linked calendar event(s)."
+                        )
+                    else:
+                        messages.success(request, f"Master event '{master_event.name}' updated successfully with new photo!")
+
                     redirect_url = 'calendars:master_events'
 
                 except EventMaster.DoesNotExist:

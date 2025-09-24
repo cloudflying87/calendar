@@ -1,27 +1,24 @@
-{% extends 'base.html' %}
+{% extends 'calendars/calendar_base_clean.html' %}
 
-{% block title %}{{ calendar.year }} Calendar by {{ calendar_owner.username }} - Calendar Builder{% endblock %}
+{% block title %}{{ calendar.year }} {{ calendar_name }} - Events{% endblock %}
 
-{% block description %}Public calendar for {{ calendar.year }} created by {{ calendar_owner.username }} with {{ calendar.events.count }} events.{% endblock %}
+{% block description %}View all events for {{ calendar.year }} {{ calendar_name }} with {{ calendar.events.count }} events.{% endblock %}
 
-{% block og_title %}{{ calendar.year }} Calendar by {{ calendar_owner.username }}{% endblock %}
-{% block og_description %}Check out this {{ calendar.year }} calendar with {{ calendar.events.count }} events created with Calendar Builder.{% endblock %}
-{% block og_type %}article{% endblock %}
-
-{% block twitter_title %}{{ calendar.year }} Calendar by {{ calendar_owner.username }}{% endblock %}
-{% block twitter_description %}Check out this {{ calendar.year }} calendar with {{ calendar.events.count }} events created with Calendar Builder.{% endblock %}
+{% block og_title %}{{ calendar.year }} {{ calendar_name }} - Events{% endblock %}
+{% block og_description %}View all events for {{ calendar.year }} {{ calendar_name }} with {{ calendar.events.count }} events.{% endblock %}
 
 {% block content %}
 <div class="public-calendar-header">
     <div class="public-calendar-title">
-        <h1>{{ calendar.year }} Calendar</h1>
+        <h1>{{ calendar.year }} {{ calendar_name }} - Events</h1>
         <div class="calendar-meta">
             <span class="meta-item">📅 {{ calendar.events.count }} events</span>
-            <span class="meta-item">👤 Created by {{ calendar_owner.username }}</span>
         </div>
     </div>
-    <div class="calendar-builder-link">
-        <a href="{% url 'accounts:register' %}" class="create-link">Create your own calendar</a>
+    <div class="calendar-actions">
+        <a href="{% url 'calendars:digital_calendar' calendar_id=calendar.id %}" class="btn btn--primary btn--small">
+            📅 View Digital Calendar
+        </a>
     </div>
 </div>
 
@@ -63,34 +60,6 @@
     </div>
 </div>
 
-<!-- Include social sharing component -->
-{% include 'components/social_share.html' with page_title=calendar.year|stringformat:"s Calendar by "|add:calendar_owner.username %}
-
-<div class="public-footer-cta">
-    <div class="cta-content">
-        <h3>Ready to create your own calendar?</h3>
-        <p>Join thousands of users creating beautiful custom calendars with Calendar Builder.</p>
-        <div class="cta-features">
-            <div class="feature">
-                <span class="feature-icon">📸</span>
-                <span class="feature-text">Upload your photos</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">📅</span>
-                <span class="feature-text">Add events & holidays</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">🎨</span>
-                <span class="feature-text">Customize designs</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">📄</span>
-                <span class="feature-text">Generate PDFs</span>
-            </div>
-        </div>
-        <a href="{% url 'accounts:register' %}" class="btn btn--primary btn--large">Start Creating Now</a>
-    </div>
-</div>
 
 <style>
 .public-calendar-header {
@@ -119,24 +88,9 @@
     font-size: 0.875rem;
 }
 
-.calendar-builder-link {
-    text-align: right;
-}
-
-.create-link {
-    color: var(--color-primary);
-    text-decoration: none;
-    font-weight: 500;
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--color-primary);
-    border-radius: var(--border-radius-sm);
-    transition: all 0.2s ease;
-}
-
-.create-link:hover {
-    background: var(--color-primary);
-    color: white;
-    text-decoration: none;
+.calendar-actions {
+    display: flex;
+    gap: 0.75rem;
 }
 
 @media (max-width: 768px) {
@@ -146,14 +100,8 @@
         gap: 1rem;
     }
 
-    .calendar-builder-link {
-        text-align: left;
+    .calendar-actions {
         align-self: stretch;
-    }
-
-    .create-link {
-        display: block;
-        text-align: center;
     }
 }
 
@@ -166,82 +114,5 @@
     transform: translateY(-1px);
 }
 
-.public-footer-cta {
-    background: var(--color-background-light);
-    border: 2px solid var(--color-primary);
-    border-radius: var(--border-radius);
-    padding: 3rem 2rem;
-    margin: 3rem 0;
-    text-align: center;
-}
-
-.cta-content h3 {
-    margin: 0 0 0.5rem 0;
-    color: var(--color-primary);
-    font-size: 1.75rem;
-}
-
-.cta-content > p {
-    margin: 0 0 2rem 0;
-    color: var(--color-text-secondary);
-    font-size: 1.1rem;
-}
-
-.cta-features {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin: 2rem 0;
-}
-
-.feature {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
-    background: white;
-    border-radius: var(--border-radius-sm);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.feature-icon {
-    font-size: 1.5rem;
-}
-
-.feature-text {
-    font-weight: 500;
-    color: var(--color-text-primary);
-}
-
-.btn--large {
-    padding: 1rem 2rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
-.page-meta .meta-item {
-    background: var(--color-background-light);
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--border-radius-sm);
-    font-size: 0.875rem;
-    border: 1px solid var(--color-border);
-}
-
-@media (max-width: 768px) {
-    .notice-actions {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .cta-features {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-
-    .page-header__actions {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-}
 </style>
 {% endblock %}
