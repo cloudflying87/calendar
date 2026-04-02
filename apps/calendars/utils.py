@@ -235,7 +235,7 @@ class CalendarPDFGenerator:
 
             # Create combined image for multiple events
             combined_img_path = CalendarEvent.create_combined_image(
-                self.calendar, events_list[0].month, day, layout_preference=layout_preference
+                self.calendar, events_list[0].month, day, layout_preference=layout_preference, events_list=events_list
             )
 
             # Use combined image if created, otherwise use first event's image

@@ -577,7 +577,7 @@ class CalendarEvent(models.Model):
         return images, full_images
 
     @classmethod
-    def create_combined_image(cls, calendar, month, day, target_width=320, target_height=200, layout_preference='auto'):
+    def create_combined_image(cls, calendar, month, day, target_width=320, target_height=200, layout_preference='auto', events_list=None):
         """Create a combined image for multiple events on the same date
 
         layout_preference options:
@@ -585,10 +585,20 @@ class CalendarEvent(models.Model):
         - 'side_by_side': Always use side-by-side for 2 images
         - 'top_bottom': Always use top/bottom for 2 images
         - 'grid': Always use grid layout
+
+        events_list: Optional list of specific events to combine. If not provided,
+                    will query all events for the given date.
         """
-        events = cls.get_events_for_date(calendar, month, day)
-        if events.count() <= 1:
-            return None
+        # Use provided events list or query for events
+        if events_list is not None:
+            events = events_list if isinstance(events_list, list) else list(events_list)
+            if len(events) <= 1:
+                return None
+        else:
+            events = cls.get_events_for_date(calendar, month, day)
+            if events.count() <= 1:
+                return None
+            events = list(events)
 
         try:
             from PIL import Image, ImageDraw, ImageFont
@@ -600,7 +610,7 @@ class CalendarEvent(models.Model):
             # Create a new image with the target dimensions
             combined_img = Image.new('RGB', (target_width, target_height), (255, 255, 255))
 
-            event_list = list(events)
+            event_list = events
             num_events = len(event_list)
 
             if num_events == 2:

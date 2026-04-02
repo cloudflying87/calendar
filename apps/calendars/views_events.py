@@ -434,49 +434,13 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
                     combined_count += len(master_events) - 1
 
             elif combine_events:
-                # Combine with existing events
-                if len(master_events) == 1:
-                    # Single new event to combine
-                    event = master_events[0]
-                    existing = existing_events[0]  # Use first existing event
+                # Add new events alongside existing events (keep all separate for digital view)
+                # PDF generator will combine them automatically for print version
+                for event in master_events:
+                    calendar_event = self._create_calendar_event_from_master(calendar, event)
                     month_name = cal.month_name[month]
-                    combined_events.append(f"{month_name} {day}: {existing.event_name} + {event.name}")
-                    existing.add_additional_event(event)
-                    combined_count += 1
-                else:
-                    # Multiple new events to combine - merge all together
-                    all_names = []
-
-                    # Collect existing event names
-                    for existing in existing_events:
-                        if existing.combined_events:
-                            all_names.extend([n.strip() for n in existing.combined_events.split(' & ')])
-                        else:
-                            all_names.append(existing.get_display_name())
-
-                    # Add new event names
-                    for event in master_events:
-                        all_names.append(event.get_display_name(for_year=calendar.year, user=request.user))
-
-                    # Delete all existing events except the first
-                    primary_event = existing_events[0]
-                    for existing in existing_events[1:]:
-                        if existing.image:
-                            try:
-                                existing.image.delete()
-                            except:
-                                pass
-                        existing.delete()
-
-                    # Update the primary event with combined information
-                    primary_event.combined_events = ' & '.join(all_names)
-                    primary_event.event_name = f"Multiple Events ({len(all_names)})"
-                    primary_event.save()
-
-                    month_name = cal.month_name[month]
-                    new_names = ' & '.join([e.name for e in master_events])
-                    combined_events.append(f"{month_name} {day}: Combined {new_names} with existing events")
-                    combined_count += len(master_events)
+                    combined_events.append(f"{month_name} {day}: Added {event.name}")
+                    applied_count += 1
 
             else:
                 # Skip all events for this date
@@ -570,32 +534,29 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
         return calendar_event
 
     def _create_combined_calendar_event(self, calendar, month, day, master_events):
-        """Create a single combined calendar event from multiple master events"""
-        # Create display names for all events
-        event_names = []
-        for event in master_events:
-            event_names.append(event.get_display_name(for_year=calendar.year, user=calendar.user))
+        """Create separate calendar events for each master event
 
-        # Create the combined event
-        combined_name = ' & '.join(event_names)
-        calendar_event = CalendarEvent.objects.create(
-            calendar=calendar,
-            master_event=master_events[0],  # Link to first master event
-            month=month,
-            day=day,
-            event_name=f"Multiple Events ({len(master_events)})",
-            combined_events=combined_name
-        )
+        Events will be kept separate in digital view, but PDF generator will combine them for print
+        """
+        from django.core.files.base import ContentFile
+        import os
 
-        # Handle images from master events with images
-        events_with_images = [e for e in master_events if e.image]
-        if events_with_images:
-            if len(events_with_images) == 1:
-                # Single image - copy directly
-                master_event = events_with_images[0]
-                from django.core.files.base import ContentFile
-                import os
+        calendar_events = []
 
+        # Create individual calendar events for each master event
+        for master_event in master_events:
+            event_name = master_event.get_display_name(for_year=calendar.year, user=calendar.user)
+
+            calendar_event = CalendarEvent.objects.create(
+                calendar=calendar,
+                master_event=master_event,
+                month=month,
+                day=day,
+                event_name=event_name
+            )
+
+            # Copy image if master event has one
+            if master_event.image:
                 with master_event.image.open('rb') as f:
                     image_content = f.read()
 
@@ -608,79 +569,26 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
                     ContentFile(image_content),
                     save=True
                 )
-            else:
-                # Multiple images - create temporary calendar events to use the existing combination logic
-                temp_events = []
-                from django.core.files.base import ContentFile
-                import tempfile
-                import os
 
-                # Create temporary calendar events with images to use existing combine method
-                for master_event in events_with_images:
-                    temp_event = CalendarEvent.objects.create(
-                        calendar=calendar,
-                        master_event=master_event,
-                        month=month,
-                        day=day,
-                        event_name=master_event.get_display_name(for_year=calendar.year, user=calendar.user)
-                    )
+            # Copy full_image if master event has one
+            if master_event.full_image:
+                with master_event.full_image.open('rb') as f:
+                    full_image_content = f.read()
 
-                    # Copy image to temp event
-                    with master_event.image.open('rb') as f:
-                        image_content = f.read()
+                original_name = os.path.basename(master_event.full_image.name)
+                name, ext = os.path.splitext(original_name)
+                new_name = f"full_{name}_{calendar.year}_{calendar_event.id}{ext}"
 
-                    original_name = os.path.basename(master_event.image.name)
-                    name, ext = os.path.splitext(original_name)
-                    temp_name = f"temp_{name}_{temp_event.id}{ext}"
-
-                    temp_event.image.save(
-                        temp_name,
-                        ContentFile(image_content),
-                        save=True
-                    )
-                    temp_events.append(temp_event)
-
-                # Get user's image combination preference
-                from .models import UserEventPreferences
-                try:
-                    preferences = UserEventPreferences.objects.get(user=calendar.user)
-                    layout_preference = preferences.image_combination_layout
-                except UserEventPreferences.DoesNotExist:
-                    layout_preference = 'auto'
-
-                # Use the model's create_combined_image method
-                combined_img_path = CalendarEvent.create_combined_image(
-                    calendar, month, day, layout_preference=layout_preference
+                calendar_event.full_image.save(
+                    new_name,
+                    ContentFile(full_image_content),
+                    save=True
                 )
 
-                if combined_img_path:
-                    # Save the combined image to the main calendar event
-                    with open(combined_img_path, 'rb') as f:
-                        combined_content = f.read()
+            calendar_events.append(calendar_event)
 
-                    combined_name = f"combined_{calendar.year}_{month:02d}_{day:02d}_{calendar_event.id}.jpg"
-                    calendar_event.image.save(
-                        combined_name,
-                        ContentFile(combined_content),
-                        save=True
-                    )
-
-                    # Clean up temporary file
-                    try:
-                        os.unlink(combined_img_path)
-                    except:
-                        pass
-
-                # Clean up temporary events
-                for temp_event in temp_events:
-                    if temp_event.image:
-                        try:
-                            temp_event.image.delete()
-                        except:
-                            pass
-                    temp_event.delete()
-
-        return calendar_event
+        # Return the first event (for compatibility with existing code)
+        return calendar_events[0] if calendar_events else None
 
 
 @login_required
@@ -1466,7 +1374,7 @@ class TweakCombinedImageView(LoginRequiredMixin, View):
         if len(events_with_images) > 1:
             # Recreate the combined image with the new layout
             combined_img_path = CalendarEvent.create_combined_image(
-                event.calendar, event.month, event.day, layout_preference=new_layout
+                event.calendar, event.month, event.day, layout_preference=new_layout, events_list=events_with_images
             )
 
             if combined_img_path:
