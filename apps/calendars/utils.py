@@ -287,20 +287,22 @@ class CalendarPDFGenerator:
                         # Create ReportLab image
                         rl_img = RLImage(temp_img_file.name, width=img_width, height=img_height)
 
-                        # Create day number with white background box overlay - no border, small box
+                        # Create day number with semi-transparent white background box overlay
                         day_overlay_style = ParagraphStyle(
                             'DayOverlay',
                             parent=self.styles['Normal'],
                             fontSize=16,
                             alignment=TA_CENTER,
                             fontName='Times-Bold',
-                            textColor=colors.HexColor('#1f2937')
+                            textColor=colors.HexColor('#1f2937'),
+                            backColor=colors.Color(1, 1, 1, alpha=0.5),  # 50% transparent white
+                            borderPadding=7
                         )
 
-                        # Create overlay table with image and small white box for day number
+                        # Create overlay table with image and semi-transparent box for day number
                         overlay_data = [
                             [rl_img],  # Image as background row
-                            [Paragraph(f'<para alignment="center" backColor="white" borderPadding="7">{day}</para>', day_overlay_style)]  # Day number overlay, no border
+                            [Paragraph(str(day), day_overlay_style)]  # Day number overlay with transparent background
                         ]
 
                         # Position small white box right in top-left corner
@@ -403,6 +405,7 @@ class CalendarPDFGenerator:
                 font_size = optimal_font_size + 2  # Normal sizing for 4-5 week months
                 leading = optimal_font_size + 3
 
+            # Semi-transparent white background for readability over images
             event_style = ParagraphStyle(
                 'EventStyle',
                 parent=self.styles['Normal'],
@@ -411,10 +414,11 @@ class CalendarPDFGenerator:
                 fontName='Helvetica-Oblique',  # Italic for event names
                 leading=leading,  # Adjusted line spacing
                 textColor=colors.HexColor('#374151'),
+                backColor=colors.Color(1, 1, 1, alpha=0.5),  # 50% transparent white
+                borderPadding=4,
                 wordWrap='LTR'  # Enable word wrapping
             )
-            # Add white background to event name for readability over images
-            cell_data.append([Paragraph(f'<para backColor="white" borderPadding="4">{display_name}</para>', event_style)])
+            cell_data.append([Paragraph(display_name, event_style)])
 
         # Create mini table for this cell - larger to fill space
         mini_table = CellTable(cell_data, colWidths=[1.4*inch])
