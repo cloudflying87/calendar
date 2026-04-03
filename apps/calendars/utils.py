@@ -413,8 +413,8 @@ class CalendarPDFGenerator:
                 textColor=colors.HexColor('#374151'),
                 wordWrap='LTR'  # Enable word wrapping
             )
-            # No truncation - let it wrap
-            cell_data.append([Paragraph(display_name, event_style)])
+            # Add white background to event name for readability over images
+            cell_data.append([Paragraph(f'<para backColor="white" borderPadding="4">{display_name}</para>', event_style)])
 
         # Create mini table for this cell - larger to fill space
         mini_table = CellTable(cell_data, colWidths=[1.4*inch])
