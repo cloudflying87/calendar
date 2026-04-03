@@ -2497,7 +2497,12 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
                 header_image.save()
 
             import calendar as cal
-            month_name = "Cover Page" if month == 0 else cal.month_name[month]
+            if month == 0:
+                month_name = "Cover Page"
+            elif month == 13:
+                month_name = "Back Page"
+            else:
+                month_name = cal.month_name[month]
             messages.success(request, f'Header image uploaded for {month_name}!')
 
         elif action == 'upload_pdf':
