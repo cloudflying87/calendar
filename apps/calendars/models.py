@@ -622,9 +622,20 @@ class CalendarEvent(models.Model):
                             try:
                                 with Image.open(event.image.path) as img:
                                     half_height = target_height // 2
-                                    img_resized = img.resize((target_width, half_height), Image.Resampling.LANCZOS)
+                                    # Resize and crop to preserve aspect ratio
+                                    img_copy = img.copy()
+                                    img_copy.thumbnail((target_width * 2, half_height * 2), Image.Resampling.LANCZOS)
+
+                                    # Center crop
+                                    img_width, img_height = img_copy.size
+                                    left = (img_width - target_width) // 2
+                                    top = (img_height - half_height) // 2
+                                    right = left + target_width
+                                    bottom = top + half_height
+                                    img_cropped = img_copy.crop((left, top, right, bottom))
+
                                     y_pos = i * half_height
-                                    combined_img.paste(img_resized, (0, y_pos))
+                                    combined_img.paste(img_cropped, (0, y_pos))
                             except:
                                 continue
                 else:  # 'auto' or 'side_by_side'
@@ -634,9 +645,20 @@ class CalendarEvent(models.Model):
                             try:
                                 with Image.open(event.image.path) as img:
                                     half_width = target_width // 2
-                                    img_resized = img.resize((half_width, target_height), Image.Resampling.LANCZOS)
+                                    # Resize and crop to preserve aspect ratio
+                                    img_copy = img.copy()
+                                    img_copy.thumbnail((half_width * 2, target_height * 2), Image.Resampling.LANCZOS)
+
+                                    # Center crop
+                                    img_width, img_height = img_copy.size
+                                    left = (img_width - half_width) // 2
+                                    top = (img_height - target_height) // 2
+                                    right = left + half_width
+                                    bottom = top + target_height
+                                    img_cropped = img_copy.crop((left, top, right, bottom))
+
                                     x_pos = i * half_width
-                                    combined_img.paste(img_resized, (x_pos, 0))
+                                    combined_img.paste(img_cropped, (x_pos, 0))
                             except:
                                 continue
             elif num_events == 3:
@@ -648,15 +670,33 @@ class CalendarEvent(models.Model):
                                 if i == 0:
                                     # Top half
                                     half_height = target_height // 2
-                                    img_resized = img.resize((target_width, half_height), Image.Resampling.LANCZOS)
-                                    combined_img.paste(img_resized, (0, 0))
+                                    img_copy = img.copy()
+                                    img_copy.thumbnail((target_width * 2, half_height * 2), Image.Resampling.LANCZOS)
+
+                                    # Center crop
+                                    img_width, img_height = img_copy.size
+                                    left = (img_width - target_width) // 2
+                                    top = (img_height - half_height) // 2
+                                    right = left + target_width
+                                    bottom = top + half_height
+                                    img_cropped = img_copy.crop((left, top, right, bottom))
+                                    combined_img.paste(img_cropped, (0, 0))
                                 else:
                                     # Bottom half split
                                     quarter_height = target_height // 2
                                     half_width = target_width // 2
-                                    img_resized = img.resize((half_width, quarter_height), Image.Resampling.LANCZOS)
+                                    img_copy = img.copy()
+                                    img_copy.thumbnail((half_width * 2, quarter_height * 2), Image.Resampling.LANCZOS)
+
+                                    # Center crop
+                                    img_width, img_height = img_copy.size
+                                    left = (img_width - half_width) // 2
+                                    top = (img_height - quarter_height) // 2
+                                    right = left + half_width
+                                    bottom = top + quarter_height
+                                    img_cropped = img_copy.crop((left, top, right, bottom))
                                     x_pos = (i - 1) * half_width
-                                    combined_img.paste(img_resized, (x_pos, target_height // 2))
+                                    combined_img.paste(img_cropped, (x_pos, target_height // 2))
                         except:
                             continue
             elif num_events >= 4:
@@ -667,41 +707,21 @@ class CalendarEvent(models.Model):
                             with Image.open(event.image.path) as img:
                                 half_width = target_width // 2
                                 half_height = target_height // 2
-                                img_resized = img.resize((half_width, half_height), Image.Resampling.LANCZOS)
+                                img_copy = img.copy()
+                                img_copy.thumbnail((half_width * 2, half_height * 2), Image.Resampling.LANCZOS)
+
+                                # Center crop
+                                img_width, img_height = img_copy.size
+                                left = (img_width - half_width) // 2
+                                top = (img_height - half_height) // 2
+                                right = left + half_width
+                                bottom = top + half_height
+                                img_cropped = img_copy.crop((left, top, right, bottom))
                                 x_pos = (i % 2) * half_width
                                 y_pos = (i // 2) * half_height
-                                combined_img.paste(img_resized, (x_pos, y_pos))
+                                combined_img.paste(img_cropped, (x_pos, y_pos))
                         except:
                             continue
-
-            # Add text overlay indicating number of events
-            draw = ImageDraw.Draw(combined_img)
-            text = f"{num_events} Events"
-
-            try:
-                # Try to use a bold font
-                font = ImageFont.truetype("arial.ttf", 16)
-            except:
-                try:
-                    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 16)
-                except:
-                    font = ImageFont.load_default()
-
-            # Get text bounding box
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-
-            # Position text in top-right corner with background
-            text_x = target_width - text_width - 5
-            text_y = 5
-
-            # Draw background rectangle
-            draw.rectangle([text_x - 3, text_y - 2, text_x + text_width + 3, text_y + text_height + 2],
-                         fill=(0, 0, 0, 128))
-
-            # Draw text
-            draw.text((text_x, text_y), text, fill=(255, 255, 255), font=font)
 
             # Save combined image
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
