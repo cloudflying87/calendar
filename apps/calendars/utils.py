@@ -272,13 +272,13 @@ class CalendarPDFGenerator:
                             img.thumbnail((200, 150), Image.Resampling.LANCZOS)  # Process at higher res
                             img_width, img_height = 105, 80  # Display at original size
                         elif num_weeks == 6:
-                            # Smaller images for 6-week months - higher res
-                            img.thumbnail((150, 110), Image.Resampling.LANCZOS)  # Process at higher res
-                            img_width, img_height = 80, 60  # Display at original size
+                            # Increased image size for 6-week months to reduce bottom white space
+                            img.thumbnail((180, 135), Image.Resampling.LANCZOS)  # Process at higher res
+                            img_width, img_height = 95, 72  # Display at larger size to fill more space
                         else:  # 5 weeks
                             # Medium images for 5-week months - higher res
-                            img.thumbnail((180, 130), Image.Resampling.LANCZOS)  # Process at higher res
-                            img_width, img_height = 95, 70  # Display at original size
+                            img.thumbnail((190, 140), Image.Resampling.LANCZOS)  # Process at higher res
+                            img_width, img_height = 100, 75  # Display at slightly larger size
 
                         # Save to temporary file with maximum quality
                         temp_img_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
