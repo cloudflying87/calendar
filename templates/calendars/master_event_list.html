@@ -55,6 +55,9 @@
                                 <span class="event-card__placeholder-text">No Image</span>
                             </div>
                         {% endif %}
+                        {% if event.full_image %}
+                            <span class="image-quality-badge" title="Full resolution image available">HD</span>
+                        {% endif %}
                         <button class="event-card__image-edit" onclick="editMasterEventPhoto({{ event.id }})">
                             <span>📷</span>
                         </button>
@@ -194,6 +197,21 @@
 
 .event-card__image-edit:hover {
     background: white;
+}
+
+.image-quality-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: rgba(34, 197, 94, 0.95);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 10;
 }
 
 .hidden-file-input {
