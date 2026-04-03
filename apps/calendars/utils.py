@@ -279,6 +279,10 @@ class CalendarPDFGenerator:
                         rl_img = RLImage(temp_img_file.name, width=img_width, height=img_height)
 
                         # Create day number with semi-transparent white background box overlay
+                        # Reduce padding for 6-week months to make box more compact
+                        num_weeks = getattr(self, 'current_month_weeks', 5)
+                        day_padding = 4 if num_weeks == 6 else 7
+
                         day_overlay_style = ParagraphStyle(
                             'DayOverlay',
                             parent=self.styles['Normal'],
@@ -287,7 +291,7 @@ class CalendarPDFGenerator:
                             fontName='Times-Bold',
                             textColor=colors.HexColor('#1f2937'),
                             backColor=colors.Color(1, 1, 1, alpha=0.5),  # 50% transparent white
-                            borderPadding=7
+                            borderPadding=day_padding  # Less padding for 6-week months
                         )
 
                         # Create overlay table with image and semi-transparent box for day number
@@ -391,6 +395,10 @@ class CalendarPDFGenerator:
             font_size = optimal_font_size
             leading = optimal_font_size + 1
 
+            # Reduce padding for 6-week months to make text box more compact
+            num_weeks = getattr(self, 'current_month_weeks', 5)
+            text_padding = 2 if num_weeks == 6 else 4
+
             # Semi-transparent white background for readability over images
             event_style = ParagraphStyle(
                 'EventStyle',
@@ -401,7 +409,7 @@ class CalendarPDFGenerator:
                 leading=leading,  # Adjusted line spacing
                 textColor=colors.HexColor('#374151'),
                 backColor=colors.Color(1, 1, 1, alpha=0.5),  # 50% transparent white
-                borderPadding=4,
+                borderPadding=text_padding,  # Less padding for 6-week months
                 wordWrap='LTR'  # Enable word wrapping
             )
             cell_data.append([Paragraph(display_name, event_style)])
