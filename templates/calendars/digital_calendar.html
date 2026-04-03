@@ -4,7 +4,7 @@
 
 {% block og_title %}{{ calendar.year }} {{ calendar_name }}{% endblock %}
 {% block og_description %}View my {{ calendar.year }} calendar with {{ calendar.events.count }} events and photos.{% endblock %}
-{% block og_image %}{% if first_header_image %}{{ request.build_absolute_uri }}{{ first_header_image }}{% elif first_event_image %}{{ request.build_absolute_uri }}{{ first_event_image }}{% else %}{{ request.build_absolute_uri }}{% load static %}{% static 'img/social-share.png' %}{% endif %}{% endblock %}
+{% block og_image %}{% if first_header_image %}{{ request.scheme }}://{{ request.get_host }}{{ first_header_image }}{% elif first_event_image %}{{ request.scheme }}://{{ request.get_host }}{{ first_event_image }}{% else %}{{ request.scheme }}://{{ request.get_host }}{% load static %}{% static 'img/social-share.png' %}{% endif %}{% endblock %}
 
 {% block content %}
 <div class="digital-calendar">
