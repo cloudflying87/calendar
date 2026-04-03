@@ -183,15 +183,15 @@ class CalendarPDFGenerator:
     def get_optimal_font_size(self, text, max_width_chars):
         """Calculate optimal font size based on text length"""
         text_length = len(text)
-        # Smaller base sizes for 6-week months
+        # Increased base sizes for 6-week months now that we have larger images
         num_weeks = getattr(self, 'current_month_weeks', 5)
         if num_weeks == 6:
             if text_length <= max_width_chars:
-                return 8
+                return 9
             elif text_length <= max_width_chars * 1.5:
-                return 7
+                return 8
             else:
-                return 6
+                return 7
         else:
             if text_length <= max_width_chars:
                 return 10
