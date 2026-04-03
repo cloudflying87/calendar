@@ -11,7 +11,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils.decorators import method_decorator
 from django.utils import timezone
 from .models import Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday, HolidayCalculator, CalendarHeaderImage
-from .forms import CalendarForm, ImageUploadForm, HeaderUploadForm, EventEditForm, HolidayManagementForm
+from .forms import CalendarForm, ImageUploadForm, HeaderUploadForm, EventEditForm, HolidayManagementForm, CalendarEditForm
 from .utils import CalendarPDFGenerator
 import os
 import tempfile
@@ -1441,6 +1441,66 @@ class ProcessCropView(View):
         except Exception as e:
             messages.error(request, f"Error processing cropped image: {str(e)}")
             return redirect('calendars:photo_crop', year=year)
+
+
+@method_decorator(login_required, name='dispatch')
+class EditCalendarView(View):
+    """View for editing calendar name"""
+
+    def get(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+        # Check if user can edit
+        if not calendar.can_edit(request.user):
+            messages.error(request, "You don't have permission to edit this calendar.")
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+        form = CalendarEditForm(user=request.user, calendar=calendar)
+
+        return render(request, 'calendars/edit_calendar.html', {
+            'calendar': calendar,
+            'form': form
+        })
+
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        from .models import CalendarYear
+
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+        # Check if user can edit
+        if not calendar.can_edit(request.user):
+            messages.error(request, "You don't have permission to edit this calendar.")
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+        form = CalendarEditForm(request.POST, user=request.user, calendar=calendar)
+
+        if form.is_valid():
+            new_name = form.cleaned_data['calendar_name']
+
+            # Update or create CalendarYear
+            if calendar.calendar_year:
+                # Update existing CalendarYear
+                calendar.calendar_year.name = new_name
+                calendar.calendar_year.save()
+            else:
+                # Create new CalendarYear
+                calendar_year, created = CalendarYear.objects.get_or_create(
+                    user=request.user,
+                    year=calendar.year,
+                    name=new_name
+                )
+                calendar.calendar_year = calendar_year
+                calendar.save()
+
+            messages.success(request, f"Calendar name updated to '{new_name}'!")
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+        return render(request, 'calendars/edit_calendar.html', {
+            'calendar': calendar,
+            'form': form
+        })
 
 
 @method_decorator(login_required, name='dispatch')

@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Calendar - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">Edit Calendar</h1>
+        <div class="page-meta">
+            <span class="meta-item">{{ calendar.year }}{% if calendar.calendar_year %} - {{ calendar.calendar_year.name }}{% endif %}</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-card">
+    <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <h3>Calendar Name</h3>
+            <p class="form-help">Change the name to distinguish this calendar from others for the same year</p>
+
+            <div class="form-group">
+                {{ form.calendar_name.label_tag }}
+                {{ form.calendar_name }}
+                {% if form.calendar_name.errors %}
+                    <div class="form-error">
+                        {{ form.calendar_name.errors }}
+                    </div>
+                {% endif %}
+                <small class="form-help">{{ form.calendar_name.help_text }}</small>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                💾 Save Changes
+            </button>
+            <a href="{% url 'calendars:calendar_detail_by_id' calendar_id=calendar.id %}" class="btn btn--outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+.content-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.form-section {
+    margin-bottom: 2rem;
+}
+
+.form-section h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+    font-size: 1.25rem;
+}
+
+.form-section .form-help {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.form-group input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-group input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-group .form-help {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.form-error {
+    color: var(--color-danger);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .content-card {
+        padding: 1.5rem;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

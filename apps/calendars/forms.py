@@ -289,6 +289,50 @@ class AddEventToMasterListForm(forms.Form):
         return cleaned_data
 
 
+class CalendarEditForm(forms.Form):
+    """Form for editing calendar name"""
+    calendar_name = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter calendar name (e.g., Family, Work, etc.)'
+        }),
+        help_text="Name for this calendar version"
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        self.calendar = kwargs.pop('calendar', None)
+        super().__init__(*args, **kwargs)
+
+        # Pre-populate with current name
+        if self.calendar and self.calendar.calendar_year:
+            self.fields['calendar_name'].initial = self.calendar.calendar_year.name
+
+    def clean_calendar_name(self):
+        calendar_name = self.cleaned_data.get('calendar_name')
+
+        if not calendar_name:
+            raise forms.ValidationError("Calendar name cannot be empty.")
+
+        # Check if this name already exists for this user/year (excluding current calendar)
+        if self.user and self.calendar:
+            existing = CalendarYear.objects.filter(
+                user=self.user,
+                year=self.calendar.year,
+                name=calendar_name
+            ).exclude(id=self.calendar.calendar_year.id if self.calendar.calendar_year else None).exists()
+
+            if existing:
+                raise forms.ValidationError(
+                    f"You already have a calendar named '{calendar_name}' for {self.calendar.year}. "
+                    f"Please choose a different name."
+                )
+
+        return calendar_name
+
+
 class MasterEventForm(forms.ModelForm):
     """Form for creating and editing master events"""
 
