@@ -895,15 +895,28 @@ class DownloadCalendarView(View):
         return redirect('calendars:calendar_detail', year=year)
 
 
-@method_decorator(login_required, name='dispatch')
 class ExportCalendarICSView(View):
-    """Export calendar events as ICS file for import into Google Calendar, Apple Calendar, etc."""
+    """Export calendar events as ICS file for import into Google Calendar, Apple Calendar, etc.
+
+    Supports both authenticated users and public shared calendars.
+    """
 
     def get(self, request, calendar_id):
         from icalendar import Calendar as iCalendar, Event as iEvent, vText
         from datetime import datetime as dt
 
-        calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
+        # Get calendar and check permissions
+        calendar = get_object_or_404(Calendar, id=calendar_id)
+
+        # Allow access if user owns/has access OR if calendar is publicly shared
+        if request.user.is_authenticated:
+            if calendar.user != request.user and not calendar.can_view(request.user):
+                if not calendar.is_publicly_shared:
+                    raise PermissionDenied("You don't have permission to export this calendar.")
+        else:
+            # Anonymous user - must be publicly shared
+            if not calendar.is_publicly_shared:
+                raise PermissionDenied("This calendar is not publicly available.")
 
         # Create iCalendar object
         ical = iCalendar()

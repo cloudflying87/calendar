@@ -16,7 +16,10 @@
         </div>
     </div>
     <div class="calendar-actions">
-        <a href="{% url 'calendars:digital_calendar' calendar_id=calendar.id %}" class="btn btn--primary btn--small">
+        <a href="{% url 'calendars:export_ics' calendar_id=calendar.id %}" class="btn btn--primary btn--small">
+            📥 Export to Calendar
+        </a>
+        <a href="{% url 'calendars:digital_calendar' calendar_id=calendar.id %}" class="btn btn--outline btn--small">
             📅 View Digital Calendar
         </a>
     </div>
