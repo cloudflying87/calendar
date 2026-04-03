@@ -340,6 +340,72 @@ def user_preferences_view(request):
     return render(request, 'calendars/user_preferences.html', context)
 
 
+@login_required
+def user_pdf_settings_view(request):
+    """View for managing user PDF settings"""
+    from .models import UserPDFSettings
+    from .forms import UserPDFSettingsForm
+
+    settings, created = UserPDFSettings.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        form = UserPDFSettingsForm(request.POST, instance=settings)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'PDF settings updated successfully!')
+            return redirect('calendars:pdf_settings')
+    else:
+        form = UserPDFSettingsForm(instance=settings)
+
+    return render(request, 'calendars/pdf_settings.html', {
+        'form': form,
+        'settings': settings,
+    })
+
+
+@login_required
+def calendar_pdf_override_view(request, calendar_id):
+    """View for managing per-calendar PDF overrides"""
+    from .permissions import get_user_calendars
+    from .models import Calendar, UserPDFSettings
+    from .forms import CalendarPDFOverrideForm
+
+    calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+    # Get user's default settings for display
+    user_settings, _ = UserPDFSettings.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        form = CalendarPDFOverrideForm(request.POST, instance=calendar)
+        if form.is_valid():
+            use_custom = form.cleaned_data.get('use_custom_settings', False)
+
+            if not use_custom:
+                # Clear all overrides
+                calendar.pdf_override_image_size = None
+                calendar.pdf_override_event_text_size = None
+                calendar.pdf_override_day_number_size = None
+                calendar.pdf_override_text_transparency = None
+                calendar.pdf_override_text_bg_color = None
+                calendar.pdf_override_text_position = None
+                calendar.pdf_override_layout_compactness = None
+                calendar.save()
+                messages.success(request, 'Calendar will use your default PDF settings.')
+            else:
+                form.save()
+                messages.success(request, 'Custom PDF settings saved for this calendar!')
+
+            return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+    else:
+        form = CalendarPDFOverrideForm(instance=calendar)
+
+    return render(request, 'calendars/calendar_pdf_override.html', {
+        'form': form,
+        'calendar': calendar,
+        'user_settings': user_settings,
+    })
+
+
 class ApplyMasterEventsView(LoginRequiredMixin, View):
     """View to apply master events from groups to a calendar"""
 

@@ -19,6 +19,11 @@ class CalendarPDFGenerator:
     def __init__(self, calendar_obj):
         self.calendar = calendar_obj
         self.year = calendar_obj.year
+
+        # Load PDF settings with overrides
+        self.pdf_settings = calendar_obj.get_effective_pdf_settings()
+        self.settings_obj = self.pdf_settings['_settings_obj']
+
         self.styles = getSampleStyleSheet()
         self.setup_styles()
 
@@ -181,15 +186,16 @@ class CalendarPDFGenerator:
         return content
 
     def get_optimal_font_size(self, text, max_width_chars):
-        """Calculate optimal font size based on text length"""
+        """Calculate optimal font size based on text length and user settings"""
         text_length = len(text)
-        # Same font sizes for all month types
+        sizes = self.settings_obj.get_font_base_sizes()
+
         if text_length <= max_width_chars:
-            return 10
+            return sizes[0]
         elif text_length <= max_width_chars * 1.5:
-            return 9
+            return sizes[1]
         else:
-            return 8
+            return sizes[2]
 
     def create_day_cell(self, day, events_list):
         """Create content for a day cell - now handles multiple events"""
@@ -256,20 +262,23 @@ class CalendarPDFGenerator:
                         if img.mode in ('RGBA', 'LA', 'P'):
                             img = img.convert('RGB')
 
-                        # Dynamically size images based on number of weeks - higher resolution for better quality
+                        # Dynamically size images based on number of weeks and user settings
                         num_weeks = getattr(self, 'current_month_weeks', 5)
-                        if num_weeks == 4:
-                            # Larger images for 4-week months - higher res
-                            img.thumbnail((200, 150), Image.Resampling.LANCZOS)  # Process at higher res
-                            img_width, img_height = 105, 80  # Display at original size
-                        elif num_weeks == 6:
-                            # Increased image size for 6-week months to reduce bottom white space
-                            img.thumbnail((180, 135), Image.Resampling.LANCZOS)  # Process at higher res
-                            img_width, img_height = 95, 72  # Display at larger size to fill more space
-                        else:  # 5 weeks
-                            # Medium images for 5-week months - higher res
-                            img.thumbnail((190, 140), Image.Resampling.LANCZOS)  # Process at higher res
-                            img_width, img_height = 100, 75  # Display at slightly larger size
+                        multiplier = self.settings_obj.get_image_multiplier()
+
+                        # Base dimensions for each week count
+                        base_dimensions = {
+                            4: {'thumbnail': (200, 150), 'display': (105, 80)},
+                            5: {'thumbnail': (190, 140), 'display': (100, 75)},
+                            6: {'thumbnail': (180, 135), 'display': (95, 72)},
+                        }
+
+                        base = base_dimensions[num_weeks]
+                        thumbnail_size = (int(base['thumbnail'][0] * multiplier), int(base['thumbnail'][1] * multiplier))
+                        img.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+                        img_width = int(base['display'][0] * multiplier)
+                        img_height = int(base['display'][1] * multiplier)
 
                         # Save to temporary file with maximum quality
                         temp_img_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
@@ -278,20 +287,19 @@ class CalendarPDFGenerator:
                         # Create ReportLab image
                         rl_img = RLImage(temp_img_file.name, width=img_width, height=img_height)
 
-                        # Create day number with semi-transparent white background box overlay
-                        # Reduce padding for 6-week months to make box more compact
+                        # Create day number with background box overlay using user settings
                         num_weeks = getattr(self, 'current_month_weeks', 5)
-                        day_padding = 4 if num_weeks == 6 else 7
+                        day_padding = self.settings_obj.get_padding(num_weeks)['day']
 
                         day_overlay_style = ParagraphStyle(
                             'DayOverlay',
                             parent=self.styles['Normal'],
-                            fontSize=16,
+                            fontSize=self.settings_obj.get_day_number_font_size(),
                             alignment=TA_CENTER,
                             fontName='Times-Bold',
-                            textColor=colors.HexColor('#1f2937'),
-                            backColor=colors.Color(1, 1, 1, alpha=0.5),  # 50% transparent white
-                            borderPadding=day_padding  # Less padding for 6-week months
+                            textColor=self.settings_obj.get_text_color(),
+                            backColor=self.settings_obj.get_background_color(),
+                            borderPadding=day_padding
                         )
 
                         # Create overlay table with image and semi-transparent box for day number
@@ -395,11 +403,11 @@ class CalendarPDFGenerator:
             font_size = optimal_font_size
             leading = optimal_font_size + 1
 
-            # Reduce padding for 6-week months to make text box more compact
+            # Get padding from user settings
             num_weeks = getattr(self, 'current_month_weeks', 5)
-            text_padding = 2 if num_weeks == 6 else 4
+            text_padding = self.settings_obj.get_padding(num_weeks)['text']
 
-            # Semi-transparent white background for readability over images
+            # Background styling based on user settings
             event_style = ParagraphStyle(
                 'EventStyle',
                 parent=self.styles['Normal'],
@@ -407,9 +415,9 @@ class CalendarPDFGenerator:
                 alignment=TA_CENTER,
                 fontName='Helvetica-Oblique',  # Italic for event names
                 leading=leading,  # Adjusted line spacing
-                textColor=colors.HexColor('#374151'),
-                backColor=colors.Color(1, 1, 1, alpha=0.5),  # 50% transparent white
-                borderPadding=text_padding,  # Less padding for 6-week months
+                textColor=self.settings_obj.get_text_color(),
+                backColor=self.settings_obj.get_background_color(),
+                borderPadding=text_padding,
                 wordWrap='LTR'  # Enable word wrapping
             )
             cell_data.append([Paragraph(display_name, event_style)])

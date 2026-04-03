@@ -1,6 +1,6 @@
 from django import forms
 from django.core.validators import FileExtensionValidator
-from .models import Calendar, CalendarHeader, CalendarEvent, Holiday, CalendarYear, EventMaster
+from .models import Calendar, CalendarHeader, CalendarEvent, Holiday, CalendarYear, EventMaster, UserPDFSettings
 from datetime import datetime
 import calendar
 
@@ -394,3 +394,77 @@ class MasterEventForm(forms.ModelForm):
                 'style': 'display: none;'  # Hidden as we use custom UI
             })
         }
+
+
+class UserPDFSettingsForm(forms.ModelForm):
+    """Form for managing user PDF generation settings"""
+
+    class Meta:
+        model = UserPDFSettings
+        fields = [
+            'image_size', 'event_text_size', 'day_number_size',
+            'text_transparency', 'text_bg_color', 'text_position',
+            'layout_compactness'
+        ]
+        widgets = {
+            'image_size': forms.RadioSelect(),
+            'event_text_size': forms.RadioSelect(),
+            'day_number_size': forms.RadioSelect(),
+            'text_transparency': forms.NumberInput(attrs={'type': 'range', 'min': '0', 'max': '100', 'step': '1'}),
+            'text_bg_color': forms.RadioSelect(),
+            'text_position': forms.RadioSelect(),
+            'layout_compactness': forms.RadioSelect(),
+        }
+
+
+class CalendarPDFOverrideForm(forms.ModelForm):
+    """Form for managing per-calendar PDF setting overrides"""
+
+    use_custom_settings = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Use custom PDF settings for this calendar",
+        help_text="Enable this to override your default PDF settings for this specific calendar"
+    )
+
+    class Meta:
+        model = Calendar
+        fields = [
+            'pdf_override_image_size', 'pdf_override_event_text_size',
+            'pdf_override_day_number_size', 'pdf_override_text_transparency',
+            'pdf_override_text_bg_color', 'pdf_override_text_position',
+            'pdf_override_layout_compactness'
+        ]
+        widgets = {
+            'pdf_override_image_size': forms.RadioSelect(),
+            'pdf_override_event_text_size': forms.RadioSelect(),
+            'pdf_override_day_number_size': forms.RadioSelect(),
+            'pdf_override_text_transparency': forms.NumberInput(attrs={'type': 'range', 'min': '0', 'max': '100', 'step': '1'}),
+            'pdf_override_text_bg_color': forms.RadioSelect(),
+            'pdf_override_text_position': forms.RadioSelect(),
+            'pdf_override_layout_compactness': forms.RadioSelect(),
+        }
+        labels = {
+            'pdf_override_image_size': 'Image Size',
+            'pdf_override_event_text_size': 'Event Text Size',
+            'pdf_override_day_number_size': 'Day Number Size',
+            'pdf_override_text_transparency': 'Text Transparency',
+            'pdf_override_text_bg_color': 'Text Background Color',
+            'pdf_override_text_position': 'Text Position',
+            'pdf_override_layout_compactness': 'Layout Compactness',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Check if any overrides are set
+        if self.instance and self.instance.pk:
+            has_overrides = any([
+                self.instance.pdf_override_image_size,
+                self.instance.pdf_override_event_text_size,
+                self.instance.pdf_override_day_number_size,
+                self.instance.pdf_override_text_transparency is not None,
+                self.instance.pdf_override_text_bg_color,
+                self.instance.pdf_override_text_position,
+                self.instance.pdf_override_layout_compactness,
+            ])
+            self.fields['use_custom_settings'].initial = has_overrides

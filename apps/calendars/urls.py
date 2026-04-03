@@ -91,6 +91,10 @@ urlpatterns = [
     # User Preferences
     path('preferences/', views_events.user_preferences_view, name='user_preferences'),
 
+    # PDF Settings
+    path('pdf-settings/', views_events.user_pdf_settings_view, name='pdf_settings'),
+    path('calendar/<int:calendar_id>/pdf-settings/', views_events.calendar_pdf_override_view, name='calendar_pdf_override'),
+
     # Bulk Add to Master List
     path('<int:calendar_id>/bulk-add-to-master/', views_events.BulkAddToMasterListView.as_view(), name='bulk_add_to_master_list'),
 

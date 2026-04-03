@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import User
 from PIL import Image
+from reportlab.lib import colors
 import os
 import re
 import uuid
@@ -347,6 +348,116 @@ class UserEventPreferences(models.Model):
         return f"Event preferences for {self.user.username}"
 
 
+class UserPDFSettings(models.Model):
+    """Model for storing user PDF generation preferences"""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='pdf_settings')
+
+    # Image Settings
+    IMAGE_SIZE_CHOICES = [
+        ('small', 'Small - Compact layout'),
+        ('medium', 'Medium - Balanced (default)'),
+        ('large', 'Large - Maximum size'),
+    ]
+    image_size = models.CharField(max_length=10, choices=IMAGE_SIZE_CHOICES, default='medium', help_text="Size of event images in PDF")
+
+    # Text Settings
+    FONT_SIZE_CHOICES = [
+        ('small', 'Small - 8-9pt'),
+        ('medium', 'Medium - 9-10pt (default)'),
+        ('large', 'Large - 10-11pt'),
+    ]
+    event_text_size = models.CharField(max_length=10, choices=FONT_SIZE_CHOICES, default='medium', help_text="Font size for event names")
+    day_number_size = models.CharField(max_length=10, choices=FONT_SIZE_CHOICES, default='medium', help_text="Font size for day numbers")
+
+    text_transparency = models.IntegerField(
+        default=50,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="0 = fully transparent, 100 = solid"
+    )
+
+    TEXT_COLOR_CHOICES = [
+        ('white', 'White background'),
+        ('black', 'Black background'),
+    ]
+    text_bg_color = models.CharField(max_length=10, choices=TEXT_COLOR_CHOICES, default='white', help_text="Background color for text boxes")
+
+    TEXT_POSITION_CHOICES = [
+        ('top_overlay', 'Top of image'),
+        ('bottom_overlay', 'Bottom of image (default)'),
+        ('below_image', 'Below image'),
+    ]
+    text_position = models.CharField(max_length=15, choices=TEXT_POSITION_CHOICES, default='bottom_overlay', help_text="Where to position event text")
+
+    COMPACTNESS_CHOICES = [
+        ('compact', 'Compact - Minimal spacing'),
+        ('normal', 'Normal - Balanced spacing (default)'),
+        ('spacious', 'Spacious - Maximum spacing'),
+    ]
+    layout_compactness = models.CharField(max_length=10, choices=COMPACTNESS_CHOICES, default='normal', help_text="Spacing around text boxes")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"PDF settings for {self.user.username}"
+
+    # Helper methods for PDF generation
+    def get_image_multiplier(self):
+        """Get image size multiplier based on setting"""
+        return {'small': 0.85, 'medium': 1.0, 'large': 1.15}[self.image_size]
+
+    def get_font_base_sizes(self):
+        """Get font size trio (large, medium, small) based on setting"""
+        return {
+            'small': (8, 7, 6),
+            'medium': (10, 9, 8),
+            'large': (12, 11, 10)
+        }[self.event_text_size]
+
+    def get_day_number_font_size(self):
+        """Get day number font size based on setting"""
+        return {'small': 14, 'medium': 16, 'large': 18}[self.day_number_size]
+
+    def get_alpha_value(self):
+        """Convert transparency percentage to 0.0-1.0 alpha value"""
+        return self.text_transparency / 100.0
+
+    def get_text_color(self):
+        """Get text color based on background color setting"""
+        if self.text_bg_color == 'white':
+            return colors.HexColor('#374151')  # dark gray text on white
+        else:
+            return colors.white  # white text on black
+
+    def get_background_color(self):
+        """Get background color with transparency applied"""
+        alpha = self.get_alpha_value()
+        if self.text_bg_color == 'white':
+            return colors.Color(1, 1, 1, alpha=alpha)  # white with transparency
+        else:
+            return colors.Color(0, 0, 0, alpha=alpha)  # black with transparency
+
+    def get_padding(self, num_weeks):
+        """Get padding values based on compactness setting and week count"""
+        multipliers = {
+            'compact': {'day': 0.5, 'text': 0.5},
+            'normal': {'day': 1.0, 'text': 1.0},
+            'spacious': {'day': 1.5, 'text': 1.5}
+        }[self.layout_compactness]
+
+        # Base padding values (current defaults for 6-week = 4,2; others = 7,4)
+        if num_weeks == 6:
+            base_day, base_text = 4, 2
+        else:
+            base_day, base_text = 7, 4
+
+        return {
+            'day': int(base_day * multipliers['day']),
+            'text': int(base_text * multipliers['text'])
+        }
+
+
 class Calendar(models.Model):
     """Model representing a calendar for a specific year"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='calendars')
@@ -375,6 +486,72 @@ class Calendar(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # PDF Settings Overrides (nullable = use user defaults)
+    pdf_override_image_size = models.CharField(
+        max_length=10,
+        choices=[
+            ('small', 'Small - Compact layout'),
+            ('medium', 'Medium - Balanced (default)'),
+            ('large', 'Large - Maximum size'),
+        ],
+        null=True, blank=True,
+        help_text="Override user's default image size for this calendar"
+    )
+    pdf_override_event_text_size = models.CharField(
+        max_length=10,
+        choices=[
+            ('small', 'Small - 8-9pt'),
+            ('medium', 'Medium - 9-10pt (default)'),
+            ('large', 'Large - 10-11pt'),
+        ],
+        null=True, blank=True,
+        help_text="Override user's default event text size for this calendar"
+    )
+    pdf_override_day_number_size = models.CharField(
+        max_length=10,
+        choices=[
+            ('small', 'Small - 8-9pt'),
+            ('medium', 'Medium - 9-10pt (default)'),
+            ('large', 'Large - 10-11pt'),
+        ],
+        null=True, blank=True,
+        help_text="Override user's default day number size for this calendar"
+    )
+    pdf_override_text_transparency = models.IntegerField(
+        null=True, blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Override user's default text transparency (0-100%)"
+    )
+    pdf_override_text_bg_color = models.CharField(
+        max_length=10,
+        choices=[
+            ('white', 'White background'),
+            ('black', 'Black background'),
+        ],
+        null=True, blank=True,
+        help_text="Override user's default text background color"
+    )
+    pdf_override_text_position = models.CharField(
+        max_length=15,
+        choices=[
+            ('top_overlay', 'Top of image'),
+            ('bottom_overlay', 'Bottom of image (default)'),
+            ('below_image', 'Below image'),
+        ],
+        null=True, blank=True,
+        help_text="Override user's default text position"
+    )
+    pdf_override_layout_compactness = models.CharField(
+        max_length=10,
+        choices=[
+            ('compact', 'Compact - Minimal spacing'),
+            ('normal', 'Normal - Balanced spacing (default)'),
+            ('spacious', 'Spacious - Maximum spacing'),
+        ],
+        null=True, blank=True,
+        help_text="Override user's default layout compactness"
+    )
 
     class Meta:
         ordering = ['-year']
@@ -442,6 +619,54 @@ class Calendar(models.Model):
         self.public_share_token = None
         self.is_publicly_shared = False
         self.save()
+
+    def get_effective_pdf_settings(self):
+        """Get PDF settings with calendar overrides applied
+
+        Returns a dict with effective settings, falling back to user defaults
+        when no override is set. Includes a reference to the settings object
+        for accessing helper methods.
+        """
+        # Get or create user defaults
+        user_settings, _ = UserPDFSettings.objects.get_or_create(user=self.user)
+
+        # Create a dict with overrides applied
+        effective = {
+            'image_size': self.pdf_override_image_size or user_settings.image_size,
+            'event_text_size': self.pdf_override_event_text_size or user_settings.event_text_size,
+            'day_number_size': self.pdf_override_day_number_size or user_settings.day_number_size,
+            'text_transparency': self.pdf_override_text_transparency if self.pdf_override_text_transparency is not None else user_settings.text_transparency,
+            'text_bg_color': self.pdf_override_text_bg_color or user_settings.text_bg_color,
+            'text_position': self.pdf_override_text_position or user_settings.text_position,
+            'layout_compactness': self.pdf_override_layout_compactness or user_settings.layout_compactness,
+            '_settings_obj': user_settings,  # Keep reference for helper methods
+        }
+
+        # If calendar has overrides, create a temporary settings object with overridden values
+        # so helper methods work correctly
+        if any([
+            self.pdf_override_image_size,
+            self.pdf_override_event_text_size,
+            self.pdf_override_day_number_size,
+            self.pdf_override_text_transparency is not None,
+            self.pdf_override_text_bg_color,
+            self.pdf_override_text_position,
+            self.pdf_override_layout_compactness
+        ]):
+            # Create a copy of user settings with overrides applied
+            override_settings = UserPDFSettings(
+                user=self.user,
+                image_size=effective['image_size'],
+                event_text_size=effective['event_text_size'],
+                day_number_size=effective['day_number_size'],
+                text_transparency=effective['text_transparency'],
+                text_bg_color=effective['text_bg_color'],
+                text_position=effective['text_position'],
+                layout_compactness=effective['layout_compactness']
+            )
+            effective['_settings_obj'] = override_settings
+
+        return effective
 
     def delete(self, *args, **kwargs):
         """Override delete to clean up associated files"""
