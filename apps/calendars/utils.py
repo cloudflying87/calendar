@@ -183,22 +183,13 @@ class CalendarPDFGenerator:
     def get_optimal_font_size(self, text, max_width_chars):
         """Calculate optimal font size based on text length"""
         text_length = len(text)
-        # Increased base sizes for 6-week months now that we have larger images
-        num_weeks = getattr(self, 'current_month_weeks', 5)
-        if num_weeks == 6:
-            if text_length <= max_width_chars:
-                return 9
-            elif text_length <= max_width_chars * 1.5:
-                return 8
-            else:
-                return 7
+        # Same font sizes for all month types
+        if text_length <= max_width_chars:
+            return 10
+        elif text_length <= max_width_chars * 1.5:
+            return 9
         else:
-            if text_length <= max_width_chars:
-                return 10
-            elif text_length <= max_width_chars * 1.5:
-                return 9
-            else:
-                return 8
+            return 8
 
     def create_day_cell(self, day, events_list):
         """Create content for a day cell - now handles multiple events"""
@@ -396,14 +387,9 @@ class CalendarPDFGenerator:
                 display_name = event.get_display_name()
             optimal_font_size = self.get_optimal_font_size(display_name, 15)
 
-            # Make font smaller for 6-week months
-            num_weeks = getattr(self, 'current_month_weeks', 5)
-            if num_weeks == 6:
-                font_size = optimal_font_size  # No +2 for 6-week months
-                leading = optimal_font_size + 1  # Tighter line spacing
-            else:
-                font_size = optimal_font_size + 2  # Normal sizing for 4-5 week months
-                leading = optimal_font_size + 3
+            # Same font size for all month types
+            font_size = optimal_font_size + 2
+            leading = optimal_font_size + 3
 
             # Semi-transparent white background for readability over images
             event_style = ParagraphStyle(
