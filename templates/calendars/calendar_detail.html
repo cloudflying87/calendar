@@ -79,10 +79,13 @@
     </div>
 
     <div class="action-panel__section">
-        <h3>📱 View & Generate</h3>
+        <h3>📱 View & Export</h3>
         <div class="action-buttons">
             <a href="{% url 'calendars:digital_calendar' calendar_id=calendar.id %}" class="btn btn--primary" title="View digital calendar with headers" target="_blank">
                 📱 Digital Calendar
+            </a>
+            <a href="{% url 'calendars:export_ics' calendar_id=calendar.id %}" class="btn btn--secondary" title="Export events to Google Calendar, Apple Calendar, etc.">
+                📥 Export to Calendar App
             </a>
         </div>
         <form method="post" action="{% url 'calendars:generate_calendar' year=calendar.year %}" class="inline-form" style="margin-top: 1rem;">

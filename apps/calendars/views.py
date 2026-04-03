@@ -896,6 +896,78 @@ class DownloadCalendarView(View):
 
 
 @method_decorator(login_required, name='dispatch')
+class ExportCalendarICSView(View):
+    """Export calendar events as ICS file for import into Google Calendar, Apple Calendar, etc."""
+
+    def get(self, request, calendar_id):
+        from icalendar import Calendar as iCalendar, Event as iEvent, vText
+        from datetime import datetime as dt
+
+        calendar = get_object_or_404(Calendar, id=calendar_id, user=request.user)
+
+        # Create iCalendar object
+        ical = iCalendar()
+        ical.add('prodid', '-//Calendar Builder//EN')
+        ical.add('version', '2.0')
+        ical.add('x-wr-calname', f'{calendar.year} Calendar')
+        ical.add('x-wr-caldesc', f'Events from {calendar.year} calendar')
+
+        # Get all events for this calendar
+        events = calendar.events.all().order_by('month', 'day')
+
+        for event in events:
+            # Create event
+            ical_event = iEvent()
+
+            # Event name
+            ical_event.add('summary', event.get_display_name())
+
+            # Date (all-day event)
+            event_date = dt(calendar.year, event.month, event.day)
+            ical_event.add('dtstart', event_date.date())
+
+            # Build description with image links
+            description_parts = []
+
+            # Add cropped image link
+            if event.image:
+                image_url = request.build_absolute_uri(event.image.url)
+                description_parts.append(f"Photo (optimized): {image_url}")
+                # Also add as attachment
+                ical_event.add('attach', image_url)
+
+            # Add full-size image link
+            if event.full_image:
+                full_image_url = request.build_absolute_uri(event.full_image.url)
+                description_parts.append(f"Photo (full size): {full_image_url}")
+                # Also add as attachment
+                ical_event.add('attach', full_image_url)
+
+            # Set description
+            if description_parts:
+                ical_event.add('description', '\n'.join(description_parts))
+
+            # Add UID for proper calendar handling
+            ical_event.add('uid', f'event-{event.id}@calendar-builder')
+
+            # Add created/modified timestamps
+            ical_event.add('created', event.created_at)
+            ical_event.add('last-modified', event.updated_at)
+
+            # Add to calendar
+            ical.add_component(ical_event)
+
+        # Generate response
+        response = HttpResponse(ical.to_ical(), content_type='text/calendar; charset=utf-8')
+        filename = f'calendar_{calendar.year}.ics'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        messages.success(request, f'Calendar exported! Import the downloaded file into Google Calendar or any calendar app.')
+
+        return response
+
+
+@method_decorator(login_required, name='dispatch')
 class EditEventView(View):
     def get(self, request, event_id):
         event = get_object_or_404(CalendarEvent, id=event_id, calendar__user=request.user)

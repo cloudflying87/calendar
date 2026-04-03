@@ -28,6 +28,7 @@ urlpatterns = [
     path('<int:year>/generate/', views.GenerateCalendarView.as_view(), name='generate_calendar'),
     path('<int:year>/download/<str:generation_type>/', views.DownloadCalendarView.as_view(), name='download_calendar'),
     path('id/<int:calendar_id>/view-pdf/<str:generation_type>/', views.CalendarPDFViewerView.as_view(), name='view_pdf'),
+    path('id/<int:calendar_id>/export-ics/', views.ExportCalendarICSView.as_view(), name='export_ics'),
     path('<int:year>/download-photos/', views.DownloadAllPhotosView.as_view(), name='download_all_photos'),
     path('id/<int:calendar_id>/delete/', views.DeleteCalendarView.as_view(), name='delete_calendar'),
     path('<int:year>/simple/', views.CalendarSimpleView.as_view(), name='calendar_simple'),

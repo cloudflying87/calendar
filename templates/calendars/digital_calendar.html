@@ -12,6 +12,9 @@
             <button id="next-month" class="nav-btn nav-btn--next">Next ›</button>
         </div>
         <div class="calendar-actions">
+            <a href="{% url 'calendars:export_ics' calendar_id=calendar.id %}" class="btn btn--primary btn--small">
+                📥 Export to Calendar
+            </a>
             <a href="{% if calendar.public_share_token %}{% url 'calendars:public_calendar' token=calendar.public_share_token %}{% else %}#{% endif %}" class="btn btn--outline btn--small">
                 📋 View Events List
             </a>
