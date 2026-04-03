@@ -2819,11 +2819,35 @@ class DigitalCalendarView(TemplateView):
                                 calendar, month_data['month'], day_data['day']
                             )
 
+        # Get first available image for social sharing
+        first_header_image = None
+        first_event_image = None
+
+        # Try to get cover image first
+        if header_images_dict.get(0):
+            first_header_image = header_images_dict.get(0).image.url
+        # Otherwise try month 1
+        elif header_images_dict.get(1):
+            first_header_image = header_images_dict.get(1).image.url
+        # Otherwise try any header
+        elif header_images:
+            first_header_image = header_images.first().image.url
+
+        # Get first event image as fallback
+        first_event_with_image = events.filter(full_image__isnull=False).first() or events.filter(image__isnull=False).first()
+        if first_event_with_image:
+            if first_event_with_image.full_image:
+                first_event_image = first_event_with_image.full_image.url
+            elif first_event_with_image.image:
+                first_event_image = first_event_with_image.image.url
+
         context.update({
             'calendar': calendar,
             'months_data': months_data,
             'year': calendar.year,
-            'calendar_name': calendar_name
+            'calendar_name': calendar_name,
+            'first_header_image': first_header_image,
+            'first_event_image': first_event_image
         })
 
         return context
