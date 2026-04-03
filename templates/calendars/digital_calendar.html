@@ -183,6 +183,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0 1.5rem;
 }
 
 .month-header--placeholder {
@@ -190,6 +191,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 200px;
 }
 
 .header-placeholder {
@@ -218,10 +220,11 @@
 }
 
 .header-image {
-    max-width: 100%;
+    width: 100%;
+    min-width: 900px;
+    max-width: 1200px;
     max-height: 400px;
-    width: auto;
-    height: auto;
+    object-fit: cover;
     display: block;
     cursor: pointer;
     transition: transform 0.2s ease;
@@ -469,6 +472,10 @@
         min-width: 700px;
         max-width: 100%;
     }
+
+    .header-image {
+        min-width: 700px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -496,6 +503,16 @@
         max-width: 100%;
     }
 
+    .header-image {
+        min-width: 100%;
+        max-height: 300px;
+    }
+
+    .month-header {
+        max-height: 300px;
+        padding: 0 0.75rem;
+    }
+
     .calendar-day {
         min-height: 80px;
         padding: 0.25rem;
@@ -516,15 +533,6 @@
     .month-title {
         font-size: 2rem;
     }
-
-    .month-header {
-        max-height: 300px;
-    }
-
-    .header-image {
-        max-height: 300px;
-    }
-
 
     .header-title {
         font-size: 1.25rem;
