@@ -57,51 +57,27 @@
                                 {% for week in month_data.calendar_grid %}
                                     <div class="calendar-week">
                                         {% for day_data in week %}
-                                            <div class="calendar-day {% if day_data.day == 0 %}calendar-day--empty{% endif %} {% if day_data.events %}calendar-day--has-events{% endif %}">
+                                            <div class="calendar-day {% if day_data.day == 0 %}calendar-day--empty{% endif %} {% if day_data.events %}calendar-day--has-events{% endif %} {% if day_data.is_multiple %}calendar-day--multiple{% endif %}">
                                                 {% if day_data.day > 0 %}
                                                     <div class="day-number">{{ day_data.day }}</div>
                                                     {% if day_data.events %}
-                                                        <div class="day-events">
+                                                        <div class="day-events {% if day_data.is_multiple %}day-events--multiple{% endif %}">
                                                             {% if day_data.is_multiple %}
-                                                                <div class="event event--multiple">
-                                                                    <div class="event-image event-image--multiple">
-                                                                        <!-- Show first image as primary, others as small thumbnails -->
-                                                                        {% for event in day_data.events %}
-                                                                            {% if event.image %}
-                                                                                {% if forloop.first %}
-                                                                                    <img src="{{ event.image.url }}"
-                                                                                         alt="{{ day_data.combined_name }}"
-                                                                                         onclick="expandImage(this)"
-                                                                                         data-full-image="{% if event.full_image %}{{ event.full_image.url }}{% else %}{{ event.image.url }}{% endif %}"
-                                                                                         class="primary-image">
-                                                                                {% else %}
-                                                                                    <img src="{{ event.image.url }}"
-                                                                                         alt="{{ event.get_display_name }}"
-                                                                                         onclick="expandImage(this)"
-                                                                                         data-full-image="{% if event.full_image %}{{ event.full_image.url }}{% else %}{{ event.image.url }}{% endif %}"
-                                                                                         class="thumbnail-image">
-                                                                                {% endif %}
-                                                                            {% endif %}
-                                                                        {% endfor %}
-                                                                        <div class="event-count">{{ day_data.events|length }}</div>
-                                                                    </div>
-                                                                    <div class="event-name">{{ day_data.combined_name }}</div>
-                                                                </div>
-                                                            {% else %}
-                                                                {% for event in day_data.events %}
-                                                                    <div class="event">
-                                                                        {% if event.image %}
-                                                                            <div class="event-image">
-                                                                                <img src="{{ event.image.url }}"
-                                                                                     alt="{{ event.get_display_name }}"
-                                                                                     onclick="expandImage(this)"
-                                                                                     data-full-image="{% if event.full_image %}{{ event.full_image.url }}{% else %}{{ event.image.url }}{% endif %}">
-                                                                            </div>
-                                                                        {% endif %}
-                                                                        <div class="event-name">{{ event.get_display_name }}</div>
-                                                                    </div>
-                                                                {% endfor %}
+                                                                <div class="multiple-events-badge">{{ day_data.events|length }} events</div>
                                                             {% endif %}
+                                                            {% for event in day_data.events %}
+                                                                <div class="event">
+                                                                    {% if event.image %}
+                                                                        <div class="event-image">
+                                                                            <img src="{{ event.image.url }}"
+                                                                                 alt="{{ event.get_display_name }}"
+                                                                                 onclick="expandImage(this)"
+                                                                                 data-full-image="{% if event.full_image %}{{ event.full_image.url }}{% else %}{{ event.image.url }}{% endif %}">
+                                                                        </div>
+                                                                    {% endif %}
+                                                                    <div class="event-name">{{ event.get_display_name }}</div>
+                                                                </div>
+                                                            {% endfor %}
                                                         </div>
                                                     {% endif %}
                                                 {% endif %}
@@ -328,6 +304,20 @@
     background: #fefcf7;
 }
 
+.calendar-day--multiple {
+    background: #fef9e7;
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.calendar-day--multiple .day-number {
+    background: var(--primary-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
 .day-number {
     font-weight: 600;
     font-size: 1rem;
@@ -376,63 +366,44 @@
 }
 
 /* Multiple events styling */
-.event--multiple {
-    position: relative;
-}
-
-.event-image--multiple {
-    position: relative;
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
-}
-
-.primary-image {
-    grid-column: 1;
-    grid-row: 1;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.thumbnail-image {
-    grid-column: 1;
-    grid-row: 1;
-    width: 25px;
-    height: 25px;
-    object-fit: cover;
-    border: 2px solid white;
+.day-events--multiple {
+    background: linear-gradient(135deg, #fef9e7 0%, #fef5e7 100%);
+    border-left: 3px solid var(--primary-color);
+    padding: 0.25rem;
     border-radius: 4px;
-    position: absolute;
-    z-index: 10;
 }
 
-.thumbnail-image:nth-of-type(2) {
-    top: 5px;
-    right: 5px;
-}
-
-.thumbnail-image:nth-of-type(3) {
-    top: 5px;
-    right: 32px;
-}
-
-.thumbnail-image:nth-of-type(4) {
-    top: 32px;
-    right: 5px;
-}
-
-.event-count {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    background: rgba(0, 0, 0, 0.7);
+.multiple-events-badge {
+    background: var(--primary-color);
     color: white;
-    font-size: 0.6rem;
+    font-size: 0.65rem;
     font-weight: bold;
-    padding: 2px 4px;
+    padding: 2px 6px;
     border-radius: 3px;
-    z-index: 15;
+    text-align: center;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.day-events--multiple .event {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.day-events--multiple .event:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.day-events--multiple .event-image {
+    height: 50px;
+}
+
+.day-events--multiple .event-name {
+    font-size: 0.7rem;
 }
 
 /* Image Modal */
