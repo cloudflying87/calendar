@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from .models import (
     Calendar, CalendarEvent, CalendarHeader, GeneratedCalendar, Holiday,
     CalendarShare, CalendarInvitation, EventGroup, EventMaster,
-    CalendarYear, UserEventPreferences, CalendarHeaderImage
+    CalendarYear, UserEventPreferences, UserPDFSettings, CalendarHeaderImage
 )
 
 
@@ -185,6 +185,14 @@ class UserEventPreferencesAdmin(admin.ModelAdmin):
     list_display = ['user', 'add_to_master_list', 'show_age_numbers', 'image_combination_layout', 'created_at']
     list_filter = ['add_to_master_list', 'show_age_numbers', 'image_combination_layout', 'created_at']
     search_fields = ['user__username', 'default_groups']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(UserPDFSettings)
+class UserPDFSettingsAdmin(admin.ModelAdmin):
+    list_display = ['user', 'image_size', 'event_text_size', 'day_number_size', 'text_transparency', 'text_bg_color', 'text_position', 'layout_compactness', 'created_at']
+    list_filter = ['image_size', 'event_text_size', 'text_bg_color', 'text_position', 'layout_compactness', 'created_at']
+    search_fields = ['user__username']
     readonly_fields = ['created_at', 'updated_at']
 
 

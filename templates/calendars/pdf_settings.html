@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}PDF Settings - Calendar Builder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header__main">
+        <h1 class="page-title">PDF Settings</h1>
+        <p class="page-description">Customize how your PDFs are generated. These are your defaults - you can override them for specific calendars.</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'calendars:user_preferences' %}" class="btn btn--outline">Back to Preferences</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <h3>Image Settings</h3>
+            <p class="form-section-description">
+                Control the size of event images in your PDF calendars
+            </p>
+
+            <div class="form-group">
+                <label>Image Size</label>
+                <div class="radio-list">
+                    {% for value, label in form.fields.image_size.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="image_size" value="{{ value }}"
+                               {% if settings.image_size == value %}checked{% endif %}>
+                        <span class="radio-text">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Text Settings</h3>
+            <p class="form-section-description">
+                Customize fonts, colors, and transparency for text on images
+            </p>
+
+            <div class="form-group">
+                <label>Event Text Size</label>
+                <div class="radio-list">
+                    {% for value, label in form.fields.event_text_size.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="event_text_size" value="{{ value }}"
+                               {% if settings.event_text_size == value %}checked{% endif %}>
+                        <span class="radio-text">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Day Number Size</label>
+                <div class="radio-list">
+                    {% for value, label in form.fields.day_number_size.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="day_number_size" value="{{ value }}"
+                               {% if settings.day_number_size == value %}checked{% endif %}>
+                        <span class="radio-text">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="text_transparency">
+                    Text Background Transparency: <span id="transparency-value">{{ settings.text_transparency }}%</span>
+                </label>
+                <input type="range" id="text_transparency" name="text_transparency"
+                       min="0" max="100" step="1" value="{{ settings.text_transparency }}"
+                       class="form-range">
+                <small class="form-help">
+                    0% = Fully transparent (text may be hard to read), 100% = Solid background
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>Text Background Color</label>
+                <div class="radio-list">
+                    {% for value, label in form.fields.text_bg_color.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="text_bg_color" value="{{ value }}"
+                               {% if settings.text_bg_color == value %}checked{% endif %}>
+                        <span class="radio-text">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Text Position</label>
+                <div class="radio-list">
+                    {% for value, label in form.fields.text_position.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="text_position" value="{{ value }}"
+                               {% if settings.text_position == value %}checked{% endif %}>
+                        <span class="radio-text">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <small class="form-help">
+                    Note: "Below image" feature coming soon
+                </small>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Layout Settings</h3>
+            <p class="form-section-description">
+                Control spacing and padding around text boxes
+            </p>
+
+            <div class="form-group">
+                <label>Layout Compactness</label>
+                <div class="radio-list">
+                    {% for value, label in form.fields.layout_compactness.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="layout_compactness" value="{{ value }}"
+                               {% if settings.layout_compactness == value %}checked{% endif %}>
+                        <span class="radio-text">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <small class="form-help">
+                    Compact = Less space around text (helpful for preserving faces in photos)<br>
+                    Normal = Balanced spacing (recommended)<br>
+                    Spacious = More space around text (easier to read)
+                </small>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Save Settings</button>
+            <a href="{% url 'calendars:user_preferences' %}" class="btn btn--outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-range {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    outline: none;
+}
+
+.form-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #2563eb;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #2563eb;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+</style>
+
+<script>
+// Update transparency display as slider moves
+document.getElementById('text_transparency').addEventListener('input', function(e) {
+    document.getElementById('transparency-value').textContent = e.target.value + '%';
+});
+</script>
+{% endblock %}
