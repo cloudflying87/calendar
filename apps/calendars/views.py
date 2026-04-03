@@ -1581,31 +1581,19 @@ class BulkDeleteEventsView(View):
         return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
 
 
-class PublicCalendarView(DetailView):
-    """Public view for calendars shared via token - no login required"""
-    model = Calendar
-    template_name = 'calendars/public_calendar_detail.html'
-    context_object_name = 'calendar'
-    slug_field = 'public_share_token'
-    slug_url_kwarg = 'token'
+class PublicCalendarView(View):
+    """Public view for calendars shared via token - redirects to digital calendar"""
 
-    def get_queryset(self):
-        # Only show publicly shared calendars
-        return Calendar.objects.filter(is_publicly_shared=True, public_share_token__isnull=False)
+    def get(self, request, token):
+        # Get the calendar by token
+        calendar = get_object_or_404(
+            Calendar,
+            public_share_token=token,
+            is_publicly_shared=True
+        )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        calendar = self.object
-
-        # Get events organized by month (similar to private view but simplified)
-        events_by_month = {}
-        for month in range(1, 13):
-            events_by_month[month] = calendar.events.filter(month=month).order_by('day')
-
-        context['events_by_month'] = events_by_month
-        context['is_public_view'] = True
-        context['calendar_owner'] = calendar.user
-        return context
+        # Redirect to digital calendar view
+        return redirect('calendars:digital_calendar', calendar_id=calendar.id)
 
 
 @method_decorator(login_required, name='dispatch')
