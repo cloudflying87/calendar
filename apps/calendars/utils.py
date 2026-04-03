@@ -387,9 +387,9 @@ class CalendarPDFGenerator:
                 display_name = event.get_display_name()
             optimal_font_size = self.get_optimal_font_size(display_name, 15)
 
-            # Same font size for all month types
-            font_size = optimal_font_size + 2
-            leading = optimal_font_size + 3
+            # Same font size for all month types - no bonus
+            font_size = optimal_font_size
+            leading = optimal_font_size + 1
 
             # Semi-transparent white background for readability over images
             event_style = ParagraphStyle(
