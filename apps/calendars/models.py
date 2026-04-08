@@ -420,8 +420,12 @@ class UserPDFSettings(models.Model):
         return {'small': 14, 'medium': 16, 'large': 18}[self.day_number_size]
 
     def get_alpha_value(self):
-        """Convert transparency percentage to 0.0-1.0 alpha value"""
-        return self.text_transparency / 100.0
+        """Convert transparency percentage to 0.0-1.0 alpha value
+
+        0% transparency = 1.0 alpha (fully opaque, solid background)
+        100% transparency = 0.0 alpha (fully transparent, no background)
+        """
+        return (100 - self.text_transparency) / 100.0
 
     def get_text_color(self):
         """Get text color based on background color setting"""
