@@ -788,23 +788,7 @@ class GenerateCalendarView(View):
     def post(self, request, year):
         calendar = get_calendar_or_404(year, request.user)
         generation_type = request.POST.get('generation_type', 'calendar_only')
-        action = request.POST.get('action', 'generate')
-
-        # Check if a calendar of this type already exists
-        existing_calendar = GeneratedCalendar.objects.filter(
-            calendar=calendar,
-            generation_type=generation_type
-        ).first()
-
-        # If existing calendar found and no action specified, ask user what to do
-        if existing_calendar and action == 'generate':
-            return render(request, 'calendars/pdf_generation_conflict.html', {
-                'calendar': calendar,
-                'generation_type': generation_type,
-                'generation_type_display': dict(GeneratedCalendar._meta.get_field('generation_type').choices)[generation_type],
-                'existing_calendar': existing_calendar,
-                'year': year
-            })
+        pdf_name = request.POST.get('pdf_name', '').strip()  # Get custom name
 
         try:
             generator = CalendarPDFGenerator(calendar)
@@ -819,50 +803,18 @@ class GenerateCalendarView(View):
                 messages.error(request, "Invalid generation type.")
                 return redirect('calendars:calendar_detail', year=year)
 
-            # Handle the action based on user choice
-            if action == 'overwrite' and existing_calendar:
-                # Delete the old PDF file if it exists
-                if existing_calendar.pdf_file and os.path.exists(existing_calendar.pdf_file.path):
-                    try:
-                        os.unlink(existing_calendar.pdf_file.path)
-                    except OSError:
-                        pass  # File might already be deleted
+            # Always create a new PDF (no more conflict checking)
+            generated_calendar = GeneratedCalendar.objects.create(
+                calendar=calendar,
+                pdf_file=pdf_file,
+                generation_type=generation_type,
+                name=pdf_name if pdf_name else ''
+            )
 
-                # Update existing record
-                existing_calendar.pdf_file = pdf_file
-                existing_calendar.created_at = timezone.now()
-                existing_calendar.save()
-                generated_calendar = existing_calendar
-                action_message = "overwritten"
-
-            elif action == 'create_new':
-                # Remove unique constraint temporarily by deleting existing
-                if existing_calendar:
-                    if existing_calendar.pdf_file and os.path.exists(existing_calendar.pdf_file.path):
-                        try:
-                            os.unlink(existing_calendar.pdf_file.path)
-                        except OSError:
-                            pass
-                    existing_calendar.delete()
-
-                # Create new record
-                generated_calendar = GeneratedCalendar.objects.create(
-                    calendar=calendar,
-                    pdf_file=pdf_file,
-                    generation_type=generation_type
-                )
-                action_message = "created"
-
+            if pdf_name:
+                messages.success(request, f"Calendar '{pdf_name}' generated successfully! Type: {generated_calendar.get_generation_type_display()}")
             else:
-                # First time generation
-                generated_calendar = GeneratedCalendar.objects.create(
-                    calendar=calendar,
-                    pdf_file=pdf_file,
-                    generation_type=generation_type
-                )
-                action_message = "generated"
-
-            messages.success(request, f"Calendar {action_message} successfully! Type: {generated_calendar.get_generation_type_display()}")
+                messages.success(request, f"Calendar generated successfully! Type: {generated_calendar.get_generation_type_display()}")
 
         except Exception as e:
             messages.error(request, f"Error generating calendar: {str(e)}")
@@ -893,6 +845,36 @@ class DownloadCalendarView(View):
             messages.error(request, "No generated calendar found. Please generate one first.")
 
         return redirect('calendars:calendar_detail', year=year)
+
+
+class DownloadCalendarByIdView(View):
+    """Download a specific generated PDF by its ID"""
+    def get(self, request, pdf_id):
+        generated_calendar = get_object_or_404(GeneratedCalendar, id=pdf_id, calendar__user=request.user)
+
+        try:
+            if os.path.exists(generated_calendar.pdf_file.path):
+                # Create filename based on name if available
+                if generated_calendar.name:
+                    filename = f"{generated_calendar.name}.pdf"
+                else:
+                    filename = f"calendar_{generated_calendar.calendar.year}_{generated_calendar.generation_type}.pdf"
+
+                # Replace unsafe characters in filename
+                filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).strip()
+
+                return FileResponse(
+                    open(generated_calendar.pdf_file.path, 'rb'),
+                    as_attachment=True,
+                    filename=filename
+                )
+            else:
+                messages.error(request, "PDF file not found.")
+
+        except Exception as e:
+            messages.error(request, f"Error downloading PDF: {str(e)}")
+
+        return redirect('calendars:calendar_detail', year=generated_calendar.calendar.year)
 
 
 class ExportCalendarICSView(View):
@@ -2440,6 +2422,36 @@ class CalendarPDFViewerView(LoginRequiredMixin, TemplateView):
             'generated_pdf': generated_pdf,
             'pdf_url': pdf_url,
             'generation_type': generation_type,
+        })
+        return context
+
+
+class CalendarPDFViewerByIdView(LoginRequiredMixin, TemplateView):
+    """View to display a specific generated PDF by its ID"""
+    template_name = 'calendars/pdf_viewer.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pdf_id = kwargs.get('pdf_id')
+
+        # Get the generated PDF
+        from .models import GeneratedCalendar
+        generated_pdf = get_object_or_404(GeneratedCalendar, id=pdf_id, calendar__user=self.request.user)
+
+        # Create the PDF URL for the viewer
+        pdf_url = self.request.build_absolute_uri(
+            reverse('calendars:download_calendar_by_id', kwargs={'pdf_id': pdf_id})
+        )
+
+        # Ensure HTTPS in production
+        if not self.request.is_secure() and 'localhost' not in pdf_url and '127.0.0.1' not in pdf_url:
+            pdf_url = pdf_url.replace('http://', 'https://', 1)
+
+        context.update({
+            'calendar': generated_pdf.calendar,
+            'generated_pdf': generated_pdf,
+            'pdf_url': pdf_url,
+            'generation_type': generated_pdf.generation_type,
         })
         return context
 

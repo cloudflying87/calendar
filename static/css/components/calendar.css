@@ -656,6 +656,12 @@ textarea:focus {
     gap: var(--spacing-xs);
 }
 
+.download-item__type {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: normal;
+}
+
 .download-item__date {
     font-size: 0.875rem;
     color: var(--text-secondary);

@@ -1062,6 +1062,11 @@ class GeneratedCalendar(models.Model):
     """Model for storing generated calendar PDFs"""
     calendar = models.ForeignKey(Calendar, on_delete=models.CASCADE, related_name='generated_pdfs')
     pdf_file = models.FileField(upload_to='generated_calendars/')
+    name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional custom name for this PDF (e.g., 'Final Version', 'For Grandma')"
+    )
     generation_type = models.CharField(
         max_length=50,
         choices=[
@@ -1075,10 +1080,18 @@ class GeneratedCalendar(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = [['calendar', 'generation_type']]
+        # Removed unique_together to allow multiple PDFs of same type with different names
 
     def __str__(self):
-        return f"{self.calendar.year} - {self.get_generation_type_display()}"
+        if self.name:
+            return f"{self.calendar.year} - {self.name} ({self.get_generation_type_display()})"
+        return f"{self.calendar.year} - {self.get_generation_type_display()} - {self.created_at.strftime('%m/%d %H:%M')}"
+
+    def get_display_name(self):
+        """Get a friendly display name for this PDF"""
+        if self.name:
+            return self.name
+        return f"{self.get_generation_type_display()} - {self.created_at.strftime('%b %d, %Y at %I:%M %p')}"
 
 
 class Holiday(models.Model):

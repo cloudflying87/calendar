@@ -266,6 +266,10 @@ class CalendarPDFGenerator:
                         num_weeks = getattr(self, 'current_month_weeks', 5)
                         multiplier = self.settings_obj.get_image_multiplier()
 
+                        # Apply 80% reduction for 6-week months
+                        if num_weeks == 6:
+                            multiplier = multiplier * 0.8
+
                         # Base dimensions for each week count
                         base_dimensions = {
                             4: {'thumbnail': (200, 150), 'display': (105, 80)},
@@ -405,11 +409,17 @@ class CalendarPDFGenerator:
 
             # Same font size for all month types - no bonus
             font_size = optimal_font_size
-            leading = optimal_font_size + 1
 
             # Get padding from user settings
             num_weeks = getattr(self, 'current_month_weeks', 5)
             text_padding = self.settings_obj.get_padding(num_weeks)['text']
+
+            # Apply 80% reduction for 6-week months
+            if num_weeks == 6:
+                font_size = font_size * 0.8
+                text_padding = text_padding * 0.8
+
+            leading = font_size + 1
 
             # Background styling based on user settings
             event_style = ParagraphStyle(
