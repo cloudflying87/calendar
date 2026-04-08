@@ -169,6 +169,44 @@
     cursor: pointer;
     border: none;
 }
+
+.radio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.radio-list .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.radio-list .radio-label:hover {
+    background: #f9fafb;
+    border-color: #2563eb;
+}
+
+.radio-list .radio-label input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.radio-list .radio-label .radio-text {
+    flex: 1;
+    color: #1f2937;
+}
+
+.radio-list .radio-label input[type="radio"]:checked ~ .radio-text {
+    font-weight: 600;
+    color: #2563eb;
+}
 </style>
 
 <script>

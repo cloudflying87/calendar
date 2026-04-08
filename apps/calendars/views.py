@@ -830,6 +830,62 @@ class GenerateCalendarView(View):
 
 
 @method_decorator(login_required, name='dispatch')
+class GenerateWithSettingsView(View):
+    """Generate PDF with custom settings saved as calendar overrides"""
+    def post(self, request, calendar_id):
+        from .permissions import get_user_calendars
+        calendar = get_object_or_404(get_user_calendars(request.user), id=calendar_id)
+
+        generation_type = request.POST.get('generation_type', 'calendar_only')
+        pdf_name = request.POST.get('pdf_name', '').strip()
+
+        # Save settings as calendar overrides
+        calendar.pdf_override_image_size = request.POST.get('image_size')
+        calendar.pdf_override_event_text_size = request.POST.get('event_text_size')
+        calendar.pdf_override_day_number_size = request.POST.get('day_number_size')
+        calendar.pdf_override_text_bg_color = request.POST.get('text_bg_color')
+        calendar.pdf_override_text_transparency = request.POST.get('text_transparency')
+        calendar.pdf_override_text_position = request.POST.get('text_position')
+        calendar.pdf_override_layout_compactness = request.POST.get('layout_compactness')
+        calendar.save()
+
+        try:
+            generator = CalendarPDFGenerator(calendar)
+
+            if generation_type == 'calendar_only':
+                pdf_file = generator.generate_calendar_only()
+            elif generation_type == 'with_headers':
+                pdf_file = generator.generate_combined_spread()
+            elif generation_type == 'combined':
+                pdf_file = generator.generate_with_headers()
+            else:
+                messages.error(request, "Invalid generation type.")
+                return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+            # Create new PDF
+            generated_calendar = GeneratedCalendar.objects.create(
+                calendar=calendar,
+                pdf_file=pdf_file,
+                generation_type=generation_type,
+                name=pdf_name if pdf_name else ''
+            )
+
+            if pdf_name:
+                messages.success(request, f"Calendar '{pdf_name}' generated successfully with custom settings!")
+            else:
+                messages.success(request, "Calendar generated successfully with custom settings!")
+
+        except Exception as e:
+            messages.error(request, f"Error generating calendar: {str(e)}")
+
+        # Redirect back to the referring page
+        referrer = request.META.get('HTTP_REFERER')
+        if referrer:
+            return redirect(referrer)
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar.id)
+
+
+@method_decorator(login_required, name='dispatch')
 class DownloadCalendarView(View):
     def get(self, request, year, generation_type):
         calendar = get_calendar_or_404(year, request.user)

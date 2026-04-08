@@ -537,9 +537,9 @@ function copyPublicUrl() {
     background: white;
     border-radius: var(--border-radius);
     padding: 2rem;
-    max-width: 500px;
+    max-width: 600px;
     width: 90%;
-    max-height: 80vh;
+    max-height: 85vh;
     overflow-y: auto;
 }
 
@@ -589,61 +589,233 @@ function copyPublicUrl() {
     display: flex;
     gap: 1rem;
     justify-content: flex-end;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.pdf-settings-form {
+    margin-bottom: 0;
+}
+
+.pdf-settings-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.radio-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.radio-group-vertical .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.radio-group-vertical .radio-label:hover {
+    background: var(--color-background-light);
+    border-color: var(--color-primary);
+}
+
+.radio-group-vertical .radio-label input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.radio-group-vertical .radio-label span {
+    flex: 1;
+    color: var(--color-text-primary);
+}
+
+.radio-group-vertical .radio-label input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.form-range {
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-border);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.form-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+    border: none;
 }
 </style>
 
 <!-- PDF Settings Confirmation Modal -->
 <div id="pdfSettingsModal" class="pdf-settings-modal">
     <div class="pdf-settings-modal__content">
-        <div class="pdf-settings-modal__header">
-            <h3>📄 PDF Generation Settings</h3>
-            <p>These settings will be used to generate your PDF</p>
-        </div>
-        <ul class="pdf-settings-list">
-            <li>
-                <span class="pdf-settings-list__label">Image Size:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.image_size|title }}</span>
-            </li>
-            <li>
-                <span class="pdf-settings-list__label">Event Text Size:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.event_text_size|title }}</span>
-            </li>
-            <li>
-                <span class="pdf-settings-list__label">Day Number Size:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.day_number_size|title }}</span>
-            </li>
-            <li>
-                <span class="pdf-settings-list__label">Text Background:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.text_bg_color|title }}</span>
-            </li>
-            <li>
-                <span class="pdf-settings-list__label">Text Transparency:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.text_transparency }}%</span>
-            </li>
-            <li>
-                <span class="pdf-settings-list__label">Text Position:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.text_position|title|replace:"_":" " }}</span>
-            </li>
-            <li>
-                <span class="pdf-settings-list__label">Layout:</span>
-                <span class="pdf-settings-list__value">{{ pdf_settings.layout_compactness|title }}</span>
-            </li>
-        </ul>
-        <div class="pdf-settings-modal__actions">
-            <button type="button" id="cancelGeneration" class="btn btn--secondary">Cancel</button>
-            <button type="button" id="confirmGeneration" class="btn btn--success">Generate PDF</button>
-        </div>
+        <form method="post" id="pdfSettingsForm" action="{% url 'calendars:generate_with_settings' calendar_id=calendar.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="generation_type" id="modal_generation_type">
+            <input type="hidden" name="pdf_name" id="modal_pdf_name">
+
+            <div class="pdf-settings-modal__header">
+                <h3>📄 PDF Generation Settings</h3>
+                <p>Customize settings for this calendar (optional)</p>
+            </div>
+
+            <div class="pdf-settings-form">
+                <div class="form-group">
+                    <label class="form-label">Image Size</label>
+                    <div class="radio-group-vertical">
+                        <label class="radio-label">
+                            <input type="radio" name="image_size" value="small" {% if pdf_settings.image_size == 'small' %}checked{% endif %}>
+                            <span>Small - Compact layout</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="image_size" value="medium" {% if pdf_settings.image_size == 'medium' %}checked{% endif %}>
+                            <span>Medium - Balanced (default)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="image_size" value="large" {% if pdf_settings.image_size == 'large' %}checked{% endif %}>
+                            <span>Large - Maximum size</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Event Text Size</label>
+                    <div class="radio-group-vertical">
+                        <label class="radio-label">
+                            <input type="radio" name="event_text_size" value="small" {% if pdf_settings.event_text_size == 'small' %}checked{% endif %}>
+                            <span>Small - 8-9pt</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="event_text_size" value="medium" {% if pdf_settings.event_text_size == 'medium' %}checked{% endif %}>
+                            <span>Medium - 9-10pt (default)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="event_text_size" value="large" {% if pdf_settings.event_text_size == 'large' %}checked{% endif %}>
+                            <span>Large - 10-11pt</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Day Number Size</label>
+                    <div class="radio-group-vertical">
+                        <label class="radio-label">
+                            <input type="radio" name="day_number_size" value="small" {% if pdf_settings.day_number_size == 'small' %}checked{% endif %}>
+                            <span>Small - 8-9pt</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="day_number_size" value="medium" {% if pdf_settings.day_number_size == 'medium' %}checked{% endif %}>
+                            <span>Medium - 9-10pt (default)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="day_number_size" value="large" {% if pdf_settings.day_number_size == 'large' %}checked{% endif %}>
+                            <span>Large - 10-11pt</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Text Background Color</label>
+                    <div class="radio-group-vertical">
+                        <label class="radio-label">
+                            <input type="radio" name="text_bg_color" value="white" {% if pdf_settings.text_bg_color == 'white' %}checked{% endif %}>
+                            <span>White background</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="text_bg_color" value="black" {% if pdf_settings.text_bg_color == 'black' %}checked{% endif %}>
+                            <span>Black background</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Text Background Transparency: <span id="transparencyValue">{{ pdf_settings.text_transparency }}</span>%</label>
+                    <input type="range" name="text_transparency" min="0" max="100" step="1" value="{{ pdf_settings.text_transparency }}" class="form-range" id="transparencySlider">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Text Position</label>
+                    <div class="radio-group-vertical">
+                        <label class="radio-label">
+                            <input type="radio" name="text_position" value="top_overlay" {% if pdf_settings.text_position == 'top_overlay' %}checked{% endif %}>
+                            <span>Top of image</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="text_position" value="bottom_overlay" {% if pdf_settings.text_position == 'bottom_overlay' %}checked{% endif %}>
+                            <span>Bottom of image (default)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="text_position" value="below_image" {% if pdf_settings.text_position == 'below_image' %}checked{% endif %}>
+                            <span>Below image</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Layout Compactness</label>
+                    <div class="radio-group-vertical">
+                        <label class="radio-label">
+                            <input type="radio" name="layout_compactness" value="compact" {% if pdf_settings.layout_compactness == 'compact' %}checked{% endif %}>
+                            <span>Compact - Minimal spacing</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="layout_compactness" value="normal" {% if pdf_settings.layout_compactness == 'normal' %}checked{% endif %}>
+                            <span>Normal - Balanced spacing (default)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="layout_compactness" value="spacious" {% if pdf_settings.layout_compactness == 'spacious' %}checked{% endif %}>
+                            <span>Spacious - Maximum spacing</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pdf-settings-modal__actions">
+                <button type="button" id="cancelGeneration" class="btn btn--secondary">Cancel</button>
+                <button type="submit" class="btn btn--success">Generate PDF</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('pdfGenerationForm');
+    const mainForm = document.getElementById('pdfGenerationForm');
     const showBtn = document.getElementById('showSettingsBtn');
     const modal = document.getElementById('pdfSettingsModal');
+    const modalForm = document.getElementById('pdfSettingsForm');
     const cancelBtn = document.getElementById('cancelGeneration');
-    const confirmBtn = document.getElementById('confirmGeneration');
     const generationTypeSelect = document.getElementById('generation_type');
+    const pdfNameInput = document.getElementById('pdf_name');
+    const transparencySlider = document.getElementById('transparencySlider');
+    const transparencyValue = document.getElementById('transparencyValue');
+
+    // Update transparency value display
+    transparencySlider.addEventListener('input', function() {
+        transparencyValue.textContent = this.value;
+    });
 
     showBtn.addEventListener('click', function() {
         // Validate that generation type is selected
@@ -651,17 +823,17 @@ document.addEventListener('DOMContentLoaded', function() {
             generationTypeSelect.focus();
             return;
         }
+
+        // Copy values from main form to modal hidden fields
+        document.getElementById('modal_generation_type').value = generationTypeSelect.value;
+        document.getElementById('modal_pdf_name').value = pdfNameInput.value;
+
         // Show modal
         modal.classList.add('active');
     });
 
     cancelBtn.addEventListener('click', function() {
         modal.classList.remove('active');
-    });
-
-    confirmBtn.addEventListener('click', function() {
-        // Submit the form
-        form.submit();
     });
 
     // Close modal on background click
