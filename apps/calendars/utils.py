@@ -463,7 +463,7 @@ class CalendarPDFGenerator:
 
         mini_table = CellTable(cell_data, colWidths=[1.4*inch], rowHeights=row_heights)
 
-        # Build table style - align text to bottom of cell
+        # Build table style
         table_style = [
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Center all content
             ('VALIGN', (0, 0), (0, 0), 'TOP'),      # First row (day/image) at top
@@ -473,9 +473,18 @@ class CalendarPDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
         ]
 
-        # If there's a text row (event name), align it to bottom
-        if len(cell_data) >= 2:
-            table_style.append(('VALIGN', (0, -1), (0, -1), 'BOTTOM'))  # Last row at bottom
+        # Position event text based on text_position setting
+        if len(cell_data) >= 2:  # If there's a text row (event name)
+            text_position = self.settings_obj.text_position
+            if text_position == 'below_image':
+                # Text anchored to bottom of cell (spaced from image)
+                table_style.append(('VALIGN', (0, -1), (0, -1), 'BOTTOM'))
+            elif text_position == 'top_overlay':
+                # Text close to top of image
+                table_style.append(('VALIGN', (0, -1), (0, -1), 'TOP'))
+            else:  # bottom_overlay (default)
+                # Text in middle (closer to image)
+                table_style.append(('VALIGN', (0, -1), (0, -1), 'MIDDLE'))
 
         mini_table.setStyle(TableStyle(table_style))
 
