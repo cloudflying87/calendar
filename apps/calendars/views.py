@@ -1859,6 +1859,40 @@ class MasterEventProcessCropView(View):
 
 
 @method_decorator(login_required, name='dispatch')
+class MasterEventRecropView(View):
+    """Re-crop an existing master event using its full_image"""
+
+    def get(self, request, pk):
+        from .models import EventMaster
+        from django.core.files.storage import default_storage
+        import uuid
+        import shutil
+
+        event = get_object_or_404(EventMaster, pk=pk, user=request.user)
+
+        # Check if full image exists
+        if not event.full_image:
+            messages.error(request, "No full resolution image found for this event. Please upload a new photo.")
+            return redirect('calendars:master_events')
+
+        try:
+            # Copy full_image to temp location for cropping
+            temp_filename = f"{uuid.uuid4()}.jpg"
+            temp_path = f"temp/{temp_filename}"
+
+            # Copy the full image to temp storage
+            with event.full_image.open('rb') as source:
+                default_storage.save(temp_path, source)
+
+            # Redirect to crop view with temp image
+            return redirect(f"{reverse('calendars:master_event_crop_photo', kwargs={'pk': event.id})}?temp_image={temp_filename}")
+
+        except Exception as e:
+            messages.error(request, f"Error preparing image for cropping: {str(e)}")
+            return redirect('calendars:master_events')
+
+
+@method_decorator(login_required, name='dispatch')
 class EditEventPhotoView(View):
     """Edit photo for an existing event using the unified photo editor"""
     def get(self, request, event_id):

@@ -93,6 +93,11 @@
                             <a href="{% url 'calendars:master_event_edit' pk=event.pk %}" class="btn btn--small btn--secondary">📝 Edit Info</a>
                             <a href="{% url 'calendars:unified_photo_editor' %}?master_event_id={{ event.pk }}" class="btn btn--small btn--outline">📷 Edit Photo</a>
                         </div>
+                        {% if event.full_image %}
+                        <div class="action-row">
+                            <a href="{% url 'calendars:master_event_recrop' pk=event.pk %}" class="btn btn--small btn--primary btn--full-width">✂️ Re-crop from Full Image</a>
+                        </div>
+                        {% endif %}
                         <a href="{% url 'calendars:master_event_delete' pk=event.pk %}" class="btn btn--small btn--danger btn--full-width">Delete</a>
                     </div>
                 </div>

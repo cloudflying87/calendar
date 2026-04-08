@@ -72,6 +72,7 @@ urlpatterns = [
     path('master-events/<int:pk>/remove-image/', views_events.MasterEventRemoveImageView.as_view(), name='master_event_remove_image'),
     path('master-events/<int:pk>/crop-photo/', views.MasterEventPhotoCropView.as_view(), name='master_event_crop_photo'),
     path('master-events/<int:pk>/process-crop/', views.MasterEventProcessCropView.as_view(), name='master_event_process_crop'),
+    path('master-events/<int:pk>/re-crop/', views.MasterEventRecropView.as_view(), name='master_event_recrop'),
     path('master-events/export/', views_events.ExportMasterEventsView.as_view(), name='export_master_events'),
     path('master-events/import/', views_events.ImportMasterEventsView.as_view(), name='import_master_events'),
     path('master-events/delete-all/', views_events.DeleteAllMasterEventsView.as_view(), name='delete_all_master_events'),
