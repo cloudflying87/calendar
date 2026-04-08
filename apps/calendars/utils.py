@@ -421,7 +421,7 @@ class CalendarPDFGenerator:
 
             leading = font_size + 1
 
-            # Background styling based on user settings
+            # Text styling based on user settings
             event_style = ParagraphStyle(
                 'EventStyle',
                 parent=self.styles['Normal'],
@@ -430,11 +430,25 @@ class CalendarPDFGenerator:
                 fontName='Helvetica-Oblique',  # Italic for event names
                 leading=leading,  # Adjusted line spacing
                 textColor=self.settings_obj.get_text_color(),
-                backColor=self.settings_obj.get_background_color(),
                 borderPadding=text_padding,
                 wordWrap='LTR'  # Enable word wrapping
             )
-            cell_data.append([Paragraph(display_name, event_style)])
+
+            # Wrap text in a small table with background to cover grid lines
+            text_paragraph = Paragraph(display_name, event_style)
+            text_bg_color = self.settings_obj.get_background_color()
+            text_wrapper = CellTable([[text_paragraph]], colWidths=[1.38*inch])
+            text_wrapper.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), text_bg_color),
+                ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+                ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (0, 0), 2),
+                ('RIGHTPADDING', (0, 0), (0, 0), 2),
+                ('TOPPADDING', (0, 0), (0, 0), 2),
+                ('BOTTOMPADDING', (0, 0), (0, 0), 2),
+            ]))
+
+            cell_data.append([text_wrapper])
 
         # Create mini table for this cell - larger to fill space
         mini_table = CellTable(cell_data, colWidths=[1.4*inch])
