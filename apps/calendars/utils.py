@@ -462,16 +462,22 @@ class CalendarPDFGenerator:
             row_heights = [available_height]
 
         mini_table = CellTable(cell_data, colWidths=[1.4*inch], rowHeights=row_heights)
-        mini_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),     # Day number aligned left
-            ('ALIGN', (0, 1), (-1, -1), 'CENTER'), # Image and text centered
-            ('VALIGN', (0, 0), (0, 0), 'TOP'),     # Day number at top
-            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'), # Image and text centered
+
+        # Build table style - align text to bottom of cell
+        table_style = [
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Center all content
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),      # First row (day/image) at top
             ('LEFTPADDING', (0, 0), (-1, -1), 1),
             ('RIGHTPADDING', (0, 0), (-1, -1), 1),
             ('TOPPADDING', (0, 0), (-1, -1), 1),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-        ]))
+        ]
+
+        # If there's a text row (event name), align it to bottom
+        if len(cell_data) >= 2:
+            table_style.append(('VALIGN', (0, -1), (0, -1), 'BOTTOM'))  # Last row at bottom
+
+        mini_table.setStyle(TableStyle(table_style))
 
         return mini_table
 
