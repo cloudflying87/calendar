@@ -210,7 +210,7 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
             context['public_share_url'] = self.object.get_public_share_url(self.request)
 
         # Add PDF settings for confirmation popup
-        context['pdf_settings'] = self.object.get_pdf_settings()
+        context['pdf_settings'] = self.object.get_effective_pdf_settings()
 
         return context
 
