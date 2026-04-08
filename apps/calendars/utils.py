@@ -266,9 +266,9 @@ class CalendarPDFGenerator:
                         num_weeks = getattr(self, 'current_month_weeks', 5)
                         multiplier = self.settings_obj.get_image_multiplier()
 
-                        # Apply 80% reduction for 6-week months
+                        # Apply 95% reduction for 6-week months (slight reduction for better fit)
                         if num_weeks == 6:
-                            multiplier = multiplier * 0.8
+                            multiplier = multiplier * 0.95
 
                         # Base dimensions for each week count
                         base_dimensions = {
@@ -414,10 +414,21 @@ class CalendarPDFGenerator:
             num_weeks = getattr(self, 'current_month_weeks', 5)
             text_padding = self.settings_obj.get_padding(num_weeks)['text']
 
-            # Apply 80% reduction for 6-week months
+            # For 6-week months, estimate if text will wrap to multiple lines
             if num_weeks == 6:
-                font_size = font_size * 0.8
-                text_padding = text_padding * 0.8
+                # Estimate text width: average 0.6 * font_size per character for italic
+                estimated_text_width = len(display_name) * 0.6 * font_size
+                # Available width is approximately 1.35 inches = 97 points
+                available_width = 97
+
+                # If text will wrap to 2+ lines, use 80% reduction
+                if estimated_text_width > available_width:
+                    font_size = font_size * 0.8
+                    text_padding = text_padding * 0.8
+                else:
+                    # Single line text: use 95% (slight reduction but still readable)
+                    font_size = font_size * 0.95
+                    text_padding = text_padding * 0.95
 
             leading = font_size + 1
 
