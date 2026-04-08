@@ -844,7 +844,11 @@ class GenerateWithSettingsView(View):
         calendar.pdf_override_event_text_size = request.POST.get('event_text_size')
         calendar.pdf_override_day_number_size = request.POST.get('day_number_size')
         calendar.pdf_override_text_bg_color = request.POST.get('text_bg_color')
-        calendar.pdf_override_text_transparency = request.POST.get('text_transparency')
+
+        # Convert text_transparency to integer
+        transparency = request.POST.get('text_transparency')
+        calendar.pdf_override_text_transparency = int(transparency) if transparency else None
+
         calendar.pdf_override_text_position = request.POST.get('text_position')
         calendar.pdf_override_layout_compactness = request.POST.get('layout_compactness')
         calendar.save()

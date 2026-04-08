@@ -544,11 +544,11 @@ function copyPublicUrl() {
 }
 
 .pdf-settings-modal__header {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .pdf-settings-modal__header h3 {
-    margin: 0 0 0.5rem 0;
+    margin: 0 0 0.25rem 0;
     color: var(--color-text-primary);
 }
 
@@ -589,8 +589,8 @@ function copyPublicUrl() {
     display: flex;
     gap: 1rem;
     justify-content: flex-end;
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
     border-top: 1px solid var(--color-border);
 }
 
@@ -599,13 +599,20 @@ function copyPublicUrl() {
 }
 
 .pdf-settings-form .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.pdf-settings-form .form-label {
+    margin-bottom: 0.5rem;
+    display: block;
+    font-weight: 500;
+    color: var(--color-text-primary);
 }
 
 .radio-group-vertical {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .radio-group-vertical .radio-label {
@@ -643,9 +650,17 @@ function copyPublicUrl() {
     width: 100%;
     height: 8px;
     border-radius: 4px;
-    background: var(--color-border);
+    background: transparent;
     outline: none;
     -webkit-appearance: none;
+    margin: 0.5rem 0;
+}
+
+.form-range::-webkit-slider-track {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
 }
 
 .form-range::-webkit-slider-thumb {
@@ -656,6 +671,14 @@ function copyPublicUrl() {
     border-radius: 50%;
     background: var(--color-primary);
     cursor: pointer;
+    margin-top: -6px;
+}
+
+.form-range::-moz-range-track {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
 }
 
 .form-range::-moz-range-thumb {
