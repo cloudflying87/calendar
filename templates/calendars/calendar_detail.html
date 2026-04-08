@@ -90,7 +90,7 @@
                 📥 Export to Calendar App
             </a>
         </div>
-        <form method="post" action="{% url 'calendars:generate_calendar' year=calendar.year %}" class="pdf-generation-form" style="margin-top: 1rem;">
+        <form method="post" action="{% url 'calendars:generate_calendar' year=calendar.year %}" class="pdf-generation-form" id="pdfGenerationForm" style="margin-top: 1rem;">
             {% csrf_token %}
             <div class="form-group">
                 <label for="pdf_name" class="form-label">PDF Name (Optional)</label>
@@ -98,7 +98,7 @@
                 <p class="form-help">Give this PDF a custom name to help you identify it later</p>
             </div>
             <div class="form-group form-group--inline">
-                <select name="generation_type" class="form-select" required>
+                <select name="generation_type" id="generation_type" class="form-select" required>
                     <option value="">Select PDF format...</option>
                     <option value="calendar_only">Calendar Only</option>
                     {% if has_header %}
@@ -106,7 +106,7 @@
                         <option value="combined">Combined Spread</option>
                     {% endif %}
                 </select>
-                <button type="submit" class="btn btn--success">Generate PDF</button>
+                <button type="button" id="showSettingsBtn" class="btn btn--success">Generate PDF</button>
             </div>
         </form>
     </div>
@@ -514,5 +514,162 @@ function copyPublicUrl() {
     color: var(--color-text-secondary);
     font-size: 0.875rem;
 }
+
+/* PDF Settings Modal */
+.pdf-settings-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.pdf-settings-modal.active {
+    display: flex;
+}
+
+.pdf-settings-modal__content {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.pdf-settings-modal__header {
+    margin-bottom: 1.5rem;
+}
+
+.pdf-settings-modal__header h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
+}
+
+.pdf-settings-modal__header p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.pdf-settings-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem 0;
+}
+
+.pdf-settings-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pdf-settings-list li:last-child {
+    border-bottom: none;
+}
+
+.pdf-settings-list__label {
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.pdf-settings-list__value {
+    color: var(--color-text-secondary);
+    text-align: right;
+}
+
+.pdf-settings-modal__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
 </style>
+
+<!-- PDF Settings Confirmation Modal -->
+<div id="pdfSettingsModal" class="pdf-settings-modal">
+    <div class="pdf-settings-modal__content">
+        <div class="pdf-settings-modal__header">
+            <h3>📄 PDF Generation Settings</h3>
+            <p>These settings will be used to generate your PDF</p>
+        </div>
+        <ul class="pdf-settings-list">
+            <li>
+                <span class="pdf-settings-list__label">Image Size:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.image_size|title }}</span>
+            </li>
+            <li>
+                <span class="pdf-settings-list__label">Event Text Size:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.event_text_size|title }}</span>
+            </li>
+            <li>
+                <span class="pdf-settings-list__label">Day Number Size:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.day_number_size|title }}</span>
+            </li>
+            <li>
+                <span class="pdf-settings-list__label">Text Background:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.text_bg_color|title }}</span>
+            </li>
+            <li>
+                <span class="pdf-settings-list__label">Text Transparency:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.text_transparency }}%</span>
+            </li>
+            <li>
+                <span class="pdf-settings-list__label">Text Position:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.text_position|title|replace:"_":" " }}</span>
+            </li>
+            <li>
+                <span class="pdf-settings-list__label">Layout:</span>
+                <span class="pdf-settings-list__value">{{ pdf_settings.layout_compactness|title }}</span>
+            </li>
+        </ul>
+        <div class="pdf-settings-modal__actions">
+            <button type="button" id="cancelGeneration" class="btn btn--secondary">Cancel</button>
+            <button type="button" id="confirmGeneration" class="btn btn--success">Generate PDF</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('pdfGenerationForm');
+    const showBtn = document.getElementById('showSettingsBtn');
+    const modal = document.getElementById('pdfSettingsModal');
+    const cancelBtn = document.getElementById('cancelGeneration');
+    const confirmBtn = document.getElementById('confirmGeneration');
+    const generationTypeSelect = document.getElementById('generation_type');
+
+    showBtn.addEventListener('click', function() {
+        // Validate that generation type is selected
+        if (!generationTypeSelect.value) {
+            generationTypeSelect.focus();
+            return;
+        }
+        // Show modal
+        modal.classList.add('active');
+    });
+
+    cancelBtn.addEventListener('click', function() {
+        modal.classList.remove('active');
+    });
+
+    confirmBtn.addEventListener('click', function() {
+        // Submit the form
+        form.submit();
+    });
+
+    // Close modal on background click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+});
+</script>
 {% endblock %}

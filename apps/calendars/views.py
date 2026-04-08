@@ -209,6 +209,9 @@ class CalendarDetailView(LoginRequiredMixin, DetailView):
         if self.object.is_publicly_shared:
             context['public_share_url'] = self.object.get_public_share_url(self.request)
 
+        # Add PDF settings for confirmation popup
+        context['pdf_settings'] = self.object.get_pdf_settings()
+
         return context
 
     def get_events_by_month(self):
@@ -819,6 +822,10 @@ class GenerateCalendarView(View):
         except Exception as e:
             messages.error(request, f"Error generating calendar: {str(e)}")
 
+        # Redirect back to the referring page, or calendar_detail as fallback
+        referrer = request.META.get('HTTP_REFERER')
+        if referrer:
+            return redirect(referrer)
         return redirect('calendars:calendar_detail', year=year)
 
 
