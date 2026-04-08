@@ -566,36 +566,53 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
             from django.core.files.base import ContentFile
             import os
 
-            # Read the original image
-            with master_event.image.open('rb') as f:
-                image_content = f.read()
+            # Try to read the cropped image (may not exist on disk)
+            try:
+                # Check if file exists before opening
+                if master_event.image.storage.exists(master_event.image.name):
+                    with master_event.image.open('rb') as f:
+                        image_content = f.read()
 
-            # Create a new file with a unique name
-            original_name = os.path.basename(master_event.image.name)
-            name, ext = os.path.splitext(original_name)
-            new_name = f"{name}_{calendar.year}_{calendar_event.id}{ext}"
+                    # Create a new file with a unique name
+                    original_name = os.path.basename(master_event.image.name)
+                    name, ext = os.path.splitext(original_name)
+                    new_name = f"{name}_{calendar.year}_{calendar_event.id}{ext}"
 
-            # Save the image to the calendar event
-            calendar_event.image.save(
-                new_name,
-                ContentFile(image_content),
-                save=True
-            )
+                    # Save the image to the calendar event
+                    calendar_event.image.save(
+                        new_name,
+                        ContentFile(image_content),
+                        save=True
+                    )
+                else:
+                    # Cropped image file missing - will need to re-crop
+                    print(f"Warning: Cropped image missing for {master_event.name}: {master_event.image.name}")
+            except Exception as e:
+                print(f"Error copying cropped image for {master_event.name}: {e}")
 
-            # Also copy the full_image if it exists
-            if master_event.full_image:
-                with master_event.full_image.open('rb') as f:
-                    full_image_content = f.read()
+        # Copy the full_image if it exists (even if cropped image failed)
+        if master_event.full_image:
+            from django.core.files.base import ContentFile
+            import os
 
-                full_original_name = os.path.basename(master_event.full_image.name)
-                full_name, full_ext = os.path.splitext(full_original_name)
-                new_full_name = f"full_{name}_{calendar.year}_{calendar_event.id}{full_ext}"
+            try:
+                if master_event.full_image.storage.exists(master_event.full_image.name):
+                    with master_event.full_image.open('rb') as f:
+                        full_image_content = f.read()
 
-                calendar_event.full_image.save(
-                    new_full_name,
-                    ContentFile(full_image_content),
-                    save=True
-                )
+                    full_original_name = os.path.basename(master_event.full_image.name)
+                    full_name, full_ext = os.path.splitext(full_original_name)
+                    new_full_name = f"full_{master_event.name}_{calendar.year}_{calendar_event.id}{full_ext}"
+
+                    calendar_event.full_image.save(
+                        new_full_name,
+                        ContentFile(full_image_content),
+                        save=True
+                    )
+                else:
+                    print(f"Warning: Full image missing for {master_event.name}: {master_event.full_image.name}")
+            except Exception as e:
+                print(f"Error copying full image for {master_event.name}: {e}")
 
         return calendar_event
 
@@ -623,33 +640,45 @@ class ApplyMasterEventsView(LoginRequiredMixin, View):
 
             # Copy image if master event has one
             if master_event.image:
-                with master_event.image.open('rb') as f:
-                    image_content = f.read()
+                try:
+                    if master_event.image.storage.exists(master_event.image.name):
+                        with master_event.image.open('rb') as f:
+                            image_content = f.read()
 
-                original_name = os.path.basename(master_event.image.name)
-                name, ext = os.path.splitext(original_name)
-                new_name = f"{name}_{calendar.year}_{calendar_event.id}{ext}"
+                        original_name = os.path.basename(master_event.image.name)
+                        name, ext = os.path.splitext(original_name)
+                        new_name = f"{name}_{calendar.year}_{calendar_event.id}{ext}"
 
-                calendar_event.image.save(
-                    new_name,
-                    ContentFile(image_content),
-                    save=True
-                )
+                        calendar_event.image.save(
+                            new_name,
+                            ContentFile(image_content),
+                            save=True
+                        )
+                    else:
+                        print(f"Warning: Cropped image missing for {master_event.name}: {master_event.image.name}")
+                except Exception as e:
+                    print(f"Error copying cropped image for {master_event.name}: {e}")
 
             # Copy full_image if master event has one
             if master_event.full_image:
-                with master_event.full_image.open('rb') as f:
-                    full_image_content = f.read()
+                try:
+                    if master_event.full_image.storage.exists(master_event.full_image.name):
+                        with master_event.full_image.open('rb') as f:
+                            full_image_content = f.read()
 
-                original_name = os.path.basename(master_event.full_image.name)
-                name, ext = os.path.splitext(original_name)
-                new_name = f"full_{name}_{calendar.year}_{calendar_event.id}{ext}"
+                        original_name = os.path.basename(master_event.full_image.name)
+                        name, ext = os.path.splitext(original_name)
+                        new_name = f"full_{name}_{calendar.year}_{calendar_event.id}{ext}"
 
-                calendar_event.full_image.save(
-                    new_name,
-                    ContentFile(full_image_content),
-                    save=True
-                )
+                        calendar_event.full_image.save(
+                            new_name,
+                            ContentFile(full_image_content),
+                            save=True
+                        )
+                    else:
+                        print(f"Warning: Full image missing for {master_event.name}: {master_event.full_image.name}")
+                except Exception as e:
+                    print(f"Error copying full image for {master_event.name}: {e}")
 
             calendar_events.append(calendar_event)
 
