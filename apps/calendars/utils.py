@@ -518,6 +518,8 @@ class CalendarPDFGenerator:
             if text_position == 'below_image':
                 # Text anchored to bottom of cell (spaced from image)
                 table_style.append(('VALIGN', (0, -1), (0, -1), 'BOTTOM'))
+                # Add bottom padding to move text up by ~3 pixels
+                table_style.append(('BOTTOMPADDING', (0, -1), (0, -1), 3))
             elif text_position == 'top_overlay':
                 # Text close to top of image
                 table_style.append(('VALIGN', (0, -1), (0, -1), 'TOP'))
