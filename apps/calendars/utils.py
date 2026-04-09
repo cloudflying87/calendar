@@ -266,9 +266,27 @@ class CalendarPDFGenerator:
                         num_weeks = getattr(self, 'current_month_weeks', 5)
                         multiplier = self.settings_obj.get_image_multiplier()
 
-                        # Apply 95% reduction for 6-week months (slight reduction for better fit)
+                        # For 6-week months, check if text will wrap to determine sizing
                         if num_weeks == 6:
-                            multiplier = multiplier * 0.95
+                            # Get event display name to check text length
+                            if len(events_list) > 1:
+                                display_name = CalendarEvent.get_combined_display_name(
+                                    self.calendar, events_list[0].month, day
+                                )
+                            else:
+                                display_name = event.get_display_name()
+
+                            # Estimate if text will wrap (same logic as text sizing)
+                            optimal_font_size = self.get_optimal_font_size(display_name, 15)
+                            estimated_text_width = len(display_name) * 0.6 * optimal_font_size
+                            available_width = 97
+
+                            # If text will wrap to 2+ lines, use 80% for image too
+                            if estimated_text_width > available_width:
+                                multiplier = multiplier * 0.8
+                            else:
+                                # Single line text: use 95%
+                                multiplier = multiplier * 0.95
 
                         # Base dimensions for each week count
                         base_dimensions = {
