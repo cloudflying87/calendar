@@ -276,14 +276,12 @@ class CalendarPDFGenerator:
                             else:
                                 display_name = event.get_display_name()
 
-                            # Estimate if text will wrap (same logic as text sizing)
-                            optimal_font_size = self.get_optimal_font_size(display_name, 15)
-                            # Use 0.4 multiplier for italic font (more accurate than 0.6)
-                            estimated_text_width = len(display_name) * 0.4 * optimal_font_size
-                            available_width = 120  # Threshold for wrapping detection
+                            # Simple character count threshold for wrapping detection
+                            # Texts longer than 30 characters typically wrap to 2 lines
+                            text_length = len(display_name)
 
                             # If text will wrap to 2+ lines, use 80% for image too
-                            if estimated_text_width > available_width:
+                            if text_length > 30:
                                 multiplier = multiplier * 0.8
                             else:
                                 # Single line text: use 95%
@@ -433,15 +431,12 @@ class CalendarPDFGenerator:
             num_weeks = getattr(self, 'current_month_weeks', 5)
             text_padding = self.settings_obj.get_padding(num_weeks)['text']
 
-            # For 6-week months, estimate if text will wrap to multiple lines
+            # For 6-week months, use character count to determine text wrapping
             if num_weeks == 6:
-                # Estimate text width: average 0.4 * font_size per character for italic
-                estimated_text_width = len(display_name) * 0.4 * font_size
-                # Threshold for wrapping detection
-                available_width = 120
+                text_length = len(display_name)
 
-                # If text will wrap to 2+ lines, use 80% reduction
-                if estimated_text_width > available_width:
+                # If text will wrap to 2+ lines (>30 chars), use 80% reduction
+                if text_length > 30:
                     font_size = font_size * 0.8
                     text_padding = text_padding * 0.8
                 else:
