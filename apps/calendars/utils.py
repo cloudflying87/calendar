@@ -280,7 +280,7 @@ class CalendarPDFGenerator:
                             optimal_font_size = self.get_optimal_font_size(display_name, 15)
                             # Use 0.4 multiplier for italic font (more accurate than 0.6)
                             estimated_text_width = len(display_name) * 0.4 * optimal_font_size
-                            available_width = 130  # Increased to be more conservative
+                            available_width = 120  # Threshold for wrapping detection
 
                             # If text will wrap to 2+ lines, use 80% for image too
                             if estimated_text_width > available_width:
@@ -437,8 +437,8 @@ class CalendarPDFGenerator:
             if num_weeks == 6:
                 # Estimate text width: average 0.4 * font_size per character for italic
                 estimated_text_width = len(display_name) * 0.4 * font_size
-                # Available width increased to be more conservative
-                available_width = 130
+                # Threshold for wrapping detection
+                available_width = 120
 
                 # If text will wrap to 2+ lines, use 80% reduction
                 if estimated_text_width > available_width:
