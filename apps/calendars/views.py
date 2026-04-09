@@ -1595,10 +1595,16 @@ class DeleteGeneratedPDFView(View):
             except OSError:
                 pass  # File might already be deleted
 
+        calendar_id = generated_pdf.calendar.id
         generated_pdf.delete()
 
         messages.success(request, f"Generated PDF '{generation_type}' deleted successfully.")
-        return redirect('calendars:calendar_detail', year=calendar_year)
+
+        # Redirect back to the referring page, or calendar detail as fallback
+        referrer = request.META.get('HTTP_REFERER')
+        if referrer:
+            return redirect(referrer)
+        return redirect('calendars:calendar_detail_by_id', calendar_id=calendar_id)
 
 
 @method_decorator(login_required, name='dispatch')
