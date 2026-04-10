@@ -763,12 +763,14 @@ class CalendarEvent(models.Model):
         return date(self.calendar.year, self.month, self.day)
 
     def get_display_name(self):
-        """Get display name considering master event with year calculation"""
+        """Get display name with priority: combined_events > event_name > master_event"""
         if self.combined_events:
             return self.combined_events
+        if self.event_name:
+            return self.event_name
         if self.master_event:
             return self.master_event.get_display_name(for_year=self.calendar.year, user=self.calendar.user)
-        return self.event_name
+        return ""
 
     @classmethod
     def get_events_for_date(cls, calendar, month, day):
