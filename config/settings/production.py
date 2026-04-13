@@ -110,12 +110,6 @@ if USE_R2_STORAGE:
     # No local static/media roots when using R2
     STATIC_ROOT = None
     MEDIA_ROOT = None
-
-    # Silence boto3 logging
-    LOGGING['loggers']['boto3'] = {'level': 'WARNING'}
-    LOGGING['loggers']['botocore'] = {'level': 'WARNING'}
-    LOGGING['loggers']['s3transfer'] = {'level': 'WARNING'}
-    LOGGING['loggers']['urllib3'] = {'level': 'WARNING'}
 else:
     # Fallback to local file storage
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -206,6 +200,13 @@ LOGGING['loggers'] = {
         'propagate': False,
     },
 }
+
+# Silence boto3 logging if using R2 storage
+if USE_R2_STORAGE:
+    LOGGING['loggers']['boto3'] = {'level': 'WARNING', 'handlers': ['console'], 'propagate': False}
+    LOGGING['loggers']['botocore'] = {'level': 'WARNING', 'handlers': ['console'], 'propagate': False}
+    LOGGING['loggers']['s3transfer'] = {'level': 'WARNING', 'handlers': ['console'], 'propagate': False}
+    LOGGING['loggers']['urllib3'] = {'level': 'WARNING', 'handlers': ['console'], 'propagate': False}
 
 # Additional production apps
 if config('USE_CELERY', default=False, cast=bool):
