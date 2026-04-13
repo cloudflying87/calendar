@@ -3,6 +3,7 @@ Production settings for calendar-builder
 """
 
 from .base import *
+from urllib.parse import urlparse
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -32,11 +33,93 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
 
-# Static files served by WhiteNoise in production
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# ============================================================================
+# DATABASE - Remote PostgreSQL (if DATABASE_URL is set)
+# ============================================================================
 
-# Media files - use persistent storage that survives rebuilds
-MEDIA_ROOT = BASE_DIR / 'persistent_media'
+db_url = config('DATABASE_URL', default=None)
+if db_url:
+    parsed = urlparse(db_url)
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': parsed.path[1:],
+            'USER': parsed.username,
+            'PASSWORD': parsed.password,
+            'HOST': parsed.hostname,
+            'PORT': parsed.port or 5432,
+            'CONN_MAX_AGE': 60,
+            'OPTIONS': {
+                'connect_timeout': 10,
+            }
+        }
+    }
+else:
+    # Fallback to local database from .env
+    DATABASES['default'].update({
+        'CONN_MAX_AGE': 60,
+        'OPTIONS': {
+            'connect_timeout': 10,
+        }
+    })
+
+# ============================================================================
+# STATIC AND MEDIA FILES - Cloudflare R2 CDN (if R2 is configured)
+# ============================================================================
+
+# Check if R2 is configured
+USE_R2_STORAGE = all([
+    config('R2_ACCESS_KEY_ID', default=None),
+    config('R2_SECRET_ACCESS_KEY', default=None),
+    config('R2_BUCKET_NAME', default=None),
+    config('R2_ENDPOINT_URL', default=None),
+    config('R2_PUBLIC_DOMAIN', default=None),
+])
+
+if USE_R2_STORAGE:
+    # Use R2 for both static and media files
+    STORAGES = {
+        "default": {
+            "BACKEND": "config.storage.MediaStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "config.storage.StaticStorage",
+        },
+    }
+
+    # R2 Configuration (S3-compatible)
+    AWS_ACCESS_KEY_ID = config('R2_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('R2_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('R2_BUCKET_NAME')
+    AWS_S3_ENDPOINT_URL = config('R2_ENDPOINT_URL')
+    AWS_S3_CUSTOM_DOMAIN = config('R2_PUBLIC_DOMAIN')
+
+    # R2 Settings
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=31536000',
+    }
+
+    # URLs
+    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+
+    # No local static/media roots when using R2
+    STATIC_ROOT = None
+    MEDIA_ROOT = None
+
+    # Silence boto3 logging
+    LOGGING['loggers']['boto3'] = {'level': 'WARNING'}
+    LOGGING['loggers']['botocore'] = {'level': 'WARNING'}
+    LOGGING['loggers']['s3transfer'] = {'level': 'WARNING'}
+    LOGGING['loggers']['urllib3'] = {'level': 'WARNING'}
+else:
+    # Fallback to local file storage
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    MEDIA_ROOT = BASE_DIR / 'persistent_media'
 
 # Cache settings for production
 CACHES = {
@@ -83,13 +166,7 @@ if SENTRY_DSN:
         environment=config('ENVIRONMENT', default='production'),
     )
 
-# Database optimizations for production
-DATABASES['default'].update({
-    'CONN_MAX_AGE': 60,
-    'OPTIONS': {
-        'connect_timeout': 10,
-    }
-})
+# Database optimizations handled above in DATABASE configuration
 
 # Production logging - more verbose for debugging
 LOGGING['handlers']['console']['level'] = 'INFO'
