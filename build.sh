@@ -58,11 +58,11 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 # Load environment
-if [ -f ./.env.prod ]; then
+if [ -f ./.env ]; then
     set -a
-    source ./.env.prod
+    source ./.env
     set +a
-    echo -e "${GREEN}✓ Loaded .env.prod${NC}"
+    echo -e "${GREEN}✓ Loaded .env${NC}"
 else
     echo -e "${RED}✗ ERROR: .env.prod not found!${NC}"
     exit 1
