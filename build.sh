@@ -64,7 +64,7 @@ if [ -f ./.env ]; then
     set +a
     echo -e "${GREEN}✓ Loaded .env${NC}"
 else
-    echo -e "${RED}✗ ERROR: .env.prod not found!${NC}"
+    echo -e "${RED}✗ ERROR: .env not found!${NC}"
     exit 1
 fi
 
@@ -84,7 +84,7 @@ echo ""
 echo -e "${YELLOW}Checking R2 configuration...${NC}"
 if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_BUCKET_NAME" ]; then
     echo -e "${RED}✗ ERROR: R2 credentials not configured!${NC}"
-    echo -e "${RED}  Make sure R2_* variables are set in .env.prod${NC}"
+    echo -e "${RED}  Make sure R2_* variables are set in .env${NC}"
     exit 1
 fi
 echo -e "${GREEN}✓ R2 bucket: $R2_BUCKET_NAME${NC}"
