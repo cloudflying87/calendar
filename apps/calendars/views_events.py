@@ -171,9 +171,8 @@ class MasterEventRemoveImageView(LoginRequiredMixin, View):
         # Delete the image file
         if event.image:
             try:
-                if os.path.exists(event.image.path):
-                    os.remove(event.image.path)
-            except OSError:
+                event.image.delete(save=False)
+            except Exception:
                 pass
 
         # Clear the image field

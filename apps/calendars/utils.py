@@ -238,26 +238,34 @@ class CalendarPDFGenerator:
             # Use combined image if created, otherwise use first event's image
             if combined_img_path:
                 event = events_list[0]  # For metadata
-                event_image_path = combined_img_path
+                event_image_source = combined_img_path  # local path string
                 is_combined = True
             else:
                 # Fall back to first event with image
                 event = next((e for e in events_list if e.image), events_list[0])
-                event_image_path = event.image.path if event.image else None
+                event_image_source = event.image if event.image else None  # FieldFile
                 is_combined = False
         else:
             # Single event
             event = events_list[0]
-            event_image_path = event.image.path if event.image else None
+            event_image_source = event.image if event.image else None  # FieldFile
             is_combined = False
 
         # Add image first (as background)
-        if event_image_path:
+        if event_image_source:
             try:
-                img_path = event_image_path
-                if os.path.exists(img_path):
-                    # Process image for PDF
-                    with Image.open(img_path) as img:
+                # Load image bytes from either a local path or storage (R2/S3)
+                if isinstance(event_image_source, str):
+                    if not os.path.exists(event_image_source):
+                        raise FileNotFoundError(f"Combined image not found: {event_image_source}")
+                    with open(event_image_source, 'rb') as _f:
+                        _img_bytes = _f.read()
+                else:
+                    with event_image_source.open('rb') as _f:
+                        _img_bytes = _f.read()
+
+                if _img_bytes:
+                    with Image.open(io.BytesIO(_img_bytes)) as img:
                         # Convert to RGB if necessary
                         if img.mode in ('RGBA', 'LA', 'P'):
                             img = img.convert('RGB')
@@ -561,8 +569,8 @@ class CalendarPDFGenerator:
             writer = PdfWriter()
 
             # Read header document (complete 14-page document)
-            with open(header.document.path, 'rb') as header_file:
-                header_reader = PdfReader(header_file)
+            with header.document.open('rb') as header_file:
+                header_reader = PdfReader(io.BytesIO(header_file.read()))
 
                 # Read calendar PDF (our 12 month pages)
                 calendar_content = io.BytesIO(calendar_pdf.read())
@@ -625,8 +633,8 @@ class CalendarPDFGenerator:
             story = []
 
             # Read header document
-            with open(header.document.path, 'rb') as header_file:
-                header_reader = PdfReader(header_file)
+            with header.document.open('rb') as header_file:
+                header_reader = PdfReader(io.BytesIO(header_file.read()))
 
                 for month in range(1, 13):
                     # Create spread for this month

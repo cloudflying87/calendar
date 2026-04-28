@@ -111,17 +111,18 @@ class CalendarCreateView(LoginRequiredMixin, CreateView):
             )
 
             # Copy image if it exists
-            if event.image and os.path.exists(event.image.path):
-                with open(event.image.path, 'rb') as f:
-                    image_content = f.read()
-
-                # Create new file with updated path
-                new_filename = f"copy_{event.original_filename}" if event.original_filename else f"copy_{event.image.name}"
-                new_event.image.save(
-                    new_filename,
-                    ContentFile(image_content),
-                    save=False
-                )
+            if event.image:
+                try:
+                    with event.image.open('rb') as f:
+                        image_content = f.read()
+                    new_filename = f"copy_{event.original_filename}" if event.original_filename else f"copy_{os.path.basename(event.image.name)}"
+                    new_event.image.save(
+                        new_filename,
+                        ContentFile(image_content),
+                        save=False
+                    )
+                except Exception:
+                    pass
 
             new_event.save()
             copied_count += 1
@@ -899,9 +900,9 @@ class DownloadCalendarView(View):
                 generation_type=generation_type
             ).latest('created_at')
 
-            if os.path.exists(generated_calendar.pdf_file.path):
+            if generated_calendar.pdf_file and generated_calendar.pdf_file.storage.exists(generated_calendar.pdf_file.name):
                 return FileResponse(
-                    open(generated_calendar.pdf_file.path, 'rb'),
+                    generated_calendar.pdf_file.open('rb'),
                     as_attachment=True,
                     filename=f"calendar_{year}_{generation_type}.pdf"
                 )
@@ -920,18 +921,16 @@ class DownloadCalendarByIdView(View):
         generated_calendar = get_object_or_404(GeneratedCalendar, id=pdf_id, calendar__user=request.user)
 
         try:
-            if os.path.exists(generated_calendar.pdf_file.path):
-                # Create filename based on name if available
+            if generated_calendar.pdf_file and generated_calendar.pdf_file.storage.exists(generated_calendar.pdf_file.name):
                 if generated_calendar.name:
                     filename = f"{generated_calendar.name}.pdf"
                 else:
                     filename = f"calendar_{generated_calendar.calendar.year}_{generated_calendar.generation_type}.pdf"
 
-                # Replace unsafe characters in filename
                 filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).strip()
 
                 return FileResponse(
-                    open(generated_calendar.pdf_file.path, 'rb'),
+                    generated_calendar.pdf_file.open('rb'),
                     as_attachment=True,
                     filename=filename
                 )
@@ -1589,11 +1588,11 @@ class DeleteGeneratedPDFView(View):
         generation_type = generated_pdf.get_generation_type_display()
 
         # Delete the PDF file and record
-        if generated_pdf.pdf_file and os.path.exists(generated_pdf.pdf_file.path):
+        if generated_pdf.pdf_file:
             try:
-                os.remove(generated_pdf.pdf_file.path)
-            except OSError:
-                pass  # File might already be deleted
+                generated_pdf.pdf_file.delete(save=False)
+            except Exception:
+                pass
 
         calendar_id = generated_pdf.calendar.id
         generated_pdf.delete()
@@ -1704,14 +1703,13 @@ class DownloadAllPhotosView(View):
                 current_month = None
 
                 for event in events_with_images:
-                    if event.image and os.path.exists(event.image.path):
-                        # Create safe filename (flattened - no folders)
+                    if event.image and event.image.storage.exists(event.image.name):
                         event_name_safe = slugify(event.event_name)
                         original_ext = os.path.splitext(event.original_filename)[1] if event.original_filename else '.jpg'
                         filename = f"{event.month:02d}{event.day:02d}_{event_name_safe}{original_ext}"
 
-                        # Add photo directly to zip root (no folders)
-                        zip_file.write(event.image.path, filename)
+                        with event.image.open('rb') as img_f:
+                            zip_file.writestr(filename, img_f.read())
 
                         # Track for CSV data
                         master_event_name = event.master_event.name if event.master_event else ""
@@ -1966,9 +1964,8 @@ class RemoveEventPhotoView(View):
         # Delete the image file
         if event.image:
             try:
-                if os.path.exists(event.image.path):
-                    os.remove(event.image.path)
-            except OSError:
+                event.image.delete(save=False)
+            except Exception:
                 pass
 
         # Clear the image field
@@ -2124,9 +2121,8 @@ class ProcessMultiCropView(View):
                 # Delete old image if exists
                 if event.image:
                     try:
-                        if os.path.exists(event.image.path):
-                            os.remove(event.image.path)
-                    except OSError:
+                        event.image.delete(save=False)
+                    except Exception:
                         pass
 
             # Save new image to event
@@ -2233,25 +2229,34 @@ class TempImageView(View):
         temp_path = temp_tokens.get(token)
 
         # If not found in regular tokens, check master event tokens
+        r2_temp_path = None
         if not temp_path:
             temp_filename = master_event_tokens.get(token)
             if temp_filename:
-                from django.core.files.storage import default_storage
-                temp_path = default_storage.path(f"temp/{temp_filename}")
+                r2_temp_path = f"temp/{temp_filename}"
 
-        if not temp_path or not os.path.exists(temp_path):
+        if not temp_path and not r2_temp_path:
             raise Http404("Temporary image not found")
 
         try:
             # Open and serve the image file
-            with open(temp_path, 'rb') as f:
-                image_data = f.read()
+            if temp_path:
+                if not os.path.exists(temp_path):
+                    raise Http404("Temporary image not found")
+                with open(temp_path, 'rb') as f:
+                    image_data = f.read()
+            else:
+                from django.core.files.storage import default_storage
+                if not default_storage.exists(r2_temp_path):
+                    raise Http404("Temporary image not found")
+                with default_storage.open(r2_temp_path, 'rb') as f:
+                    image_data = f.read()
 
             # Determine content type based on file extension
             import mimetypes
-            content_type, _ = mimetypes.guess_type(temp_path)
+            content_type, _ = mimetypes.guess_type(temp_path or r2_temp_path)
             if not content_type or not content_type.startswith('image/'):
-                content_type = 'image/jpeg'  # Default fallback
+                content_type = 'image/jpeg'
 
             response = HttpResponse(image_data, content_type=content_type)
             response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -2799,39 +2804,34 @@ class CalendarHeaderImagesView(LoginRequiredMixin, TemplateView):
         import os
 
         try:
-            # Open the current image
-            image_path = header_image.image.path
-            with Image.open(image_path) as img:
-                # Convert to RGB if necessary (for JPEG compatibility)
-                if img.mode in ('RGBA', 'LA', 'P'):
-                    img = img.convert('RGB')
+            with header_image.image.open('rb') as _f:
+                img = Image.open(_f)
+                img.load()
 
-                # Apply transformation
-                if action == 'rotate':
-                    degrees = kwargs.get('degrees', 0)
-                    if degrees in [90, 180, 270]:
-                        img = img.rotate(-degrees, expand=True)  # Negative for clockwise rotation
-                elif action == 'flip':
-                    direction = kwargs.get('direction', 'horizontal')
-                    if direction == 'horizontal':
-                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                    elif direction == 'vertical':
-                        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img = img.convert('RGB')
 
-                # Save transformed image
-                img_io = BytesIO()
-                img.save(img_io, format='JPEG', quality=95)
-                img_io.seek(0)
+            if action == 'rotate':
+                degrees = kwargs.get('degrees', 0)
+                if degrees in [90, 180, 270]:
+                    img = img.rotate(-degrees, expand=True)
+            elif action == 'flip':
+                direction = kwargs.get('direction', 'horizontal')
+                if direction == 'horizontal':
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                elif direction == 'vertical':
+                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
 
-                # Get original filename
-                original_name = os.path.basename(header_image.image.name)
+            img_io = BytesIO()
+            img.save(img_io, format='JPEG', quality=95)
+            img_io.seek(0)
 
-                # Save back to the same field
-                header_image.image.save(
-                    original_name,
-                    ContentFile(img_io.getvalue()),
-                    save=True
-                )
+            original_name = os.path.basename(header_image.image.name)
+            header_image.image.save(
+                original_name,
+                ContentFile(img_io.getvalue()),
+                save=True
+            )
 
         except Exception as e:
             raise Exception(f'Failed to transform image: {str(e)}')
