@@ -1,26 +1,4 @@
-
 services:
-  db:
-    image: postgres:15
-    restart: always
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    env_file:
-      - ./.env
-    ports:
-      - "5440:5432"  # External port to avoid conflicts
-    networks:
-      - app_network
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d ${DB_NAME} -U ${DB_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   web:
     build:
       context: ./
@@ -34,17 +12,9 @@ services:
           - type=local,dest=/tmp/.buildx-cache
     restart: always
     volumes:
-      # Persistent volumes that survive rebuilds
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
       - log_volume:/app/logs
-      # Persistent media storage (survives rebuilds)
-      - ./persistent_media:/app/persistent_media
-    depends_on:
-      db:
-        condition: service_healthy
     env_file:
-      - ./.env
+      - ./.env.prod
     environment:
       - DATABASE_CHECK=1
       - DJANGO_SETTINGS_MODULE=config.settings.production
@@ -62,13 +32,6 @@ services:
     restart: always
     ports:
       - "16293:80"
-    volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-      # Persistent media storage (survives rebuilds) 
-      - ./persistent_media:/app/persistent_media
-      # SSL certificates if using local SSL
-      - ./ssl:/etc/ssl/certs:ro
     depends_on:
       web:
         condition: service_healthy
@@ -80,14 +43,7 @@ services:
       timeout: 10s
       retries: 3
 
-
 volumes:
-  postgres_data:
-    driver: local
-  static_volume:
-    driver: local
-  media_volume:
-    driver: local
   log_volume:
     driver: local
 
