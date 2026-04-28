@@ -12,7 +12,7 @@ from django.core.files.storage import default_storage
 from django.db.models import Q
 from apps.calendars.models import (
     CalendarEvent, CalendarHeader, GeneratedCalendar,
-    CalendarHoliday, EventMaster,
+    Holiday, EventMaster,
 )
 
 try:
@@ -53,7 +53,7 @@ def _collect_db_files():
     for obj in GeneratedCalendar.objects.exclude(Q(pdf_file='') | Q(pdf_file=None)):
         names.add(obj.pdf_file.name)
 
-    for obj in CalendarHoliday.objects.exclude(Q(image='') | Q(image=None)):
+    for obj in Holiday.objects.exclude(Q(image='') | Q(image=None)):
         names.add(obj.image.name)
 
     if HAS_HEADER_IMAGE:
