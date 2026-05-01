@@ -336,25 +336,96 @@ class CalendarEditForm(forms.Form):
 class MasterEventForm(forms.ModelForm):
     """Form for creating and editing master events"""
 
-    # Override month and day fields to use Select widgets with choices
-    MONTH_CHOICES = [(i, calendar.month_name[i]) for i in range(1, 13)]
-    DAY_CHOICES = [(i, str(i)) for i in range(1, 32)]
-
-    month = forms.ChoiceField(
-        choices=MONTH_CHOICES,
-        widget=forms.Select(attrs={
+    # Single date input replaces the separate month/day dropdowns
+    date = forms.CharField(
+        label='Date',
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'id': 'id_month'
-        })
+            'placeholder': 'MM/DD or MM/DD/YYYY',
+            'id': 'id_date',
+            'autocomplete': 'off',
+            'maxlength': '10',
+        }),
     )
 
-    day = forms.ChoiceField(
-        choices=DAY_CHOICES,
-        widget=forms.Select(attrs={
-            'class': 'form-control',
-            'id': 'id_day'
-        })
+    # Hidden fields — populated from the date field in clean()
+    month = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    day = forms.IntegerField(required=False, widget=forms.HiddenInput())
+
+    # Group multi-select — choices populated in __init__ from user's EventGroups
+    group_names = forms.MultipleChoiceField(
+        label='Groups',
+        required=False,
+        choices=[],
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'group-checkbox-list'}),
     )
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        # Default event type to birthday for new events
+        if not self.instance.pk:
+            self.fields['event_type'].initial = 'birthday'
+
+        # Pre-populate date field from existing instance
+        if self.instance.pk and self.instance.month and self.instance.day:
+            self.fields['date'].initial = f"{self.instance.month:02d}/{self.instance.day:02d}"
+
+        # Populate group choices from the user's EventGroups
+        if user:
+            from .models import EventGroup
+            group_names = list(
+                EventGroup.objects.filter(user=user).values_list('name', flat=True).order_by('name')
+            )
+            self.fields['group_names'].choices = [(name, name) for name in group_names]
+            # Pre-select groups that match existing EventGroup names
+            if self.instance.pk and self.instance.groups:
+                current = [g.strip() for g in self.instance.groups.split(',') if g.strip()]
+                self.fields['group_names'].initial = [g for g in current if g in group_names]
+
+    def clean_date(self):
+        date_str = self.cleaned_data.get('date', '').strip()
+        if not date_str:
+            raise forms.ValidationError("Date is required.")
+
+        parts = date_str.replace('-', '/').split('/')
+        try:
+            if len(parts) == 2:
+                month, day, year = int(parts[0]), int(parts[1]), None
+            elif len(parts) == 3:
+                month, day, year = int(parts[0]), int(parts[1]), int(parts[2])
+            else:
+                raise ValueError
+        except ValueError:
+            raise forms.ValidationError("Enter date as MM/DD or MM/DD/YYYY.")
+
+        if not (1 <= month <= 12):
+            raise forms.ValidationError("Month must be between 1 and 12.")
+        if not (1 <= day <= 31):
+            raise forms.ValidationError("Day must be between 1 and 31.")
+        if year is not None and not (1900 <= year <= 2100):
+            raise forms.ValidationError("Year must be between 1900 and 2100.")
+
+        return {'month': month, 'day': day, 'year': year}
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        # Populate month/day from the parsed date field
+        date_data = cleaned_data.get('date')
+        if date_data and isinstance(date_data, dict):
+            cleaned_data['month'] = date_data['month']
+            cleaned_data['day'] = date_data['day']
+            # Auto-fill year_occurred from the date if not already entered
+            if date_data['year'] and not cleaned_data.get('year_occurred'):
+                cleaned_data['year_occurred'] = date_data['year']
+
+        # Convert selected group checkboxes to comma-separated string
+        group_names = cleaned_data.pop('group_names', [])
+        cleaned_data['groups'] = ', '.join(group_names) if group_names else ''
+
+        return cleaned_data
 
     class Meta:
         model = EventMaster
@@ -376,11 +447,7 @@ class MasterEventForm(forms.ModelForm):
                 'max': 2100,
                 'id': 'id_year_occurred'
             }),
-            'groups': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'e.g., Family, Birthdays, Important',
-                'id': 'id_groups'
-            }),
+            'groups': forms.HiddenInput(attrs={'id': 'id_groups'}),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
@@ -391,7 +458,7 @@ class MasterEventForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': 'image/*',
                 'id': 'id_image',
-                'style': 'display: none;'  # Hidden as we use custom UI
+                'style': 'display: none;'
             })
         }
 

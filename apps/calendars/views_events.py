@@ -64,6 +64,11 @@ class MasterEventCreateView(LoginRequiredMixin, CreateView):
         from .forms import MasterEventForm
         return MasterEventForm
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, 'Master event created successfully!')
@@ -85,11 +90,15 @@ class MasterEventUpdateView(LoginRequiredMixin, UpdateView):
         from .forms import MasterEventForm
         return MasterEventForm
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
     def get_queryset(self):
         return EventMaster.objects.filter(user=self.request.user)
 
     def get_success_url(self):
-        # Preserve the page parameter from the request
         page = self.request.GET.get('page') or self.request.POST.get('page')
         if page:
             return f"{reverse('calendars:master_events')}?page={page}"

@@ -48,23 +48,16 @@
             {% endif %}
         </div>
 
-        <div class="form-row">
-            <div class="form-group">
-                <label for="{{ form.month.id_for_label }}">Month</label>
-                {{ form.month }}
-                {% if form.month.errors %}
-                    <div class="form-errors">{{ form.month.errors }}</div>
-                {% endif %}
-            </div>
-
-            <div class="form-group">
-                <label for="{{ form.day.id_for_label }}">Day</label>
-                {{ form.day }}
-                {% if form.day.errors %}
-                    <div class="form-errors">{{ form.day.errors }}</div>
-                {% endif %}
-            </div>
+        <div class="form-group">
+            <label for="{{ form.date.id_for_label }}">Date</label>
+            {{ form.date }}
+            <small class="form-help">MM/DD &mdash; e.g. 03/15 &nbsp;|&nbsp; Or include year: 03/15/1990</small>
+            {% if form.date.errors %}
+                <div class="form-errors">{{ form.date.errors }}</div>
+            {% endif %}
         </div>
+        {{ form.month }}
+        {{ form.day }}
 
         <div class="form-group">
             <label for="{{ form.year_occurred.id_for_label }}">Year (Optional)</label>
@@ -78,21 +71,23 @@
         </div>
 
         <div class="form-group">
-            <label for="{{ form.groups.id_for_label }}">Groups</label>
-            {{ form.groups }}
-            {% if form.groups.help_text %}
-                <small class="form-help">Comma-separated list (e.g., "Family, Birthdays, Important")</small>
-            {% endif %}
-            {% if form.groups.errors %}
-                <div class="form-errors">{{ form.groups.errors }}</div>
-            {% endif %}
-            {% if groups %}
-                <div class="form-help">
-                    <strong>Existing groups:</strong>
-                    {% for group in groups %}
-                        <span class="tag">{{ group.name }}</span>
+            <label>Groups</label>
+            {% if form.group_names.field.choices %}
+                <div class="group-checkbox-grid">
+                    {% for value, label in form.group_names.field.choices %}
+                        <label class="group-checkbox-item">
+                            <input type="checkbox" name="group_names" value="{{ value }}"
+                                {% if value in form.group_names.value %}checked{% endif %}>
+                            <span>{{ label }}</span>
+                        </label>
                     {% endfor %}
                 </div>
+            {% else %}
+                <p class="form-help">No groups yet. <a href="{% url 'calendars:event_groups' %}">Create groups</a> to organize your events.</p>
+            {% endif %}
+            {{ form.groups }}
+            {% if form.group_names.errors %}
+                <div class="form-errors">{{ form.group_names.errors }}</div>
             {% endif %}
         </div>
 
@@ -153,6 +148,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const eventTypeField = document.getElementById('id_event_type');
     const yearField = document.getElementById('id_year_occurred');
     const nameLabel = document.querySelector('label[for="id_name"]');
+
+    // Auto-format date field: insert slashes as user types
+    const dateField = document.getElementById('id_date');
+    if (dateField) {
+        dateField.addEventListener('input', function(e) {
+            let val = e.target.value.replace(/[^\d]/g, '');
+            if (val.length >= 3 && val.length <= 4) {
+                val = val.slice(0, 2) + '/' + val.slice(2);
+            } else if (val.length >= 5) {
+                val = val.slice(0, 2) + '/' + val.slice(2, 4) + (val.length > 4 ? '/' + val.slice(4, 8) : '');
+            }
+            e.target.value = val;
+        });
+    }
 
     function updateFormBasedOnType() {
         const eventType = eventTypeField.value;
@@ -222,6 +231,45 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+.group-checkbox-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.group-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--color-border, #d1d5db);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    background: #f9fafb;
+    transition: background 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.group-checkbox-item:hover {
+    border-color: var(--color-primary, #2563eb);
+    background: #eff6ff;
+}
+
+.group-checkbox-item input[type="checkbox"] {
+    accent-color: var(--color-primary, #2563eb);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.group-checkbox-item:has(input:checked) {
+    background: #dbeafe;
+    border-color: var(--color-primary, #2563eb);
+    font-weight: 500;
+}
+
 .photo-container {
     display: flex;
     flex-direction: column;
